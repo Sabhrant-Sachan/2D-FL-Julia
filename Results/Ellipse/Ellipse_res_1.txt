@@ -1,0 +1,816 @@
+================ FractionalLaplace2D ================
+
+----------- Domain -----------
+ellipse with properties:
+  (A , B )  = (0.0,0.0)
+  (R₁, R₂)  = (1.0,2.0)
+  (L₁, L₂)  = (2.0,0.8)
+  (cos,sin) = (1.0,0.0)
+  No. of holes   = 0
+  kd     = Int[1 2 3 4]
+  Npat   = 5
+  pths   = Vector{Patch} (5 patches)
+  Qpts   = 8×5 Matrix
+  Qptsbd = 8×4 Matrix
+
+
+----------- Parameters -----------
+N=3, nₚᵣ=32, s=0.75, p=4, δ=0.1, δclsbd=0.01
+
+----------- System -----------
+Target points (Vars.) : 57
+Precomputation points : 83
+Near-singular  points : 26
+Cond. num 2-norm: 19.951349
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 1.88e-02
+Max Rel err : 6.21e-02
+L^2 error   : 4.20e-02
+Root MSE err: 6.25e-03
+
+----------- Benchmark -----------
+BenchmarkTools.Trial: 4 samples with 1 evaluation per sample.
+ Range (min … max):  190.537 ms … 198.208 ms  ┊ GC (min … max): 0.00% … 0.00%
+ Time  (median):     194.643 ms               ┊ GC (median):    0.00%
+ Time  (mean ± σ):   194.508 ms ±   3.617 ms  ┊ GC (mean ± σ):  0.00% ± 0.00%
+
+  █              █                                  █         █  
+  █▁▁▁▁▁▁▁▁▁▁▁▁▁▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█▁▁▁▁▁▁▁▁▁█ ▁
+  191 ms           Histogram: frequency by time          198 ms <
+
+ Memory estimate: 3.30 MiB, allocs estimate: 740.
+=====================================================
+
+================ FractionalLaplace2D ================
+
+----------- Domain -----------
+ellipse with properties:
+  (A , B )  = (0.0,0.0)
+  (R₁, R₂)  = (1.0,2.0)
+  (L₁, L₂)  = (2.0,0.8)
+  (cos,sin) = (1.0,0.0)
+  No. of holes   = 0
+  kd     = Int[1 2 3 4]
+  Npat   = 5
+  pths   = Vector{Patch} (5 patches)
+  Qpts   = 8×5 Matrix
+  Qptsbd = 8×4 Matrix
+
+
+----------- Parameters -----------
+N=4, nₚᵣ=32, s=0.75, p=4, δ=0.1, δclsbd=0.01
+
+----------- System -----------
+Target points (Vars.) : 96
+Precomputation points : 168
+Near-singular  points : 72
+Cond. num 2-norm: 27.419825
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 8.93e-03
+Max Rel err : 3.40e-02
+L^2 error   : 3.52e-02
+Root MSE err: 3.94e-03
+
+----------- Benchmark -----------
+BenchmarkTools.Trial: 4 samples with 1 evaluation per sample.    
+ Range (min … max):  413.787 ms … 444.082 ms  ┊ GC (min … max): 0.00% … 0.00%
+ Time  (median):     428.583 ms               ┊ GC (median):    0.00%
+ Time  (mean ± σ):   428.759 ms ±  12.793 ms  ┊ GC (mean ± σ):  0.00% ± 0.00%
+
+  █                    █               █                      █  
+  █▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█ ▁
+  414 ms           Histogram: frequency by time          444 ms <
+
+ Memory estimate: 3.44 MiB, allocs estimate: 742.
+=====================================================
+
+================ FractionalLaplace2D ================
+
+----------- Domain -----------
+ellipse with properties:
+  (A , B )  = (0.0,0.0)
+  (R₁, R₂)  = (1.0,2.0)
+  (L₁, L₂)  = (2.0,0.8)
+  (cos,sin) = (1.0,0.0)
+  No. of holes   = 0
+  kd     = Int[1 2 3 4]
+  Npat   = 5
+  pths   = Vector{Patch} (5 patches)
+  Qpts   = 8×5 Matrix
+  Qptsbd = 8×4 Matrix
+
+
+----------- Parameters -----------
+N=5, nₚᵣ=32, s=0.75, p=4, δ=0.1, δclsbd=0.01
+
+----------- System -----------
+Target points (Vars.) : 145
+Precomputation points : 237
+Near-singular  points : 92
+Cond. num 2-norm: 35.035678
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 1.50e-03
+Max Rel err : 4.95e-03
+L^2 error   : 5.34e-03
+Root MSE err: 4.78e-04
+
+ Time  (mean ± σ):   665.419 ms ±  57.846 ms  ┊ GC (mean ± σ):  0.00% ± 0.00%     
+
+  ▁     █                                                     ▁
+  █▁▁▁▁▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█ ▁
+ Time  (mean ± σ):   665.419 ms ±  57.846 ms  ┊ GC (mean ± σ):  0.00% ± 0.00%    
+
+  ▁     █                                                     ▁
+  █▁▁▁▁▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█ ▁
+  628 ms           Histogram: frequency by time          752 ms <                
+
+ Memory estimate: 3.67 MiB, allocs estimate: 745.
+=====================================================
+
+================ FractionalLaplace2D ================
+
+----------- Domain -----------
+ellipse with properties:
+  (A , B )  = (0.0,0.0)
+  (R₁, R₂)  = (1.0,2.0)
+  (L₁, L₂)  = (2.0,0.8)
+  (cos,sin) = (1.0,0.0)
+  No. of holes   = 0
+  kd     = Int[1 2 3 4]
+  Npat   = 5
+  pths   = Vector{Patch} (5 patches)
+  Qpts   = 8×5 Matrix
+  Qptsbd = 8×4 Matrix
+
+
+----------- Parameters -----------
+N=6, nₚᵣ=32, s=0.75, p=4, δ=0.1, δclsbd=0.01
+
+----------- System -----------
+Target points (Vars.) : 204
+Precomputation points : 324
+Near-singular  points : 120
+Cond. num 2-norm: 46.040119
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 9.67e-04
+Max Rel err : 3.43e-03
+L^2 error   : 3.38e-03
+Root MSE err: 2.52e-04
+
+----------- Benchmark -----------
+BenchmarkTools.Trial: 4 samples with 1 evaluation per sample.
+ Range (min … max):  907.302 ms … 940.136 ms  ┊ GC (min … max): 0.00% … 0.00%    
+ Time  (median):     915.188 ms               ┊ GC (median):    0.00%
+ Time  (mean ± σ):   919.454 ms ±  14.648 ms  ┊ GC (mean ± σ):  0.00% ± 0.00%    
+
+  █      █              █                                     █
+  █▁▁▁▁▁▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█ ▁
+  907 ms           Histogram: frequency by time          940 ms <                
+
+ Memory estimate: 4.06 MiB, allocs estimate: 745.
+=====================================================
+
+================ FractionalLaplace2D ================
+
+----------- Domain -----------
+ellipse with properties:
+  (A , B )  = (0.0,0.0)
+  (R₁, R₂)  = (1.0,2.0)
+  (L₁, L₂)  = (2.0,0.8)
+  (cos,sin) = (1.0,0.0)
+  No. of holes   = 0
+  kd     = Int[1 2 3 4]
+  Npat   = 5
+  pths   = Vector{Patch} (5 patches)
+  Qpts   = 8×5 Matrix
+  Qptsbd = 8×4 Matrix
+
+
+----------- Parameters -----------
+N=7, nₚᵣ=64, s=0.75, p=4, δ=0.1, δclsbd=0.01
+
+----------- System -----------
+Target points (Vars.) : 273
+Precomputation points : 441
+Near-singular  points : 168
+Cond. num 2-norm: 55.538517
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 2.51e-04
+Max Rel err : 8.30e-04
+L^2 error   : 6.76e-04
+Root MSE err: 4.32e-05
+
+----------- Benchmark -----------
+BenchmarkTools.Trial: 4 samples with 1 evaluation per sample.
+ Range (min … max):  2.126 s …   2.297 s  ┊ GC (min … max): 0.00% … 0.00%        
+ Time  (median):     2.216 s              ┊ GC (median):    0.00%
+ Time  (mean ± σ):   2.214 s ± 74.475 ms  ┊ GC (mean ± σ):  0.00% ± 0.00%        
+
+  █                  █                    █               █  
+  █▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█ ▁
+  2.13 s         Histogram: frequency by time         2.3 s <
+
+ Memory estimate: 5.99 MiB, allocs estimate: 757.
+=====================================================
+
+================ FractionalLaplace2D ================
+
+----------- Domain -----------
+ellipse with properties:
+  (A , B )  = (0.0,0.0)
+  (R₁, R₂)  = (1.0,2.0)
+  (L₁, L₂)  = (2.0,0.8)
+  (cos,sin) = (1.0,0.0)
+  No. of holes   = 0
+  kd     = Int[1 2 3 4]
+  Npat   = 5
+  pths   = Vector{Patch} (5 patches)
+  Qpts   = 8×5 Matrix
+  Qptsbd = 8×4 Matrix
+
+
+----------- Parameters -----------
+N=8, nₚᵣ=64, s=0.75, p=4, δ=0.1, δclsbd=0.01
+
+----------- System -----------
+Target points (Vars.) : 352
+Precomputation points : 552
+Near-singular  points : 200
+Cond. num 2-norm: 67.980976
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 2.40e-04
+Max Rel err : 8.27e-04
+L^2 error   : 8.93e-04
+Root MSE err: 4.99e-05
+
+----------- Benchmark -----------
+BenchmarkTools.Trial: 4 samples with 1 evaluation per sample.
+ Range (min … max):  2.866 s …   2.929 s  ┊ GC (min … max): 0.00% … 0.00%
+ Time  (median):     2.878 s              ┊ GC (median):    0.00%
+ Time  (mean ± σ):   2.887 s ± 28.175 ms  ┊ GC (mean ± σ):  0.00% ± 0.00%
+
+  █      █      █                                         █
+  █▁▁▁▁▁▁█▁▁▁▁▁▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█ ▁
+  2.87 s         Histogram: frequency by time        2.93 s <
+
+ Memory estimate: 6.92 MiB, allocs estimate: 760.
+=====================================================
+
+================ FractionalLaplace2D ================
+
+----------- Domain -----------
+ellipse with properties:
+  (A , B )  = (0.0,0.0)
+  (R₁, R₂)  = (1.0,2.0)
+  (L₁, L₂)  = (2.0,0.8)
+  (cos,sin) = (1.0,0.0)
+  No. of holes   = 0
+  kd     = Int[1 2 3 4]
+  Npat   = 5
+  pths   = Vector{Patch} (5 patches)
+  Qpts   = 8×5 Matrix
+  Qptsbd = 8×4 Matrix
+
+
+----------- Parameters -----------
+N=9, nₚᵣ=64, s=0.75, p=4, δ=0.1, δclsbd=0.01
+
+----------- System -----------
+Target points (Vars.) : 441
+Precomputation points : 691
+Near-singular  points : 250
+Cond. num 2-norm: 78.832220
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 5.00e-04
+Max Rel err : 1.65e-03
+L^2 error   : 1.24e-03
+Root MSE err: 6.17e-05
+
+----------- Benchmark -----------
+BenchmarkTools.Trial: 4 samples with 1 evaluation per sample.
+ Range (min … max):  3.720 s …   3.881 s  ┊ GC (min … max): 0.00% … 0.00%
+ Time  (median):     3.767 s              ┊ GC (median):    0.00%
+ Time  (mean ± σ):   3.784 s ± 68.750 ms  ┊ GC (mean ± σ):  0.00% ± 0.00%
+
+  ▁               █                                       ▁
+  █▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█ ▁
+  3.72 s         Histogram: frequency by time        3.88 s <
+
+ Memory estimate: 8.27 MiB, allocs estimate: 766.
+=====================================================
+
+================ FractionalLaplace2D ================
+
+----------- Domain -----------
+ellipse with properties:
+  (A , B )  = (0.0,0.0)
+  (R₁, R₂)  = (1.0,2.0)
+  (L₁, L₂)  = (2.0,0.8)
+  (cos,sin) = (1.0,0.0)
+  No. of holes   = 0
+  kd     = Int[1 2 3 4]
+  Npat   = 5
+  pths   = Vector{Patch} (5 patches)
+  Qpts   = 8×5 Matrix
+  Qptsbd = 8×4 Matrix
+
+
+----------- Parameters -----------
+N=10, nₚᵣ=128, s=0.75, p=4, δ=0.1, δclsbd=0.01
+
+----------- System -----------
+Target points (Vars.) : 540
+Precomputation points : 848
+Near-singular  points : 308
+Cond. num 2-norm: 92.497463
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 2.77e-04
+Max Rel err : 9.41e-04
+L^2 error   : 8.99e-04
+Root MSE err: 4.02e-05
+
+----------- Benchmark -----------
+BenchmarkTools.Trial: 4 samples with 1 evaluation per sample.
+ Range (min … max):  13.292 s …   13.638 s  ┊ GC (min … max): 0.00% … 0.00%
+ Time  (median):     13.395 s               ┊ GC (median):    0.00%
+ Time  (mean ± σ):   13.430 s ± 151.323 ms  ┊ GC (mean ± σ):  0.00% ± 0.00%
+
+  █        █               █                                █
+  █▁▁▁▁▁▁▁▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█ ▁
+  13.3 s          Histogram: frequency by time         13.6 s <
+
+ Memory estimate: 15.83 MiB, allocs estimate: 786.
+=====================================================
+
+================ FractionalLaplace2D ================
+
+----------- Domain -----------
+ellipse with properties:
+  (A , B )  = (0.0,0.0)
+  (R₁, R₂)  = (1.0,2.0)
+  (L₁, L₂)  = (2.0,0.8)
+  (cos,sin) = (1.0,0.0)
+  No. of holes   = 0
+  kd     = Int[1 2 3 4]
+  Npat   = 5
+  pths   = Vector{Patch} (5 patches)
+  Qpts   = 8×5 Matrix
+  Qptsbd = 8×4 Matrix
+
+
+----------- Parameters -----------
+N=12, nₚᵣ=128, s=0.75, p=4, δ=0.1, δclsbd=0.01
+
+----------- System -----------
+Target points (Vars.) : 768
+Precomputation points : 1268
+Near-singular  points : 500
+Cond. num 2-norm: 119.447527
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 5.70e-04
+Max Rel err : 1.91e-03
+L^2 error   : 2.23e-03
+Root MSE err: 8.30e-05
+
+----------- Benchmark -----------
+BenchmarkTools.Trial: 4 samples with 1 evaluation per sample.
+ Range (min … max):  20.553 s …  20.751 s  ┊ GC (min … max): 0.00% … 0.00%
+ Time  (median):     20.579 s              ┊ GC (median):    0.00%
+ Time  (mean ± σ):   20.615 s ± 91.605 ms  ┊ GC (mean ± σ):  0.00% ± 0.00%
+
+  █   █     █                                              █
+  █▁▁▁█▁▁▁▁▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█ ▁
+  20.6 s         Histogram: frequency by time         20.8 s <
+
+ Memory estimate: 21.63 MiB, allocs estimate: 780.
+=====================================================
+
+
+        
+        
+        
+================ FractionalLaplace2D ================
+
+----------- Domain -----------
+ellipse with properties:
+  (A , B )  = (0.0,0.0)
+  (R₁, R₂)  = (1.0,2.0)
+  (L₁, L₂)  = (2.0,0.8)
+  (cos,sin) = (1.0,0.0)
+  No. of holes   = 0
+  kd     = Int[1 2 3 … 6 7 8]
+  Npat   = 10
+  pths   = Vector{Patch} (10 patches)
+  Qpts   = 8×10 Matrix
+  Qptsbd = 8×8 Matrix
+
+
+----------- Parameters -----------
+N=10, nₚᵣ=128, s=0.75, p=4, δ=0.1, δclsbd=0.01
+
+----------- System -----------
+Target points (Vars.) : 1080
+Precomputation points : 1900
+Near-singular  points : 820
+Cond. num 2-norm: 94.947474
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 4.28e-09
+Max Rel err : 1.43e-08
+L^2 error   : 1.57e-08
+Root MSE err: 4.96e-10
+
+----------- Benchmark -----------
+BenchmarkTools.Trial: 4 samples with 1 evaluation per sample.
+ Range (min … max):  28.421 s …   30.263 s  ┊ GC (min … max): 0.00% … 0.00%
+ Time  (median):     29.407 s               ┊ GC (median):    0.00%
+ Time  (mean ± σ):   29.374 s ± 978.862 ms  ┊ GC (mean ± σ):  0.00% ± 0.00%
+
+  █      █                                                █ █
+  █▁▁▁▁▁▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█▁█ ▁
+  28.4 s          Histogram: frequency by time         30.3 s <
+
+ Memory estimate: 29.98 MiB, allocs estimate: 781.
+=====================================================
+
+================ FractionalLaplace2D ================
+
+----------- Domain -----------
+ellipse with properties:
+  (A , B )  = (0.0,0.0)
+  (R₁, R₂)  = (1.0,2.0)
+  (L₁, L₂)  = (2.0,0.8)
+  (cos,sin) = (1.0,0.0)
+  No. of holes   = 0
+  kd     = Int[1 2 3 … 6 7 8]
+  Npat   = 10
+  pths   = Vector{Patch} (10 patches)
+  Qpts   = 8×10 Matrix
+  Qptsbd = 8×8 Matrix
+
+
+----------- Parameters -----------
+N=12, nₚᵣ=128, s=0.75, p=4, δ=0.1, δclsbd=0.01
+
+----------- System -----------
+Target points (Vars.) : 1536
+Precomputation points : 2696
+Near-singular  points : 1160
+Cond. num 2-norm: 122.613633
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 3.96e-09
+Max Rel err : 1.32e-08
+L^2 error   : 1.66e-08
+Root MSE err: 4.37e-10
+
+----------- Benchmark -----------
+BenchmarkTools.Trial: 4 samples with 1 evaluation per sample.
+ Range (min … max):  43.032 s … 45.853 s  ┊ GC (min … max): 0.00% … 0.02%
+ Time  (median):     45.072 s             ┊ GC (median):    0.01%
+ Time  (mean ± σ):   44.757 s ±  1.220 s  ┊ GC (mean ± σ):  0.01% ± 0.01%
+
+  █                                   █        █          █
+  █▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█▁▁▁▁▁▁▁▁█▁▁▁▁▁▁▁▁▁▁█ ▁
+  43 s           Histogram: frequency by time        45.9 s <
+
+ Memory estimate: 50.21 MiB, allocs estimate: 782.
+=====================================================
+
+
+
+
+
+================ FractionalLaplace2D ================
+
+----------- Domain -----------
+ellipse with properties:
+  (A , B )  = (0.0,0.0)
+  (R₁, R₂)  = (1.0,2.0)
+  (L₁, L₂)  = (2.0,0.8)
+  (cos,sin) = (1.0,0.0)
+  No. of holes   = 0
+  kd     = Int[5 6 7 … 26 27 28]
+  Npat   = 34
+  pths   = Vector{Patch} (34 patches)
+  Qpts   = 8×34 Matrix
+  Qptsbd = 8×14 Matrix
+
+
+----------- Parameters -----------
+N=10, nₚᵣ=128, s=0.75, p=4, δ=0.1, δclsbd=0.01
+
+----------- System -----------
+Target points (Vars.) : 3540
+Precomputation points : 8416
+Near-singular  points : 4876
+Cond. num 2-norm: 199.425231
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 8.24e-11
+Max Rel err : 2.73e-10
+L^2 error   : 2.98e-10
+Root MSE err: 5.11e-12
+
+----------- Benchmark -----------
+BenchmarkTools.Trial: 4 samples with 1 evaluation per sample.
+ Range (min … max):  138.738 s … 145.671 s  ┊ GC (min … max): 0.01% … 0.06%
+ Time  (median):     141.997 s              ┊ GC (median):    0.04%
+ Time  (mean ± σ):   142.101 s ±   2.862 s  ┊ GC (mean ± σ):  0.11% ± 0.18%
+
+  █                      █       █                          █
+  █▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█▁▁▁▁▁▁▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█ ▁
+  139 s           Histogram: frequency by time          146 s <
+
+ Memory estimate: 208.69 MiB, allocs estimate: 785.
+=====================================================
+
+================ FractionalLaplace2D ================
+
+----------- Domain -----------
+ellipse with properties:
+  (A , B )  = (0.0,0.0)
+  (R₁, R₂)  = (1.0,2.0)
+  (L₁, L₂)  = (2.0,0.8)
+  (cos,sin) = (1.0,0.0)
+  No. of holes   = 0
+  kd     = Int[5 6 7 … 26 27 28]
+  Npat   = 34
+  pths   = Vector{Patch} (34 patches)
+  Qpts   = 8×34 Matrix
+  Qptsbd = 8×14 Matrix
+
+
+----------- Parameters -----------
+N=12, nₚᵣ=128, s=0.75, p=4, δ=0.1, δclsbd=0.01
+
+----------- System -----------
+Target points (Vars.) : 5064
+Precomputation points : 12140
+Near-singular  points : 7076
+Cond. num 2-norm: 260.048072
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 4.02e-11
+Max Rel err : 1.33e-10
+L^2 error   : 1.53e-10
+Root MSE err: 2.19e-12
+
+----------- Benchmark -----------
+BenchmarkTools.Trial: 4 samples with 1 evaluation per sample.
+ Range (min … max):  211.646 s … 232.510 s  ┊ GC (min … max): 0.01% … 0.00%
+ Time  (median):     222.050 s              ┊ GC (median):    0.03%
+ Time  (mean ± σ):   222.064 s ±   8.528 s  ┊ GC (mean ± σ):  0.06% ± 0.09%
+
+  █                          █  █                           █
+  █▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█▁▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█ ▁
+  212 s           Histogram: frequency by time          233 s <
+
+ Memory estimate: 416.41 MiB, allocs estimate: 785.
+=====================================================
+
+
+
+
+
+================ FractionalLaplace2D ================
+
+----------- Domain -----------
+ellipse with properties:
+  (A , B )  = (0.0,0.0)
+  (R₁, R₂)  = (1.0,2.0)
+  (L₁, L₂)  = (2.0,0.8)
+  (cos,sin) = (1.0,0.0)
+  No. of holes   = 0
+  kd     = Int[11 12 13 … 52 53 54]
+  Npat   = 74
+  pths   = Vector{Patch} (74 patches)
+  Qpts   = 8×74 Matrix
+  Qptsbd = 8×18 Matrix
+
+
+----------- Parameters -----------
+N=10, nₚᵣ=128, s=0.75, p=4, δ=0.1, δclsbd=0.01
+
+----------- System -----------
+Target points (Vars.) : 7580
+Precomputation points : 22772
+Near-singular  points : 15192
+Cond. num 2-norm: 371.498159
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 2.42e-12
+Max Rel err : 7.99e-12
+L^2 error   : 1.49e-11
+Root MSE err: 1.73e-13
+
+----------- Benchmark -----------
+BenchmarkTools.Trial: 4 samples with 1 evaluation per sample.
+ Range (min … max):  388.710 s … 395.481 s  ┊ GC (min … max): 0.00% … 0.02%
+ Time  (median):     393.010 s              ┊ GC (median):    0.02%
+ Time  (mean ± σ):   392.553 s ±   2.817 s  ┊ GC (mean ± σ):  0.04% ± 0.05%
+
+  █                                   █ █                   █
+  █▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█ ▁
+  389 s           Histogram: frequency by time          395 s <
+
+ Memory estimate: 906.11 MiB, allocs estimate: 787.
+=====================================================
+
+
+================ FractionalLaplace2D ================
+
+----------- Domain -----------
+ellipse with properties:
+  (A , B )  = (0.0,0.0)
+  (R₁, R₂)  = (1.0,2.0)
+  (L₁, L₂)  = (2.0,0.8)
+  (cos,sin) = (1.0,0.0)
+  No. of holes   = 0
+  kd     = Int[11 12 13 … 52 53 54]
+  Npat   = 74
+  pths   = Vector{Patch} (74 patches)
+  Qpts   = 8×74 Matrix
+  Qptsbd = 8×18 Matrix
+
+
+----------- Parameters -----------
+N=12, nₚᵣ=256, s=0.75, p=4, δ=0.1, δclsbd=0.01
+
+----------- System -----------
+Target points (Vars.) : 10872
+Precomputation points : 33116
+Near-singular  points : 22244
+Cond. num 2-norm: 486.845489
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 1.29e-12
+Max Rel err : 4.28e-12
+L^2 error   : 9.77e-12
+Root MSE err: 9.46e-14
+
+----------- Benchmark -----------
+BenchmarkTools.Trial: 4 samples with 1 evaluation per sample.
+ Range (min … max):  1380.723 s … 1406.757 s  ┊ GC (min … max): 0.01% … 0.04%
+ Time  (median):     1397.230 s               ┊ GC (median):    0.01%
+ Time  (mean ± σ):   1395.485 s ±   10.830 s  ┊ GC (mean ± σ):  0.02% ± 0.02%
+
+  █                                    █  █                   █
+  █▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█▁▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█ ▁
+  1380 s           Histogram: frequency by time          1410 s <
+
+ Memory estimate: 1.83 GiB, allocs estimate: 811.
+=====================================================
+
+
+
+
+================ FractionalLaplace2D ================
+
+----------- Domain -----------
+ellipse with properties:
+  (A , B )  = (0.0,0.0)
+  (R₁, R₂)  = (1.0,2.0)
+  (L₁, L₂)  = (2.0,0.8)
+  (cos,sin) = (1.0,0.0)
+  No. of holes   = 0
+  kd     = Int[13 14 15 … 70 71 72]
+  Npat   = 96
+  pths   = Vector{Patch} (96 patches)
+  Qpts   = 8×96 Matrix
+  Qptsbd = 8×24 Matrix
+
+
+----------- Parameters -----------
+N=10, nₚᵣ=128, s=0.75, p=4, δ=0.1, δclsbd=0.01
+
+----------- System -----------
+Target points (Vars.) : 9840
+Precomputation points : 32016
+Near-singular  points : 22176
+Cond. num 2-norm: 375.855022
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 1.64e-12
+Max Rel err : 5.42e-12
+L^2 error   : 5.99e-12
+Root MSE err: 6.12e-14
+
+----------- Benchmark -----------
+BenchmarkTools.Trial: 4 samples with 1 evaluation per sample.
+ Range (min … max):  604.350 s … 607.263 s  ┊ GC (min … max): 0.02% … 0.00%
+ Time  (median):     606.887 s              ┊ GC (median):    0.02%
+ Time  (mean ± σ):   606.347 s ±   1.345 s  ┊ GC (mean ± σ):  0.03% ± 0.04%
+
+  █                                                █   █    █
+  █▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█▁▁▁█▁▁▁▁█ ▁
+  604 s           Histogram: frequency by time          607 s <
+
+ Memory estimate: 1.48 GiB, allocs estimate: 788.
+=====================================================
+
+================ FractionalLaplace2D ================
+
+----------- Domain -----------
+ellipse with properties:
+  (A , B )  = (0.0,0.0)
+  (R₁, R₂)  = (1.0,2.0)
+  (L₁, L₂)  = (2.0,0.8)
+  (cos,sin) = (1.0,0.0)
+  No. of holes   = 0
+  kd     = Int[13 14 15 … 70 71 72]
+  Npat   = 96
+  pths   = Vector{Patch} (96 patches)
+  Qpts   = 8×96 Matrix
+  Qptsbd = 8×24 Matrix
+
+
+----------- Parameters -----------
+N=12, nₚᵣ=256, s=0.75, p=4, δ=0.1, δclsbd=0.01
+
+----------- System -----------
+Target points (Vars.) : 14112
+Precomputation points : 45368
+Near-singular  points : 31256
+Cond. num 2-norm: 492.569295
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 1.46e-12
+Max Rel err : 4.84e-12
+L^2 error   : 8.91e-12
+Root MSE err: 7.57e-14
+
+----------- Benchmark -----------
+BenchmarkTools.Trial: 4 samples with 1 evaluation per sample.
+ Range (min … max):  1993.123 s … 2016.200 s  ┊ GC (min … max): 0.01% … 0.01%
+ Time  (median):     2003.515 s               ┊ GC (median):    0.01%
+ Time  (mean ± σ):   2004.088 s ±    9.451 s  ┊ GC (mean ± σ):  0.01% ± 0.01%
+
+  █                         █ █                               █
+  █▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█ ▁
+  1990 s           Histogram: frequency by time          2020 s <
+
+ Memory estimate: 3.05 GiB, allocs estimate: 812.
+=====================================================
+
+"==End of Ellipse=="

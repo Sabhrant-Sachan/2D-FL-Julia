@@ -1,0 +1,28 @@
+name = "FractionalLaplace2D"
+uuid = "7d3d5f7a-6b2b-4e1a-9b5e-6a2c6f6c1c11"
+version = "0.1.0"
+
+[deps]
+ApproxFun = "28f2ccd6-bb30-5033-b560-165f7b14dc2f"
+BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
+ColorSchemes = "35d6a980-a343-548e-a6ea-1d62b119f2f4"
+FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
+GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
+HypergeometricFunctions = "34004b35-14d8-5ef3-9330-4cdb6864b03a"
+IterativeSolvers = "42fd0dbc-a981-5370-80f2-aaf504508153"
+LaTeXStrings = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+MAT = "23992714-dd62-5051-b70f-ba57cb901cac"
+Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
+Subroutines = "1be2c522-7edf-4f62-a530-1b7083bc9626"
+VTKBase = "4004b06d-e244-455f-a6ce-a5f9919cc534"
+WriteVTK = "64499a7a-5c06-52f2-abe2-ccb03c286192"
+
+[compat]
+ApproxFun = "0.13.28"
+BenchmarkTools = "1.6.3"
+HypergeometricFunctions = "0.3.28"
+VTKBase = "1.0.1"
+WriteVTK = "1.21.2"
