@@ -68,7 +68,7 @@ function Ax!(v::Vector{Float64}, x::Vector{Float64}, IntS::Matrix{Float64},
 
         # Undo the first-mode scaling for dim = 2
         CNp[:, 1] .*= 2
-
+        # Hi there
         # Invert along dim = 2
         # CNp = 0.5 .* FFTW.r2r(CNp, FFTW.REDFT01, 2)
         CNp = mul!(CN, p_dct3_dim2, CN, 0.5, 0.0) 
