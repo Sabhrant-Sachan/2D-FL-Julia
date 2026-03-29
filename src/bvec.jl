@@ -2,7 +2,7 @@ function bvec(d::abstractdomain,dp::domprop,s::Float64,f!::Function
     ;n::Int=64)::Vector{Float64}
 
     # n₂ is defined as the number of nodes for integration of regular integrals
-    # fw₂is defined as the Fejer 1st weights for corresponding 
+    # fw₂is defined as the Fejer 1st weights for corresponding nodes
     n₂ = n
     fw₂ = getF1W(n₂)
 

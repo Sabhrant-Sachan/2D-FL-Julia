@@ -248,7 +248,7 @@ function precompsH(d::abstractdomain, dp::domprop, s::Float64, p::Int
     end
 
     # knbd are patches which are not the boundary patches
-    # and d.kd are patches are touching the boundary
+    # and d.kd are patches which are touching the boundary
     knbd = setdiff(collect(1:M), d.kd)
 
     IntS = zeros(Float64, Np, Lₚ)
