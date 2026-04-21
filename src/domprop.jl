@@ -1120,92 +1120,72 @@ function plotu(dp::domprop, d::abstractdomain, u::AbstractVector, s::Real; inter
 
 end
 
-
-#outdir: folder where files will be written (default "paraview_out").
-#basename: prefix for filenames (default "u_patch").
+# outdir: folder where files will be written (default "paraview_out")
+# basename: prefix for filenames (default "u_patch")
+#
+# Writes:
+#   outdir/basename.vtm
+# plus the per-block VTK files referenced by the .vtm container.
+#
 function u_to_paraview(dp::domprop, d::abstractdomain, u::AbstractVector, s::Real;
-    outdir::AbstractString="paraview_out", basename::AbstractString="u_patch")
+    outdir::AbstractString = "paraview_out", basename::AbstractString = "u_patch")
 
-    # grid sizes
-    n = dp.N
-    M = d.Npat
+    n  = dp.N
+    M  = d.Npat
     Np = n^2
 
-    # ---------- INTERPOLATION: denser samples ----------
     ℓ = 4n + 1
-    z = cospi.((0:4*n) ./ (4 * n))
+    z = cospi.((0:4n) ./ (4n))
 
     zx = repeat(z, 1, ℓ)
     zy = repeat(z', ℓ, 1)
 
     T = ChebyTN(n, z)
 
-    # Compute Chebyshev coefficients
     chebcoef = similar(u, M * Np)
     for k in 1:M
-        idx = (k-1)*Np+1:k*Np
+        idx = (k - 1) * Np + 1 : k * Np
         fv = reshape(@views(u[idx]), n, n)
 
-        # columns first (dim = 2), DCT-II
         c = (1 / n) .* FFTW.r2r(fv, FFTW.REDFT10, 2)
         c[:, 1] ./= 2
 
-        # rows next (dim = 1), DCT-II
         c = (1 / n) .* FFTW.r2r(c, FFTW.REDFT10, 1)
         c[1, :] ./= 2
 
         chebcoef[idx] .= vec(c)
     end
 
-    # make output directory
     isdir(outdir) || mkpath(outdir)
 
-    # helper: export one patch as a StructuredGrid (.vts)
-    function export_patch_vts(path::AbstractString, X, Y, U)
-        nx, ny = size(X)
-        @assert size(Y) == (nx, ny)
-        @assert size(U) == (nx, ny)
+    vtm = vtk_multiblock(joinpath(outdir, basename))
 
-        # Make 3D coordinate arrays with nz = 1
-        X3 = reshape(X, nx, ny, 1)
-        Y3 = reshape(Y, nx, ny, 1)
-        Z3 = reshape(U, nx, ny, 1)
-
-        # Structured grid from coordinate arrays
-        vtk = vtk_grid(path, X3, Y3, Z3)
-
-        # Attach scalar data (also 3D, matching grid dims)
-        vtk["u"] = Z3
-
-        vtk_save(vtk)
-        return nothing
-    end
-
-    # Export each patch
     for P in 1:M
-        c = reshape(@view(chebcoef[(P-1)*Np+1:P*Np]), n, n)
-        Zc = T * c * transpose(T)     
+        c = reshape(@view(chebcoef[(P - 1) * Np + 1 : P * Np]), n, n)
+        Zc = T * c * transpose(T)
         X, Y = mapxy(d, zx, zy, P)
 
-        # apply distance factor (your logic)
         for i in 2:ℓ
-            Zc[i, :] = Zc[i, :] .* dfunc(d, P, 2 * sinpi((i - 1) / (8 * n))^2, s)
+            Zc[i, :] .*= dfunc(d, P, 2 * sinpi((i - 1) / (8 * n))^2, s)
         end
 
         if isbdpatch(d, P)
             Zc[1, :] .= 0.0
         else
-            Zc[1, :] = Zc[1, :] .* dfunc(d, P, 0.0, s)
+            Zc[1, :] .*= dfunc(d, P, 0.0, s)
         end
 
-        #U = real.(Zc)
-        U = Zc
+        nx, ny = size(X)
+        X3 = reshape(X, nx, ny, 1)
+        Y3 = reshape(Y, nx, ny, 1)
+        Z3 = reshape(Zc, nx, ny, 1)
 
-        # write file
-        fname = joinpath(outdir, string(basename, "_", lpad(P, 3, '0')))
-        export_patch_vts(fname, X, Y, U)
+        vtk = vtk_grid(vtm, X3, Y3, Z3)
+        vtk["u"] = Z3
+        vtk_save(vtk)
     end
 
+    vtk_save(vtm)
     return nothing
 end
 
