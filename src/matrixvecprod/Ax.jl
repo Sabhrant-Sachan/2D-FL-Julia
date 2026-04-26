@@ -1,15 +1,15 @@
-function Ax!(v::Vector{Float64}, x::Vector{Float64}, IntS::Matrix{Float64},
+function Ax!(v::AbstractVector{Float64}, u::AbstractVector{Float64}, IntS::Matrix{Float64},
     d::abstractdomain, dp::domprop, s::Float64, IV)
-    # Ax : Matrix-vector product v = A*x (matrix-free), for GMRES and 
+    # Ax! :Matrix-vector product v = A*u (matrix-free), for GMRES and 
     #      other iterative solvers. This subroutine computes the Matrix vector 
-    #      product Ax without constructing the matrix A.
+    #      product Au without constructing the matrix A.
     #      This function is given as a function handle to GMRES
-    #      to solve the linear system Ax=B without storing the matrix A.
+    #      to solve the linear system Au=B without storing the matrix A.
 
     # INPUTS :
-    #     x - Input vector x of size M*Np+Mbd*N for which we compute Ax
-    #         We will not mutate x. Mutation in vector v is fine. 
-    #     v - Input vector v of size M*Np+Mbd*N which is v=Ax 
+    #     u - Input vector u of size M*Np+Mbd*N for which we compute Au
+    #         We will not mutate u. Mutation in vector v is fine. 
+    #     v - Input vector v of size M*Np+Mbd*N which is v=Au 
     #  IntS - Precomputation matrix of size Np*(M*Np+Dp.Tnsp+Mbd*N) given using
     #         "precomps.jl" subroutine. Np is number of points per patch.
     #     d - An instance of the domain d
@@ -24,288 +24,476 @@ function Ax!(v::Vector{Float64}, x::Vector{Float64}, IntS::Matrix{Float64},
     #      Sabhrant Sachan
     #      Email : ssachan@caletch.edu
 
-
     # --------- Unpack IV ---------
-    (; IV1, IVx, IVt, IVbdt, IVr) = IV
-    (; N, Np, Cs, M, Mbd, nr, nrp, N₁, N₂, dₙₕ, δclsbd) = IV1
-    (; chebcoef, ufin, zeta1, zeta2, zeta2coef) = IVx
-    (; FV, CN, TnrN, TN1N, TN2N, cN, p_dct1_N, p_dct2_dim2, p_dct2_dim1) = IVt
-    (; y₁, y₂, fw₁, fw₂, gamk₁, gamp₁, gamk₂, gamp₂, kbd₁, kbd₂,
-        γx, μ₀, γxbd, νvec, Lᵢₙ, xvals, fvals, kdx) = IVbdt
-    (; fwr, zx, zy, phix, phiy, DJ, Df, Ker) = IVr
+    (; IV1, IVr, IVbdth, IVbd, IVt, IVbt1, IVbt2, IVbdt1, IVbdt2, IVbdt3, IVAf, IVAdct) = IV
 
-    #v and x both have same length
+    (; p_dct2_dim2, p_dct2_dim1, p_dct3_dim2, p_dct3_dim1, p_dct2_N, p_dct3_N1, p_dct3_N2)= IVAdct
+
+    (; chebcoef, ufin, ζ₁, ζ₂, ζ₂coeff, UV, UFV, ζv, ζfv₁, ζfv₂, CNnr) = IVAf
+
+    (; N, Np, Cs, M, Mbd) = IV1
+
+    (; nr, fwr, nrp, zx, zt, zy, Df) = IVr
+
+    (; zx2, zy2, Tz1, Tz) = IVbdth
+    
+    (; N₁, N₂, fw₁, fw₂, dₙₕ) = IVbd
+
+    (; Zx, Zy, DJ, Ker, KIr, Ur, CN) = IVt
+
+    (; Zx₂, Zy₂, DJ₂, Ker₂, KIbd) = IVbt1
+
+    (; Ubd, mfw, CT) = IVbt2
+
+    (; y₁, y₂, gamk₁, gamp₁, gamk₂, gamp₂) = IVbdt1
+
+    (; kbd₁, kbd₂, γx, μ₀, γt1, γt2) = IVbdt2
+
+    (; Lᵢₙ, xvals, fvals, γxbd, kdx, Tbd₂) = IVbdt3
+     
     Lp = M * Np
-    Lt = Lp + Mbd * N 
 
+    # ----- STEP 1: Get chebyshev coefficients and finer function values -----
     # ----- Compute Chebyshev coeffs for interior patches + refined ufin -----
     # Fill chebcoef for interior patches:
     @inbounds for k in 1:M
-        ak = (k - 1) * Np
-        # load function values FV from u (no reshape allocation; fill FV directly)
-        # FV and CN are matrices of size N * N of type Float64
+        ak₁ = (k - 1) * Np
+        ak₂ = (k - 1) * nrp
+        # load function values UV from u (fill UV directly)
+        # UV is a matrix of size N * N of type Float64
+        # capital letters matrix, lowercase vectors
+        # UV, UFV (u values and u finer values). 
         @inbounds for i in 1:Np
-            FV[i] = u[ak+i]
-            CN[i] = u[ak+i]
+            UV[i] = u[ak₁ + i]
         end
 
         # DCT-II along dim2, then dim1
-        mul!(CN, p_dct2_dim2, CN, 1 / N, 0.0)
+        mul!(UV, p_dct2_dim2, UV)
+
+        UV .*= 1 / N
     
-        CN[:, 1] ./= 2
+        UV[:, 1] ./= 2
 
-        mul!(CN, p_dct2_dim1, CN, 1 / N, 0.0)
+        mul!(UV, p_dct2_dim1, UV)
 
-        CN[1, :] ./= 2
+        UV .*= 1 / N
+
+        UV[1, :] ./= 2
 
         # store into chebcoef
         @inbounds for i in 1:Np
-            chebcoef[ak+i] = CN[i]
+            chebcoef[ak₁ + i] = UV[i]
         end
 
-        #CNp is a N2 * N2 zero float64 matrix 
-        CNp[1:N,1:N] .= CN  
+        #UFV is a nr * nr zero float64 matrix 
+        UFV .= 0
+        UFV[1:N,1:N] .= UV  
 
         # Undo the first-mode scaling for dim = 2
-        CNp[:, 1] .*= 2
-        # Hi there
+        UFV[:, 1] .*= 2
         # Invert along dim = 2
-        # CNp = 0.5 .* FFTW.r2r(CNp, FFTW.REDFT01, 2)
-        CNp = mul!(CN, p_dct3_dim2, CN, 0.5, 0.0) 
+        # UFV = 0.5 .* FFTW.r2r(UFV, FFTW.REDFT01, 2)
+        mul!(UFV, p_dct3_dim2, UFV) 
+
+        UFV .*= 0.5
 
         # Undo the first-mode scaling for dim = 1
-        CNp[1, :] .*= 2
+        UFV[1, :] .*= 2
 
         # Invert along dim = 1
-        # CNp = 0.5 .* FFTW.r2r(CNp, FFTW.REDFT01, 1)
-        CNp = mul!(CN, p_dct3_dim1, CN, 0.5, 0.0) 
+        # UFV = 0.5 .* FFTW.r2r(UFV, FFTW.REDFT01, 1)
+        mul!(UFV, p_dct3_dim1, UFV) 
+
+        UFV .*= 0.5
+
+        # store into chebcoef
+        @inbounds for i in 1:nrp
+            ufin[ak₂ + i] = UFV[i]
+        end
 
     end
-    #I AM HERE
+    
+    ζ₂coeff .= 0 
 
-    # ------------------- Boundary ζ: coefficients + values on N₁ and N₂ grids -------------------
-    # For k=1:Mbd boundary patches, u provides ζ values on N Cheby nodes for each bd patch.
-    # We compute N coeffs via DCT-II and then evaluate on y₁ and y₂ grids using TN1N/TN2N matrices.
-    #
-    # zeta2coef stores the zero-padded coeffs of length N₂ (you used this in MATLAB).
-    # In Julia we can avoid padding by evaluating with N coeffs, but I’ll mirror your MATLAB.
-
+    # ----- Boundary ζ: coefficients + values on N₁ and N₂ grids -----
+    # For k=1:Mbd boundary patches, u has ζ values on N Cheby nodes for each bd patch.
     @inbounds for k in 1:Mbd
         ak = Lp + (k - 1) * N
-        # load cN from u boundary values
-        for j in 1:N
-            cN[j] = u[uoff+j]
+        i₁ = (k - 1) * N₁
+        i₂ = (k - 1) * N₂
+        # load ζv from u boundary values
+        @inbounds for i in 1:N
+            ζv[i] = u[ak + i]
         end
 
-        # cN = sqrt(2/N)*dct(u(i)); cN[1]/=sqrt(2)
-        mul!(cN, p_dct1_N, cN)   # in-place DCT-II
-        cN .*= sqrt(2.0 / N)
-        cN[1] *= 1 / sqrt(2.0)
+        mul!(ζv, p_dct2_N, ζv)
 
-        # store these N coeffs into chebcoef boundary block (exactly like MATLAB)
-        for j in 1:N
-            chebcoef[uoff+j] = cN[j]
-        end
+        ζv .*= 1 / N
 
-        # store zero-padded coeffs into zeta2coef segment
-        z2off = (k - 1) * N₂
-        # fill with zeros then first N entries:
-        for j in 1:N₂
-            zeta2coef[z2off+j] = 0.0
-        end
-        for j in 1:N
-            zeta2coef[z2off+j] = cN[j]
+        ζv[1] /= 2
+
+        # store these N coeffs
+        @inbounds for i in 1:N
+            chebcoef[ak + i]  = ζv[i]
+            ζ₂coeff[i₂ + i] = ζv[i]
         end
 
-        # Evaluate ζ on y₁ and y₂:
-        # ζ(y) = sum_{m=0}^{N-1} cN[m+1] T_m(y)
-        # with TN1N, TN2N already holding T_m(y)
-        z1off = (k - 1) * N₁
-        for i in 1:N₁
-            acc = 0.0
-            @inbounds for j in 1:N
-                acc += TN1N[i, j] * cN[j]
-            end
-            zeta1[z1off+i] = acc
+        # ζv are now the Chebyshev coefficients of ζ 
+        # Evaluate ζ finer values over N₁ and N₂ 
+        ζv[1] *= 2
+
+        ζfv₁ .= 0 
+        ζfv₂ .= 0
+
+        ζfv₁[1:N] .= ζv
+        ζfv₂[1:N] .= ζv
+        
+        mul!(ζfv₁, p_dct3_N1, ζfv₁) 
+        mul!(ζfv₂, p_dct3_N2, ζfv₂) 
+
+        ζfv₁ .*= 0.5
+        ζfv₂ .*= 0.5
+
+        @inbounds for i in 1:N₁
+            ζ₁[i₁ + i] = ζfv₁[i]
         end
-        for i in 1:N₂
-            acc = 0.0
-            @inbounds for j in 1:N
-                acc += TN2N[i, j] * cN[j]
-            end
-            zeta2[z2off+i] = acc
+        
+        @inbounds for i in 1:N₂
+            ζ₂[i₂ + i] = ζfv₂[i]
         end
+
     end
 
-    # ------------------- 2) Initialize v with the singular Int term for interior rows -------------------
+    # ----- STEP 2: Singular Integrals over all rows and DLP contributions -----
     @inbounds for row in 1:Lp
-        l = Int(dp.tgtpts[3, row])
-        j = Int(dp.tgtpts[4, row])
 
-        # c = chebcoef[(l-1)*Np+1 : l*Np]
-        # v[row] = Cs*(c' * IntS[:, dp.pth_go[l] + j - 1])
-        # This dot should not allocate.
-        col = dp.pth_go[l] + (j - 1)
-        acc = 0.0
-        base = (l - 1) * Np
-        @inbounds for ii in 1:Np
-            acc += chebcoef[base+ii] * IntS[ii, col]
-        end
-        v[row] = Cs * acc
+        ℓ = cld(row, Np)
+        j = row - (ℓ - 1) * Np
+
+        col = dp.pthgo[ℓ] + j - 1
+
+        @views cf = chebcoef[((ℓ - 1) * Np + 1):(ℓ * Np)] 
+        @views SI = IntS[:, col] 
+
+        v[row] = Cs * dot(SI, cf)
     end
 
-    # ------------------- 3) Add boundary integral contributions to interior rows -------------------
-    # Your final MATLAB version loops ll outer, row inner. We do the same allocation-free.
-    #
-    # Precompute y₁ nodes already in IVbdt, and you’ll call domain geometry mutators once per patch:
+    if s < 0.5
+
+        Lₚₘ = Lp + 1
+        Lₚₙ = Lp + Mbd * N
+
+        @inbounds for row in Lₚₘ:Lₚₙ
+
+            k₀ = cld(row - Lp, N)
+
+            ℓ = d.kd[k₀]
+
+            j = row - M * Np - (k₀ - 1) * N
+
+            #---- Add singular contributions first ----
+            col = dp.pthgo[M+1] + j - 1 + N * (cld(row - Lp, N) - 1)
+
+            @views cf = chebcoef[((ℓ-1)*Np+1):(ℓ*Np)]
+
+            @views SI = IntS[:, col]
+
+            v[row] = Cs * dot(SI, cf)
+
+        end
+
+    end
+
+    #If s<0.5, all values of vector v are now initlized.
+    #If s>=0.5, all rows from 1:Lp of v are now initlized.
+
+    # ----- Contribution from DLP starts here -----
+
     for ll in 1:Mbd
-        kk = d.kd[ll]
+        ℓ = d.kd[ll]
+        ℓbd = 0
 
-        gam!(gamk₁, d, y₁, kk)
-        gamp!(gamp₁, d, y₁, kk)
-        gam!(gamk₂, d, y₂, kk)
-        gamp!(gamp₂, d, y₂, kk)
+        gam!(gamk₁, d, y₁, ℓ)
+        gamp!(gamp₁, d, y₁, ℓ)
+        gam!(gamk₂, d, y₂, ℓ)
+        gamp!(gamp₂, d, y₂, ℓ)
 
-        z1off = (ll - 1) * N₁
-        z2off = (ll - 1) * N₂
-
+        #Contribution of all points for the ℓth patch
         @inbounds for row in 1:Lp
+
             γx[1] = dp.tgtpts[1, row]
             γx[2] = dp.tgtpts[2, row]
 
-            eps = dp.dist_bd[1, row]
+            if !dp.tgtbdbm[1, row]
+                # Point far away from the boundary, direct computation
+                if dp.tgtbdbm[2, row]
 
-            if eps > δclsbd
-                if eps > 0.85
-                    # ker on N₁ nodes
-                    for j in 1:N₁
+                    @inbounds for j in 1:N₁
                         dx1 = gamk₁[1, j] - γx[1]
                         dx2 = gamk₁[2, j] - γx[2]
+
                         num = dx1 * gamp₁[1, j] + dx2 * gamp₁[2, j]
                         den = dx1 * dx1 + dx2 * dx2
+
                         kbd₁[j] = (num * fw₁[j]) / den
                     end
-                    # add (zeta1 .* ker)⋅1
-                    acc = 0.0
-                    for j in 1:N₁
-                        acc += zeta1[z1off+j] * kbd₁[j]
-                    end
-                    v[row] += acc / (2π)
+
+                    @views ζv₁ = ζ₁[(1 + (ll - 1) * N₁) : (ll * N₁)]
+
+                    v[row] = v[row] + dot(ζv₁, kbd₁) / (2 * pi)
 
                 else
-                    for j in 1:N₂
+
+                    @inbounds for j in 1:N₂
                         dx1 = gamk₂[1, j] - γx[1]
                         dx2 = gamk₂[2, j] - γx[2]
+
                         num = dx1 * gamp₂[1, j] + dx2 * gamp₂[2, j]
                         den = dx1 * dx1 + dx2 * dx2
+
                         kbd₂[j] = (num * fw₂[j]) / den
                     end
-                    acc = 0.0
-                    for j in 1:N₂
-                        acc += zeta2[z2off+j] * kbd₂[j]
-                    end
-                    v[row] += acc / (2π)
-                end
 
+                    @views ζv₂ = ζ₂[(1 + (ll - 1) * N₂) : (ll * N₂)]
+
+                    v[row] = v[row] + dot(ζv₂, kbd₂) / (2 * pi)
+
+                end
             else
-                # close to boundary
-                l_loc = Int(dp.dist_bd[2, row])
-                tstar = dp.dist_bd[3, row]
 
-                knbh!(kdx, d, l_loc, dₙₕ, μ₀, νvec)   # you must provide this mutating helper
+                ℓbd += 1
+                # Point close to the boundary, Interpolation!
+                l = dp.distpts[ℓbd].l
+                ϵ = dp.distpts[ℓbd].d
 
-                if !(kk in kdx)
-                    for j in 1:N₂
-                        dx1 = gamk₂[1, j] - γx[1]
-                        dx2 = gamk₂[2, j] - γx[2]
-                        num = dx1 * gamp₂[1, j] + dx2 * gamp₂[2, j]
+                knbh!(kdx, d, l, dₙₕ, γt1, γt2)
+
+                if !(ℓ in kdx)
+
+                    @inbounds for j in 1:N₁
+                        dx1 = gamk₁[1, j] - γx[1]
+                        dx2 = gamk₁[2, j] - γx[2]
+
+                        num = dx1 * gamp₁[1, j] + dx2 * gamp₁[2, j]
                         den = dx1 * dx1 + dx2 * dx2
-                        kbd₂[j] = (num * fw₂[j]) / den
+
+                        kbd₁[j] = (num * fw₁[j]) / den
                     end
-                    acc = 0.0
-                    for j in 1:N₂
-                        acc += zeta2[z2off+j] * kbd₂[j]
-                    end
-                    v[row] += acc / (2π)
+
+                    @views ζv₁ = ζ₁[(1 + (ll - 1) * N₁):(ll * N₁)]
+
+                    v[row] = v[row] + dot(ζv₁, kbd₁) / (2 * pi)
 
                 else
-                    # interpolation
-                    gam!(γxbd, d, tstar, l_loc)
-                    nu!(νvec, d, tstar, l_loc)
+                    tₛ = dp.distpts[ℓbd].t
 
-                    # fvals[1] = boundary integral at eps=0
-                    DLP!(kbd₁, d, tstar, l_loc, y₁, kk, μ₀)  # fill kbd₁ with DLP values
-                    # weight
-                    for j in 1:N₁
-                        kbd₁[j] *= fw₁[j]
-                    end
-                    acc = 0.0
-                    for j in 1:N₁
-                        acc += zeta1[z1off+j] * kbd₁[j]
-                    end
-                    fvals[1] = acc / (2π)
+                    ChebyTN!(Tbd₂, N₂, tₛ)
 
-                    if kk == l_loc
-                        # zeta_st/2 term using stored coeffs
-                        # (here: use zeta2coef segment length N₂ like MATLAB; or better use N coeffs)
-                        # Evaluate using ChebyTN!(Tbd, N₂, tstar) if you preallocate it, else do direct recurrence.
-                        # For now, do direct Chebyshev recurrence allocation-free:
-                        # T0=1, T1=t, Tn=2tTn-1 - Tn-2
-                        t = tstar
-                        Tnm2 = 1.0
-                        Tnm1 = t
-                        ζs = zeta2coef[z2off+1] * Tnm2
-                        if N₂ >= 2
-                            ζs += zeta2coef[z2off+2] * Tnm1
-                        end
-                        for n in 3:N₂
-                            Tn = 2t * Tnm1 - Tnm2
-                            ζs += zeta2coef[z2off+n] * Tn
-                            Tnm2, Tnm1 = Tnm1, Tn
-                        end
-                        fvals[1] += ζs / 2
+                    @views Cbd = ζ₂coeff[(1 + (ll - 1) * N₂):(ll * N₂)]
+
+                    gam!(γxbd, d, tₛ, l)
+
+                    DLP!(kbd₁, d, tₛ, l, y₁, ℓ, μ₀, γt1, γt2)
+
+                    nu!(γt1, d, tₛ, l)
+
+                    @. kbd₁ = kbd₁ * fw₁
+
+                    @views ζv₁ = ζ₁[(1+(ll-1)*N₁):(ll*N₁)]
+
+                    @views ζv₂ = ζ₂[(1+(ll-1)*N₂):(ll*N₂)]
+
+                    fvals[1] = dot(ζv₁, kbd₁) / (2π)
+
+                    if ℓ == l
+
+                        ζₛ = dot(Tbd₂, Cbd)
+
+                        fvals[1] += ζₛ / 2
                     end
 
-                    # other interpolation nodes
                     for i in 2:Lᵢₙ
-                        μ₀[1] = γxbd[1] - xvals[i] * νvec[1]
-                        μ₀[2] = γxbd[2] - xvals[i] * νvec[2]
 
-                        for j in 1:N₂
-                            dx1 = gamk₂[1, j] - μ₀[1]
-                            dx2 = gamk₂[2, j] - μ₀[2]
-                            num = dx1 * gamp₂[1, j] + dx2 * gamp₂[2, j]
+                        @. μ₀ = γxbd - xvals[i] * γt1
+
+                        @inbounds for jj in 1:N₂
+                            dx1 = gamk₂[1, jj] - μ₀[1]
+                            dx2 = gamk₂[2, jj] - μ₀[2]
+
+                            num = dx1 * gamp₂[1, jj] + dx2 * gamp₂[2, jj]
                             den = dx1 * dx1 + dx2 * dx2
-                            kbd₂[j] = (num * fw₂[j]) / den
+
+                            kbd₂[jj] = (num * fw₂[jj]) / den
                         end
-                        acc = 0.0
-                        for j in 1:N₂
-                            acc += zeta2[z2off+j] * kbd₂[j]
-                        end
-                        fvals[i] = acc / (2π)
+
+                        fvals[i] = dot(ζv₂, kbd₂) / (2π)
+
                     end
 
-                    v[row] += nevill!(xvals, fvals, eps)   # mutating Neville
+                    v[row] = v[row] + nevill!(xvals, fvals, ϵ)
+
                 end
+
             end
+
         end
     end
 
-    # ------------------- 4) Add patch-to-target contributions -------------------
-    # This part depends heavily on your existing Julia implementations for:
-    # - map!(phix, phiy, d, zx, zy, k)
-    # - Dmap!(DJ, d, zx, zy, k)
-    # - d_func!(Df, d, k, something, s)
-    # and how you store ufin (refined values) for each patch.
-    #
-    # You already have this structure in MATLAB and in other Julia ports; reuse that pattern here.
+    # ----- STEP 3: Volumetruc Integrals over all rows
+    #               and DLP contributions in interioir  -----
+    for k in 1:M
+        isbdflag = (k in d.kd)
 
-    # ------------------- 5) Boundary rows -------------------
-    # Keep your s>=0.5 Chebyshev BC or s<0.5 boundary integral equation as in MATLAB.
-    # For matrix-free solver you likely need these rows too, so v[ Lp+1 : Ltot ] updated accordingly.
-    #
-    # I’m not writing it here only because it’s long and depends on dp indexing;
-    # but the same allocation-free patterns above apply.
+        if isbdflag
+            # Zx₂, Zy₂: images of Chebyshev grid (zx2,zy2) on patch k
+            mapxy_Dmap!(Zx₂, Zy₂, DJ₂, d, zx2, zy2, k) # nr×nr Zx₂, Zy₂, DJ₂
+
+            hc = d.pths[k].ck1 - d.pths[k].ck0
+
+            Dhc = s>=0.5 ? hc^(s-1) : hc^s 
+
+            CN .= reshape(chebcoef[(k - 1) * Np + 1 : k * Np], N, N)
+
+            mul!(CNnr, CN, transpose(Tz))   # N × nr
+            mul!(Ubd, Tz1, CNnr)            # nbd × nr
+
+            @. Ubd = Ubd * DJ₂
+        else
+            # Zx, Zy: images of Chebyshev grid (zx,zy) on patch k
+            mapxy_Dmap!(Zx, Zy, DJ, d, zx, zy, k) # nr×nr Zx, Zy, DJ
+
+            dfunc!(Df, d, k, zt, s)
+
+            UFV .= reshape(ufin[(k - 1) * nrp + 1 : k * nrp], nr, nr)
+
+            @. Ur = UFV * DJ * Df 
+        end
+
+        for row in 1:Lp
+            
+            ℓ = cld(row, Np)
+            k == ℓ && continue
+            if haskey(dp.hmap, packkey(row, k))
+                # ---------- Near-singular patch case ----------
+                col = dp.hmap[packkey(row, k)]
+
+                @views ck = chebcoef[(k - 1) * Np + 1 : k * Np]
+
+                @views NSI = IntS[:, col]
+
+                v[row] += Cs * dot(ck, NSI)
+            else
+                # ---------- Regular patch case ----------
+                x1 = dp.tgtpts[1, row]
+                x2 = dp.tgtpts[2, row]
+
+                if isbdflag
+                    @. Ker₂ = ((x1 - Zx₂)^2 + (x2 - Zy₂)^2)^(-s)
+                    @. KIbd = Ker₂ * Ubd
+                    v[row] += Cs * Dhc * dot(mfw, KIbd, fwr)
+
+                else
+                    @. Ker = ((x1 - Zx)^2 + (x2 - Zy)^2)^(-s)
+                    @. KIr = Ker * Ur
+                    # Computes fwr' * KIr * fwr
+                    v[row] += Cs * dot(fwr, KIr, fwr)
+                end
+
+            end
+        end
+
+        if s < 0.5
+
+            Lₚₘ = Lp + 1
+            Lₚₙ = Lp + Mbd * N
+
+            for row in Lₚₘ:Lₚₙ
+
+                k₀ = cld(row - Lp, N)
+
+                ℓ = d.kd[k₀]
+
+                k == ℓ && continue
+                if haskey(dp.hmap, packkey(row, k))
+                    # ---------- Near-singular patch case ----------
+                    col = dp.hmap[packkey(row, k)]
+
+                    @views ck = chebcoef[(k-1)*Np+1:k*Np]
+
+                    @views NSI = IntS[:, col]
+
+                    v[row] += Cs * dot(ck, NSI)
+                else
+                    # ---------- Regular patch case ----------
+                    x1 = dp.tgtpts[1, row]
+                    x2 = dp.tgtpts[2, row]
+
+                    if isbdflag
+                        @. Ker₂ = ((x1 - Zx₂)^2 + (x2 - Zy₂)^2)^(-s)
+                        @. KIbd = Ker₂ * Ubd
+                        v[row] += Cs * Dhc * dot(mfw, KIbd, fwr)
+
+                    else
+                        @. Ker = ((x1 - Zx)^2 + (x2 - Zy)^2)^(-s)
+                        @. KIr = Ker * Ur
+                        # Computes fwr' * KIr * fwr
+                        v[row] += Cs * dot(fwr, KIr, fwr)
+                    end
+
+                end
+            end
+
+        end
+    end
+
+    # ----- STEP 4: Remaining boundary rows -----
+    if s >= 0.5
+
+        for j in 1:N
+            @views Ct = CT[:, j]
+            for k in 1:Mbd
+                row = Lp + (k - 1)*N + j
+                ℓ = d.kd[k]
+                CN .= reshape(chebcoef[(ℓ - 1) * Np + 1 : ℓ * Np], N, N)
+                #ζv is a vector if size N, temporarily being used!
+                mul!(ζv, CN, Ct)
+                v[row] = sum(ζv) 
+            end
+        end
+
+    else #s<0.5 case
+
+        Lₚₘ = Lp + 1
+        Lₚₙ = Lp + Mbd * N
+
+        for row in Lₚₘ : Lₚₙ
+
+            k₀ = cld(row - M*Np, N)
+            
+            #Boundary patch number
+            ptl = d.kd[k₀]
+
+            #Linear index of point on the boundary patch
+            ptj = row - M*Np - (k₀ - 1) * N
+
+            # ---- boundary base term ----
+            for ll = 1:Mbd
+                ℓ = d.kd[ll]
+
+                @views ζvll = ζ₁[1 + (ll - 1) * N₁ : ll * N₁]
+
+                DLP!(kbd₁, d, CT[2,ptj], ptl, y₁, ℓ, μ₀, γt1, γt2)
+
+                @. kbd₁ = kbd₁ * fw₁
+
+                v[row] += dot(ζvll, kbd₁)/(2π)
+            end
+
+            v[row] += u[row] / 2
+            
+        end
+
+    end
 
     return nothing
 end

@@ -19,6 +19,7 @@ include(joinpath(@__DIR__, "bvec.jl"));
 include(joinpath(@__DIR__, "matrixvecprod/Axintpth.jl"));
 include(joinpath(@__DIR__, "matrixvecprod/Axbdpth.jl"));
 include(joinpath(@__DIR__, "matrixvecprod/Axbdop.jl"));
+include(joinpath(@__DIR__, "matrixvecprod/Ax.jl"));
 
 print("\033c")
 

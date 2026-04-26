@@ -6,7 +6,7 @@ function Axintpth!(v::SubArray{Float64}, kM::Int, IntS::Matrix{Float64},
     (; N, Np, Cs, M, Mbd) = IV1
     (; fwr, zx, zt, zy, Df, idctrg) = IVr
     (; Zx, Zy, DJ, Ker, KIr, Ur, CN) = IVt
-    coeffs = IVbdth.coeffs  # size N×N
+    (; coeffs) = IVbdth  # size N×N
 
     # v is M*Np + Mbd*N by Np matrix (preallocated given)
     # that is, size(v) == (M*Np + Mbd*N, Np)
@@ -92,7 +92,7 @@ function Axintpth!(v::SubArray{Float64}, kM::Int, IntS::Matrix{Float64},
                     mul!(Ur, g1, g2')
 
                     @. KIr = Ker * Ur * DJ * Df
-
+                    # Computes fwr' * KIr * fwr
                     v[row, jj] = Cs * dot(fwr, KIr, fwr)
                 end
             end

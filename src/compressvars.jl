@@ -1,9 +1,15 @@
+"""
+compress_vars_Aform builds a NamedTuple IV containing only what is needed for 
+functions Axbdop.jl, Axbdpth.jl, and Axintpth.jl (these functions help build 
+the matrix A) with preallocated scratch arrays and FFTW r2r plans to avoid 
+allocations.
+"""
 function compress_vars(d::abstractdomain, N::Int, s::Float64,
-    p::Int, dₙₕ::Int, δclsbd::Float64)
+    p::Int, dₙₕ::Int, δclsbd::Float64; matrix_form=true)
     # ----------------- BASIC CONSTANTS -------------------
     # Number of points per patch
     Np = N * N
-
+    M = d.Npat
     # Constant Cs
     Cs = -sinpi(s) * (gamma(s) / (π * 2^(1 - s)))^2
 
@@ -179,10 +185,8 @@ function compress_vars(d::abstractdomain, N::Int, s::Float64,
     fvals = Vector{Float64}(undef, Lᵢₙ)
     γxbd  = Vector{Float64}(undef, 2)
     kdx   = Vector{Int}(undef, 2*dₙₕ + 1)
-    Cbd = Vector{Float64}(undef, N₂)
-    Tbd = Vector{Float64}(undef, N₂)
-
-    pCbd = FFTW.plan_r2r!(Cbd, FFTW.REDFT10; flags=FFTW.ESTIMATE)
+    Tbd = Vector{Float64}(undef, N)
+    Tbd₂ = Vector{Float64}(undef, N₂)
 
     # ------------ TEMPORARY VARS  ------------
     # ------------ Reg Integration ------------
@@ -221,7 +225,7 @@ function compress_vars(d::abstractdomain, N::Int, s::Float64,
     KIbd= Matrix{Float64}(undef, nbd, nr)  # Ker₂ .* Ubd .* DJ₂
     Ubd = Matrix{Float64}(undef, nbd, nr)  # outer product g1*g2'
     Ubd1= Vector{Float64}(undef, nbd)      # To store g1
-    Ubd2= Vector{Float64}(undef, nr)  # To store g2
+    Ubd2= Vector{Float64}(undef, nr)       # To store g2
 
     CT = Matrix{Float64}(undef, N, N)
 
@@ -231,14 +235,47 @@ function compress_vars(d::abstractdomain, N::Int, s::Float64,
             CT[q+1, j] = cospi(q * (2j - 1) / (2N))
         end
     end
+    #-----------------------------------------
+    #------ Matrix free case variables -------
+    if !matrix_form
+        chebcoef = Vector{Float64}(undef, M * Np + Mbd * N)
+        ufin = Vector{Float64}(undef, M * nrp)
+
+        ζ₁ = Vector{Float64}(undef, Mbd * N₁)
+        ζ₂ = Vector{Float64}(undef, Mbd * N₂)
+        ζ₂coeff = Vector{Float64}(undef, Mbd * N₂)
+
+        
+        UV = Matrix{Float64}(undef, N, N)
+        CNnr = Matrix{Float64}(undef, N, nr)
+        UFV = Matrix{Float64}(undef, nr, nr)
+
+        # apply DCT-II in-place along dim 2 then dim 1
+        p_dct2_dim2 = FFTW.plan_r2r!(UV, FFTW.REDFT10, 2; flags=FFTW.MEASURE)
+        p_dct2_dim1 = FFTW.plan_r2r!(UV, FFTW.REDFT10, 1; flags=FFTW.MEASURE)
+
+        # apply DCT-III (idct) in-place along dim 2 then dim 1
+        p_dct3_dim2 = FFTW.plan_r2r!(UFV, FFTW.REDFT01, 2; flags=FFTW.MEASURE)
+        p_dct3_dim1 = FFTW.plan_r2r!(UFV, FFTW.REDFT01, 1; flags=FFTW.MEASURE)
+
+        ζv  = Vector{Float64}(undef, N)
+        ζfv₁= Vector{Float64}(undef, N₁)
+        ζfv₂= Vector{Float64}(undef, N₂)
+
+        # apply DCT-II in-place in one dimension
+        p_dct2_N  = FFTW.plan_r2r!(ζv  , FFTW.REDFT10; flags=FFTW.MEASURE)
+        p_dct3_N1 = FFTW.plan_r2r!(ζfv₁, FFTW.REDFT01; flags=FFTW.MEASURE)
+        p_dct3_N2 = FFTW.plan_r2r!(ζfv₂, FFTW.REDFT01; flags=FFTW.MEASURE)
+    end
+
     # ------------ PACK EVERYTHING ------------
 
     #using "NamedTuples" in Julia (These are immutable)
-    IV1 = (N=N, Np=Np, Cs=Cs, M=d.Npat, Mbd = Mbd)
+    IV1 = (N=N, Np=Np, Cs=Cs, M=M, Mbd = Mbd)
 
     IVr = (nr=nr, fwr=fwr, nrp=nrp, zx=zx, zt=zt, zy=zy, Df=Df, idctrg=idctrg)
 
-    IVbdth = ( zx2=zx2, zy2=zy2, Tz1=Tz1, Tz=Tz, coeffs=coeffs)
+    IVbdth = (zx2=zx2, zy2=zy2, Tz1=Tz1, Tz=Tz, coeffs=coeffs)
     
     IVbd = (N₁=N₁, N₂=N₂, fw₁=fw₁, fw₂=fw₂, idctbd₁=idctbd₁, idctbd₂=idctbd₂, dₙₕ=dₙₕ)
 
@@ -252,188 +289,28 @@ function compress_vars(d::abstractdomain, N::Int, s::Float64,
 
     IVbdt2= (kbd₁=kbd₁, kbd₂=kbd₂, γx=γx, μ₀=μ₀, γt1=γt1, γt2=γt2)
 
-    IVbdt3= (Lᵢₙ=Lᵢₙ, xvals=xvals, fvals=fvals, γxbd=γxbd, kdx=kdx, Cbd=Cbd, pCbd=pCbd, Tbd=Tbd)
-    
-    IV = (IV1=IV1, IVr=IVr, IVbdth=IVbdth, IVbd=IVbd, IVt=IVt, 
-    IVbt1=IVbt1, IVbt2=IVbt2, IVbdt1=IVbdt1, IVbdt2=IVbdt2, IVbdt3=IVbdt3)
+    IVbdt3= (Lᵢₙ=Lᵢₙ, xvals=xvals, fvals=fvals, γxbd=γxbd, kdx=kdx, Tbd=Tbd, Tbd₂=Tbd₂)
+
+    if !matrix_form
+        IVAf = (chebcoef=chebcoef, ufin=ufin, ζ₁=ζ₁, ζ₂=ζ₂, ζ₂coeff=ζ₂coeff,
+        UV = UV, UFV=UFV, ζv=ζv, ζfv₁=ζfv₁, ζfv₂=ζfv₂, CNnr=CNnr)
+
+        IVAdct = (p_dct2_dim2=p_dct2_dim2, p_dct2_dim1=p_dct2_dim1,
+            p_dct3_dim2=p_dct3_dim2, p_dct3_dim1=p_dct3_dim1, p_dct2_N=p_dct2_N,
+            p_dct3_N1=p_dct3_N1, p_dct3_N2=p_dct3_N2)
+
+        IV = (IV1=IV1, IVr=IVr, IVbdth=IVbdth, IVbd=IVbd, IVt=IVt,
+            IVbt1=IVbt1, IVbt2=IVbt2, IVbdt1=IVbdt1, IVbdt2=IVbdt2,
+            IVbdt3=IVbdt3, IVAf=IVAf, IVAdct=IVAdct)
+    else
+
+        IV = (IV1=IV1, IVr=IVr, IVbdth=IVbdth, IVbd=IVbd, IVt=IVt,
+            IVbt1=IVbt1, IVbt2=IVbt2, IVbdt1=IVbdt1, IVbdt2=IVbdt2,
+            IVbdt3=IVbdt3)
+
+    end
 
     return IV
-end
-
-using FFTW
-
-"""
-compress_vars_2(d, N, s, p, dₙₕ, δclsbd)
-
-Builds a NamedTuple IV containing only what is needed for Ax! (matvec),
-with preallocated scratch arrays and FFTW r2r plans to avoid allocations.
-"""
-function compress_vars_2(d::abstractdomain, N::Int, s::Float64,
-    p::Int, dₙₕ::Int, δclsbd::Float64)
-
-    # ----------------- BASIC CONSTANTS -------------------
-    Np  = N * N
-    M   = d.Npat
-    Mbd = length(d.kd)
-
-    Cs = -sinpi(s) * (gamma(s) / (π * 2^(1 - s)))^2
-
-    # ----------------- REGULAR INTEGRALS GRID -------------------
-    nr  = 32
-    nrp = nr * nr
-    fwr = getF1W(nr)                    # must be pre-existing
-
-    # regular Chebyshev nodes (nr)
-    zr = Vector{Float64}(undef, nr)
-    for i in 1:nr
-        zr[i] = cospi((2i - 1) / (2nr))
-    end
-
-    # meshgrid(zr)
-    zx = Matrix{Float64}(undef, nr, nr)
-    zy = Matrix{Float64}(undef, nr, nr)
-    for j in 1:nr
-        cj = zr[j]
-        @inbounds for i in 1:nr
-            zx[i,j] = zr[i]
-            zy[i,j] = cj
-        end
-    end
-
-    # ----------------- BOUNDARY INTEGRAL GRIDS -------------------
-    N₁ = 128
-    N₂ = 768
-    fw₁ = getF1W(N₁)
-    fw₂ = getF1W(N₂)
-
-    y₁ = Vector{Float64}(undef, N₁)
-    y₂ = Vector{Float64}(undef, N₂)
-    for j in 1:N₁
-        y₁[j] = cospi((2j - 1) / (2N₁))
-    end
-    for j in 1:N₂
-        y₂[j] = cospi((2j - 1) / (2N₂))
-    end
-
-    # ----------------- Scratch vectors for this Ax! -------------------
-    Lp   = M * Np
-    Ltot = Lp + Mbd * N
-
-    chebcoef  = Vector{Float64}(undef, Ltot)
-    ufin      = Vector{Float64}(undef, M * nrp)
-
-    zeta1     = Vector{Float64}(undef, Mbd * N₁)
-    zeta2     = Vector{Float64}(undef, Mbd * N₂)
-    zeta2coef = Vector{Float64}(undef, Mbd * N₂)
-
-    # ----------------- FFTW buffers + plans -------------------
-    #
-    # MATLAB dct == DCT-II  => FFTW.REDFT10
-    # MATLAB idct == DCT-III => FFTW.REDFT01
-    #
-    # 2D transforms on N×N buffer:
-    FV = Matrix{Float64}(undef, N, N)   # function values
-    CN = Matrix{Float64}(undef, N, N)   # coeffs (in-place target)
-
-    # Plans: apply DCT-II in-place along dim 2 then dim 1
-    p_dct2_dim2 = plan_r2r!(CN, FFTW.REDFT10, 2; flags=FFTW.ESTIMATE)
-    p_dct2_dim1 = plan_r2r!(CN, FFTW.REDFT10, 1; flags=FFTW.ESTIMATE)
-
-    # For refinement: need IDCT-III from N×N coeffs to nr×nr values.
-    # We’ll do it as two 1D IDCTs using intermediate buffers:
-    # - first IDCT along dim2 into a nr×N buffer
-    # - then IDCT along dim1 into nr×nr
-    #
-    # Buffers:
-    TMP_nrN = Matrix{Float64}(undef, nr, N)
-    U_nrnr  = Matrix{Float64}(undef, nr, nr)
-
-    # Plans for 1D IDCT-III on length=nr and length=N etc.
-    # But FFTW plans are tied to array sizes. We use r2r! on full matrices:
-    p_idct_nr_dim2 = plan_r2r!(TMP_nrN, FFTW.REDFT01, 2; flags=FFTW.ESTIMATE)  # acts on each row length N (careful)
-    # For simplicity/robustness, we instead use *matrix-based ChebyTN eval* for refinement in Julia later
-    # OR build proper plans per dimension lengths. If you want pure FFTW, we need dedicated buffers sized (nr, nr) etc.
-
-    # Practical approach (less finicky): do refinement using Chebyshev evaluation matrices you precompute once:
-    # Build TnrN = ChebyTN(n, zr) etc. This is deterministic and allocation-free with mul!.
-    # You already did this style for bdop; here we do similar:
-    TnrN = Matrix{Float64}(undef, nr, N)
-    ChebyTN!(TnrN, N, zr)   # must exist (fills TnrN[i,j] = T_{j-1}(zr[i]))
-
-    # For boundary ζ upsampling (N -> N₁/N₂):
-    TN1N = Matrix{Float64}(undef, N₁, N)
-    TN2N = Matrix{Float64}(undef, N₂, N)
-    ChebyTN!(TN1N, N, y₁)
-    ChebyTN!(TN2N, N, y₂)
-
-    # 1D DCT-II buffer for boundary coeffs:
-    cN   = Vector{Float64}(undef, N)
-    p_dct1_N = plan_r2r!(cN, FFTW.REDFT10; flags=FFTW.ESTIMATE)
-
-    # --- Boundary geometry scratch (used in bd integral + regular integrals) ---
-    gamk₁  = Matrix{Float64}(undef, 2, N₁)
-    gamp₁  = Matrix{Float64}(undef, 2, N₁)
-    gamk₂  = Matrix{Float64}(undef, 2, N₂)
-    gamp₂  = Matrix{Float64}(undef, 2, N₂)
-
-    # kernel dot helper buffers
-    kbd₁ = Vector{Float64}(undef, N₁)
-    kbd₂ = Vector{Float64}(undef, N₂)
-
-    γx   = Vector{Float64}(undef, 2)
-    μ₀   = Vector{Float64}(undef, 2)
-    γxbd = Vector{Float64}(undef, 2)
-    νvec = Vector{Float64}(undef, 2)
-
-    # interpolation scratch
-    Lᵢₙ = 7
-    xvals = Vector{Float64}(undef, Lᵢₙ)
-    xvals[1] = 0.0
-    for i in 2:Lᵢₙ
-        xvals[i] = δclsbd + (i-2) * (δclsbd/2)   # matches your MATLAB [0, del, del+0.005, ...]
-    end
-    fvals = Vector{Float64}(undef, Lᵢₙ)
-
-    kdx = Vector{Int}(undef, 2dₙₕ + 1)
-
-    # regular integral scratch
-    phix = Matrix{Float64}(undef, nr, nr)
-    phiy = Matrix{Float64}(undef, nr, nr)
-    DJ   = Matrix{Float64}(undef, nr, nr)
-    Df   = Matrix{Float64}(undef, nr, nr)
-    Ker  = Matrix{Float64}(undef, nr, nr)
-
-    # boundary-patch regularization scratch (if you keep that part in Ax! later)
-    # add as needed.
-
-    IV1 = (N=N, Np=Np, Cs=Cs, M=M, Mbd=Mbd, nr=nr, nrp=nrp, N₁=N₁, N₂=N₂, dₙₕ=dₙₕ, δclsbd=δclsbd)
-
-    IVx = (
-        chebcoef=chebcoef, ufin=ufin,
-        zeta1=zeta1, zeta2=zeta2, zeta2coef=zeta2coef
-    )
-
-    IVt = (
-        FV=FV, CN=CN, TMP_nrN=TMP_nrN, U_nrnr=U_nrnr,
-        TnrN=TnrN, TN1N=TN1N, TN2N=TN2N,
-        cN=cN, p_dct1_N=p_dct1_N,
-        p_dct2_dim2=p_dct2_dim2, p_dct2_dim1=p_dct2_dim1
-    )
-
-    IVbdt = (
-        y₁=y₁, y₂=y₂, fw₁=fw₁, fw₂=fw₂,
-        gamk₁=gamk₁, gamp₁=gamp₁, gamk₂=gamk₂, gamp₂=gamp₂,
-        kbd₁=kbd₁, kbd₂=kbd₂,
-        γx=γx, μ₀=μ₀, γxbd=γxbd, νvec=νvec,
-        Lᵢₙ=Lᵢₙ, xvals=xvals, fvals=fvals, kdx=kdx
-    )
-
-    IVreg = (
-        fwr=fwr, zx=zx, zy=zy,
-        phix=phix, phiy=phiy, DJ=DJ, Df=Df, Ker=Ker
-    )
-
-    return (IV1=IV1, IVx=IVx, IVt=IVt, IVbdt=IVbdt, IVreg=IVreg)
 end
 
 #Unpacking is also simple:

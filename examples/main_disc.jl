@@ -3,7 +3,7 @@ using Revise, FractionalLaplace2D
 using FractionalLaplace2D.FLdata
 
 # =============================================
-s, p = 0.1, 10;
+s, p = 0.75, 4;
 
 δ, δclsbd = 0.1, 0.01;
 
@@ -15,7 +15,7 @@ AN = [3, 4, 5, 6, 7, 8, 9, 10, 12];
 
 f!, uex, fv = makediscfuex(2, s);
 
-dobenchmark, docondnum = false, true;
+dobenchmark, docondnum = false, false;
 
 for i in 1:9
 
@@ -24,7 +24,15 @@ for i in 1:9
     prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
         dₙₕ=1, (f!)=f!, uex=uex, dom=dom);
 
-    opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark )
+    opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark, matrixfree=false)
+
+    core_res = solveFL(prob; opts=opts);
+
+    println(SolveView(prob, opts, core_res))
+
+    #------------- Matrix free --------
+
+    opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark, matrixfree=true)
 
     core_res = solveFL(prob; opts=opts);
 
@@ -39,14 +47,22 @@ Anₚᵣ = [128, 128];
 
 AN = [10, 12];
 
-for i in 2:2
+for i in 1:2
 
     nₚᵣ, N = Anₚᵣ[i], AN[i]
 
     prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
         dₙₕ=1, (f!)=f!, uex=uex, dom=dom);
 
-    opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark )
+    opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark, matrixfree=false)
+
+    core_res = solveFL(prob; opts=opts);
+
+    println(SolveView(prob, opts, core_res))
+
+    #------------- Matrix free --------
+
+    opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark, matrixfree=true)
 
     core_res = solveFL(prob; opts=opts);
 
@@ -68,7 +84,15 @@ for i in 1:2
     prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
         dₙₕ=1, (f!)=f!, uex=uex, dom=dom);
 
-    opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark )
+    opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark, matrixfree=false)
+
+    core_res = solveFL(prob; opts=opts);
+
+    println(SolveView(prob, opts, core_res))
+
+    #------------- Matrix free --------
+
+    opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark, matrixfree=true)
 
     core_res = solveFL(prob; opts=opts);
 
@@ -83,14 +107,22 @@ Anₚᵣ = [128, 256];
 
 AN = [10, 12];
 
-for i in 2:2
+for i in 1:2
 
     nₚᵣ, N = Anₚᵣ[i], AN[i]
 
     prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
         dₙₕ=1, (f!)=f!, uex=uex, dom=dom);
 
-    opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark )
+    opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark, matrixfree=false)
+
+    core_res = solveFL(prob; opts=opts);
+
+    println(SolveView(prob, opts, core_res))
+
+    #------------- Matrix free --------
+
+    opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark, matrixfree=true)
 
     core_res = solveFL(prob; opts=opts);
 

@@ -119,7 +119,7 @@ end
 # -------------------------
 
 "Compute uappv from vector Uapp."
-function _compute_uappv(dp, d, Uapp::AbstractVector{<:Real}, N::Int, s::Float64)
+function _compute_uappv(dp, d, Uapp::Vector{Float64}, N::Int, s::Float64)
     Np = N^2
     M  = d.Npat
     uappv = Vector{Float64}(undef, M * Np)
@@ -147,7 +147,7 @@ function _compute_uexv_from_function(dp, uex::Function, n::Int)
 end
 
 "Compute error vector and metrics."
-function _compute_errors(uappv::AbstractVector{<:Real}, uexv::AbstractVector{<:Real})
+function _compute_errors(uappv::Vector{Float64}, uexv::Vector{Float64})
     err = Float64.(uappv) .- Float64.(uexv)
     maxerr = maximum(abs.(err))
     relmax = maxerr / maximum(abs.(uexv))
@@ -199,7 +199,11 @@ function solveFL_core(prob::Problem; opts::Options=Options())
     dp = domprop(prob.N, prob.δ, prob.δclsbd, d)
 
     # precomputations
-    IntS = (prob.s >= 0.5) ? precompsH(d, dp, prob.s, prob.p; n=n) : precompsL(d, dp, prob.s, prob.p; n=n)
+    if prob.s >= 0.5
+        IntS = precompsH(d, dp, prob.s, prob.p; n=n)
+    else
+        IntS = precompsL(d, dp, prob.s, prob.p; n=n)
+    end
 
     # RHS
     b = bvec(d, dp, prob.s, prob.f!)
@@ -208,15 +212,119 @@ function solveFL_core(prob::Problem; opts::Options=Options())
     δeff = dp.delclsbd
 
     if opts.matrixfree
+        #Matrix free approach is not for domains with holes in it
+        IV = compress_vars(d, dp.N, prob.s, prob.p, prob.dₙₕ, δeff; matrix_form=false)
 
-        IV = compress_vars_2(d, dp.N, prob.s, prob.p, prob.dₙₕ, δeff)
+        Uapp = copy(b)
+        (; N, Np, M, Mbd) = IV.IV1
+        Ltot = M * Np + Mbd * N
+        restart_eff = min(opts.restart, Ltot)
 
+        # The argument is an in-place function
+        #     (v, x) -> Ax!(v, x, IntS, d, dp, prob.s, IV)
+        # which means:
+        #     given an input vector x, compute A*x and write the result into v.
+        # The two Ltot arguments specify the size of the linear operator:
+        #     size(Aop) == (Ltot, Ltot)
+        # This is necessary because gmres! needs to know the dimensions of the
+        # linear system, even though A is not stored explicitly.
+        # The keyword ismutating=true tells LinearMap that the supplied function
+        # is an in-place/mutating matvec of the form f!(v, x), rather than a
+        # function of the form f(x) that returns a new vector.
+        Aop = LinearMap{Float64}((v, x) -> Ax!(v, x, IntS, d, dp, prob.s, IV),
+            Ltot, Ltot; ismutating=true)
+
+        Uapp, ch = gmres!(Uapp, Aop, b;
+            reltol=opts.reltol, abstol=opts.abstol, restart=restart_eff, log=true)
+
+        iters = hasproperty(ch, :iters) ? ch.iters : 0
+        conv = hasproperty(ch, :isconverged) ? ch.isconverged : false
+        info = SolveInfo(solver=:gmres, iters=iters, converged=conv, reltol=opts.reltol)
+
+        return CoreResult(dp=dp, d=d, IntS=IntS, A=nothing, b=b, Uapp=Uapp, info=info)
+
+    end
+
+    IV = compress_vars(d, dp.N, prob.s, prob.p, prob.dₙₕ, δeff; matrix_form=true)
+
+    # assemble matrix
+    A = _assemble_matrix(dp, d, IntS, prob.s, IV)
+
+    if size(IntS, 2) > 100_000
+        IntS = nothing
+        GC.gc()
+    end
+
+    # solve
+    info = SolveInfo(solver=opts.solver)
+
+    if opts.solver == :direct
+        if d.nh == 0
+            Uapp = A \ b
+            info = SolveInfo(solver=:direct, iters=0, converged=true, reltol=0)
+
+        else
+            # There are HOLES!! in our domain
+            # The LU decomposition will have nh zero rows
+            # in matrix U. We now compute the Single layer potentials.
+            (; N, Np, M, Mbd) = IV.IV1
+
+            # beta - A rectangular matrix of size (Mbd*N) * nh where
+            #        N is number of Chebyshev coefficients per patch and
+            #        Mbd is number of boundary patches. The jth column
+            #        of beta contains beta_j values over Chebyshev mesh.
+            beta = SLP_Beta(d, N)
+
+            # bZ : The single layer potential on all the
+            #      target points (including the boundary).
+            #      It's a rectangular matrix of size
+            #      (Npat*N*N + Mbd*N) * nh where nh is the
+            #      number of holes and Npat*N*N + Mbd*N is total
+            #      number of target points.
+            bZ = SLP_eval(d, dp, beta)
+
+            if s >= 0.5
+                bZ[(1+M*Np):(M*Np+Mbd*N), 1:D.Nh] .= 0.0
+            end
+
+            # Last Nh indices
+            indx = (M*Np+Mbd*N-d.nh+1):(M*Np+Mbd*N)
+
+            # QR decomposition method to solve for unknowns
+            F = qr(A)
+            Qa = Matrix(F.Q)
+            Ra = F.R
+            Pa = Matrix(F.P)
+
+            # matrix A is not needed now
+            A = nothing
+
+            B_SLP = Qa' * b
+
+            Beta_SLP = Qa' * bZ
+
+            # matrix Qa is not needed now
+            Qa = nothing
+
+            RNh = -(Beta_SLP[indx, :] \ B_SLP[indx])
+
+            beq = B_SLP + Beta_SLP * RNh
+
+            for j in 1:D.Nh
+                Ra[indx[j], indx[j]] = 1
+            end
+
+            Uapp = Pa * (Ra \ beq)
+
+        end
+
+    elseif opts.solver == :gmres
         Uapp = copy(b)
         (; N, Np, M, Mbd) = IV.IV1
         Lp = M * Np + Mbd * N
         restart_eff = min(opts.restart, Lp)
 
-        Uapp, ch = gmres!(Uapp, (v, x) -> Ax!(v, x, IntS, d, dp, prob.s, IV), b;
+        Uapp, ch = gmres!(Uapp, A, b;
             reltol=opts.reltol, abstol=opts.abstol, restart=restart_eff, log=true)
 
         iters = hasproperty(ch, :iters) ? ch.iters : 0
@@ -224,56 +332,18 @@ function solveFL_core(prob::Problem; opts::Options=Options())
         info = SolveInfo(solver=:gmres, iters=iters, converged=conv, reltol=opts.reltol)
 
     else
-        IV = compress_vars(d, dp.N, prob.s, prob.p, prob.dₙₕ, δeff)
-
-        # assemble matrix
-        A = _assemble_matrix(dp, d, IntS, prob.s, IV)
-
-        if size(IntS, 2) > 100_000
-            IntS = nothing
-            GC.gc()
-        end
-
-        # solve
-        info = SolveInfo(solver=opts.solver)
-
-        if opts.solver == :direct
-            if d.nh == 0
-                Uapp = A \ b
-                info = SolveInfo(solver=:direct, iters=0, converged=true, reltol=0)
-
-            else
-                #This part left for domains with holes
-
-            end
-
-        elseif opts.solver == :gmres
-            Uapp = copy(b)
-            (; N, Np, M, Mbd) = IV.IV1
-            Lp = M * Np + Mbd * N
-            restart_eff = min(opts.restart, Lp)
-
-            Uapp, ch = gmres!(Uapp, A, b;
-                reltol=opts.reltol, abstol=opts.abstol, restart=restart_eff, log=true
-            )
-
-            iters = hasproperty(ch, :iters) ? ch.iters : 0
-            conv = hasproperty(ch, :isconverged) ? ch.isconverged : false
-            info = SolveInfo(solver=:gmres, iters=iters, converged=conv, reltol=opts.reltol)
-
-        else
-            error("Unknown solver=$(opts.solver). Use :gmres or :direct.")
-        end
-
-        #Too much RAM usage for modern laptops. ~15GB
-        if size(A, 2) > 40_000
-            A = nothing
-            GC.gc()
-        end
-
+        error("Unknown solver=$(opts.solver). Use :gmres or :direct.")
     end
-    
+
+    #Too much RAM usage for modern laptops. ~15GB
+    if size(A, 2) > 40_000
+        A = nothing
+        GC.gc()
+    end
+
     return CoreResult(dp=dp, d=d, IntS=IntS, A=A, b=b, Uapp=Uapp, info=info)
+
+
 end
 
 # -------------------------
@@ -329,7 +399,7 @@ function solveFL_post(prob::Problem, core::CoreResult; opts::Options=Options())
     return res
 end
 
-#This function takes in A finer solution, domain and number of points per patch per axis
+#This function takes in A finer solution, domain and N
 #and then return a solution on the coarser mesh 
 function build_ref_coarse(Uf::Vector{Float64}, df::abstractdomain,
     Nf::Int, dc::abstractdomain, Nc::Int)
@@ -408,13 +478,13 @@ function solveFL(prob::Problem; opts::Options=Options())
             solver=opts.solver,
             reltol=opts.reltol,
             abstol=opts.abstol,
-            restart=opts.restart
-        )
+            restart=opts.restart,
+            matrixfree=opts.matrixfree)
 
         core  = solveFL_core(prob; opts=opts_core)  # compute once for actual result
 
         # benchmarking only the core solve
-        bench = BenchmarkTools.@benchmark solveFL_core($prob; opts=$opts_core) evals=1 samples=4 seconds=10_000
+        bench = BenchmarkTools.@benchmark solveFL_core($prob; opts=$opts_core) evals=1 samples=3 seconds=10_000
     
     else
         core = solveFL_core(prob; opts=opts)
@@ -447,8 +517,6 @@ function plot_result(res::Result; what::Symbol=:uapp)
         error("what must be :uapp, :uex, or :err")
     end
 end
-
-import Base: show
 
 struct SolveView
     prob::Problem

@@ -23,6 +23,18 @@ mutable struct domprop
     # grouped data: M = d.Npat, Mbd = |dom.kd|
     # 2 × (M*N^2 + Mbd*N), representing number of tgt pts
     # 1st and 2nd row are x and y points in real space of tgt pt resp.
+    # The patch in which the point is present is given by 
+    #
+    # ℓ = ceil(i/Np), if i<=M*Np (interioir target point)
+    # k₀ = ceil((i-M*Np)/N), ℓ = d.kd(k₀), if i>M*Np (bd tgt point)
+    #
+    # local linear index is given by 
+    #
+    # j = i - (ℓ - 1)*Np, if i<=M*Np (j₂, j₁ = divrem(j-1, N) .+ 1)
+    #       t = ( cospi((2j₁-1)/(2N)), cospi((2j₂-1)/(2N)) )
+    # j = i - M*Np - (k₀ - 1)*N, if i>M*Np
+    #                   t = cospi((2j-1)/(2N))
+    #
     tgtpts::Matrix{Float64}  
 
     # 2 × (M*N^2 + Mbd*N + Tnsp), representing number of pre pts
@@ -42,8 +54,8 @@ mutable struct domprop
     distpts::Vector{distrec} 
 
     # bookkeeping
-    pthgo::Vector{Int}   # length M+1 (starts in pre for each patch; last=boundary start)
-    nspsz::Vector{Int}   # length M+1 (near-singular counts per patch; last=boundary block)
+    pthgo::Vector{Int}   # length M+1 (starts in pre for each patch; last entry=boundary start)
+    nspsz::Vector{Int}   # length M+1 (near-singular counts per patch; last entry=boundary block)
 
     function domprop(N::Integer, del::Float64, delclsbd::Float64, dom::D) where {D<:abstractdomain}
         #JNote that Julia is a column major language
@@ -64,7 +76,7 @@ mutable struct domprop
 
         for j in 1:N z[j] = cospi((2*j - 1)/(2N)) end
 
-        """
+        #===
         For row vectors x,y in matlab with length nx and ny
         [Y,X]=meshgrid(y,x) is equivalent to the following:
         Y = ones(nx,1) .* y and X = x' .* ones(1,ny).
@@ -73,7 +85,7 @@ mutable struct domprop
         write Y = repmat(y',nx,1) and X = repmat(x,1,ny)
         NOTE : Use reshape if data is complex!
         The line "[zy,zx] = meshgrid(z);" converts to
-        """
+        ===#
         zx = repeat(z, 1, N)
         zy = repeat(z', N, 1)
 

@@ -1,12 +1,13 @@
 function Axbdop!(v::SubArray{Float64}, kI::Int, d::abstractdomain, dp::domprop, s::Float64, IV)
 
     # --------- Unpack IV (NamedTuple) ---------
-    (; IV1, IVbd, IVbt2, IVbdt1, IVbdt2, IVbdt3) = IV
+    (; IV1, IVbd, IVbt2, IVbdth, IVbdt1, IVbdt2, IVbdt3) = IV
     (; N, Np, M, Mbd) = IV1
     (; N₁, N₂, fw₁, fw₂, idctbd₁, idctbd₂, dₙₕ) = IVbd 
     (; y₁, y₂, gamk₁, gamp₁, gamk₂, gamp₂) = IVbdt1
     (; kbd₁, kbd₂, γx, μ₀, γt1, γt2) = IVbdt2
-    (; Lᵢₙ, xvals, fvals, γxbd, kdx, Cbd, pCbd, Tbd) = IVbdt3
+    (; Lᵢₙ, xvals, fvals, γxbd, kdx, Tbd) = IVbdt3
+    (; coeffs) = IVbdth
 
     # v is M*Np + Mbd*N by N matrix (preallocated given)
     # that is, size(v) == (M*Np + Mbd*N, N)
@@ -92,6 +93,8 @@ function Axbdop!(v::SubArray{Float64}, kI::Int, d::abstractdomain, dp::domprop, 
             else 
                 tₛ = dp.distpts[ℓbd].t
 
+                ChebyTN!(Tbd, N, tₛ)
+
                 gam!(γxbd, d, tₛ, l)
 
                 DLP!(kbd₁, d, tₛ, l, y₁, k, μ₀, γt1, γt2)
@@ -106,27 +109,22 @@ function Axbdop!(v::SubArray{Float64}, kI::Int, d::abstractdomain, dp::domprop, 
 
                     @views ζ2 = idctbd₂[:,j]
 
-                    Ibd = dot(ζ1, kbd₁) / (2π)
-
-                    fvals[1] = Ibd
+                    fvals[1] = dot(ζ1, kbd₁) / (2π)
 
                     if k==l
-                        Cbd .= ζ2    
+                        # Cbd .= ζ2    
+                        # mul!(Cbd, pCbd, Cbd)
+                        # @. Cbd = Cbd / N₂
+                        # Cbd[1] = Cbd[1] / 2
+                        # ChebyTN!(Tbd₂, N₂, tₛ)
+                        # ζₛ = dot(Tbd₂, Cbd)
+                        # fvals[1] += ζₛ/2 
 
-                        # in-place DCT-II, may be allocs
-                        # so create plan and then mul!
-                        #FFTW.r2r!(Cbd, FFTW.REDFT10)   
-                        mul!(Cbd, pCbd, Cbd)
+                        @views Cbdj = coeffs[:, j]
 
-                        @. Cbd = Cbd / N₂
+                        ζₛ = dot(Tbd, Cbdj)
 
-                        Cbd[1] = Cbd[1] / 2
-
-                        ChebyTN!(Tbd, N₂, tₛ)
-
-                        ζₛ = dot(Tbd, Cbd)
-
-                        fvals[1] += ζₛ/2 
+                        fvals[1] += ζₛ / 2
                     end
 
                     for i in 2:Lᵢₙ
@@ -156,7 +154,6 @@ function Axbdop!(v::SubArray{Float64}, kI::Int, d::abstractdomain, dp::domprop, 
 
     end
 
-
     if s<0.5
 
         Lₚₘ = Lₚ + 1
@@ -184,6 +181,5 @@ function Axbdop!(v::SubArray{Float64}, kI::Int, d::abstractdomain, dp::domprop, 
             v[Lₚ+N*(kI-1)+j, j] += 0.5
         end
     end
-
 
 end

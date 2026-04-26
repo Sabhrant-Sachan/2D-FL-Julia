@@ -21,7 +21,7 @@ using HypergeometricFunctions: pFq
 using GLMakie
 using LaTeXStrings
 using ColorSchemes
-
+using LinearMaps
 # --- Finding time taken by FL solver ---
 using BenchmarkTools
 using WriteVTK, VTKBase
