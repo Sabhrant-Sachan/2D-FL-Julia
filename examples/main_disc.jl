@@ -1,7 +1,9 @@
+
 using Revise, FractionalLaplace2D
 
 using FractionalLaplace2D.FLdata
 
+open("solve_output.txt", "w") do io
 # =============================================
 s, p = 0.75, 4;
 
@@ -28,7 +30,7 @@ for i in 1:9
 
     core_res = solveFL(prob; opts=opts);
 
-    println(SolveView(prob, opts, core_res))
+    println(io, SolveView(prob, opts, core_res))
 
     #------------- Matrix free --------
 
@@ -36,7 +38,7 @@ for i in 1:9
 
     core_res = solveFL(prob; opts=opts);
 
-    println(SolveView(prob, opts, core_res))
+    println(io, SolveView(prob, opts, core_res))
 
 end
 
@@ -58,7 +60,7 @@ for i in 1:2
 
     core_res = solveFL(prob; opts=opts);
 
-    println(SolveView(prob, opts, core_res))
+    println(io, SolveView(prob, opts, core_res))
 
     #------------- Matrix free --------
 
@@ -66,7 +68,7 @@ for i in 1:2
 
     core_res = solveFL(prob; opts=opts);
 
-    println(SolveView(prob, opts, core_res))
+    println(io, SolveView(prob, opts, core_res))
 
 end
 
@@ -88,7 +90,7 @@ for i in 1:2
 
     core_res = solveFL(prob; opts=opts);
 
-    println(SolveView(prob, opts, core_res))
+    println(io, SolveView(prob, opts, core_res))
 
     #------------- Matrix free --------
 
@@ -96,7 +98,7 @@ for i in 1:2
 
     core_res = solveFL(prob; opts=opts);
 
-    println(SolveView(prob, opts, core_res))
+    println(io, SolveView(prob, opts, core_res))
 
 end
 
@@ -118,7 +120,7 @@ for i in 1:2
 
     core_res = solveFL(prob; opts=opts);
 
-    println(SolveView(prob, opts, core_res))
+    println(io, SolveView(prob, opts, core_res))
 
     #------------- Matrix free --------
 
@@ -126,8 +128,10 @@ for i in 1:2
 
     core_res = solveFL(prob; opts=opts);
 
-    println(SolveView(prob, opts, core_res))
+    println(io, SolveView(prob, opts, core_res))
 
 end
 
 display("==End of Disc==")
+
+end

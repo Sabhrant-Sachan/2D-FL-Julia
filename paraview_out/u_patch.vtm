@@ -6,30 +6,5 @@
     <DataSet index="2" file="u_patch_3.vts"/>
     <DataSet index="3" file="u_patch_4.vts"/>
     <DataSet index="4" file="u_patch_5.vts"/>
-    <DataSet index="5" file="u_patch_6.vts"/>
-    <DataSet index="6" file="u_patch_7.vts"/>
-    <DataSet index="7" file="u_patch_8.vts"/>
-    <DataSet index="8" file="u_patch_9.vts"/>
-    <DataSet index="9" file="u_patch_10.vts"/>
-    <DataSet index="10" file="u_patch_11.vts"/>
-    <DataSet index="11" file="u_patch_12.vts"/>
-    <DataSet index="12" file="u_patch_13.vts"/>
-    <DataSet index="13" file="u_patch_14.vts"/>
-    <DataSet index="14" file="u_patch_15.vts"/>
-    <DataSet index="15" file="u_patch_16.vts"/>
-    <DataSet index="16" file="u_patch_17.vts"/>
-    <DataSet index="17" file="u_patch_18.vts"/>
-    <DataSet index="18" file="u_patch_19.vts"/>
-    <DataSet index="19" file="u_patch_20.vts"/>
-    <DataSet index="20" file="u_patch_21.vts"/>
-    <DataSet index="21" file="u_patch_22.vts"/>
-    <DataSet index="22" file="u_patch_23.vts"/>
-    <DataSet index="23" file="u_patch_24.vts"/>
-    <DataSet index="24" file="u_patch_25.vts"/>
-    <DataSet index="25" file="u_patch_26.vts"/>
-    <DataSet index="26" file="u_patch_27.vts"/>
-    <DataSet index="27" file="u_patch_28.vts"/>
-    <DataSet index="28" file="u_patch_29.vts"/>
-    <DataSet index="29" file="u_patch_30.vts"/>
   </vtkMultiBlockDataSet>
 </VTKFile>
