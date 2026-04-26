@@ -266,6 +266,8 @@ function compress_vars(d::abstractdomain, N::Int, s::Float64,
         p_dct2_N  = FFTW.plan_r2r!(ζv  , FFTW.REDFT10; flags=FFTW.MEASURE)
         p_dct3_N1 = FFTW.plan_r2r!(ζfv₁, FFTW.REDFT01; flags=FFTW.MEASURE)
         p_dct3_N2 = FFTW.plan_r2r!(ζfv₂, FFTW.REDFT01; flags=FFTW.MEASURE)
+
+        TzT = transpose(Tz)
     end
 
     # ------------ PACK EVERYTHING ------------
@@ -293,7 +295,7 @@ function compress_vars(d::abstractdomain, N::Int, s::Float64,
 
     if !matrix_form
         IVAf = (chebcoef=chebcoef, ufin=ufin, ζ₁=ζ₁, ζ₂=ζ₂, ζ₂coeff=ζ₂coeff,
-        UV = UV, UFV=UFV, ζv=ζv, ζfv₁=ζfv₁, ζfv₂=ζfv₂, CNnr=CNnr)
+        UV = UV, UFV=UFV, ζv=ζv, ζfv₁=ζfv₁, ζfv₂=ζfv₂, CNnr=CNnr,  TzT=TzT)
 
         IVAdct = (p_dct2_dim2=p_dct2_dim2, p_dct2_dim1=p_dct2_dim1,
             p_dct3_dim2=p_dct3_dim2, p_dct3_dim1=p_dct3_dim1, p_dct2_N=p_dct2_N,

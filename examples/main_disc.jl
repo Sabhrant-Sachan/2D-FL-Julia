@@ -15,7 +15,7 @@ AN = [3, 4, 5, 6, 7, 8, 9, 10, 12];
 
 f!, uex, fv = makediscfuex(2, s);
 
-dobenchmark, docondnum = false, false;
+dobenchmark, docondnum = true, false;
 
 for i in 1:9
 

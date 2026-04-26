@@ -1,5 +1,5 @@
 function Ax!(v::AbstractVector{Float64}, u::AbstractVector{Float64}, IntS::Matrix{Float64},
-    d::abstractdomain, dp::domprop, s::Float64, IV)
+    d::D, dp::domprop, s::Float64, IV::IVT) where {D<:abstractdomain,IVT}
     # Ax! :Matrix-vector product v = A*u (matrix-free), for GMRES and 
     #      other iterative solvers. This subroutine computes the Matrix vector 
     #      product Au without constructing the matrix A.
@@ -29,13 +29,13 @@ function Ax!(v::AbstractVector{Float64}, u::AbstractVector{Float64}, IntS::Matri
 
     (; p_dct2_dim2, p_dct2_dim1, p_dct3_dim2, p_dct3_dim1, p_dct2_N, p_dct3_N1, p_dct3_N2)= IVAdct
 
-    (; chebcoef, ufin, ζ₁, ζ₂, ζ₂coeff, UV, UFV, ζv, ζfv₁, ζfv₂, CNnr) = IVAf
+    (; chebcoef, ufin, ζ₁, ζ₂, ζ₂coeff, UV, UFV, ζv, ζfv₁, ζfv₂, CNnr,  TzT) = IVAf
 
     (; N, Np, Cs, M, Mbd) = IV1
 
     (; nr, fwr, nrp, zx, zt, zy, Df) = IVr
 
-    (; zx2, zy2, Tz1, Tz) = IVbdth
+    (; zx2, zy2, Tz1) = IVbdth
     
     (; N₁, N₂, fw₁, fw₂, dₙₕ) = IVbd
 
@@ -72,13 +72,19 @@ function Ax!(v::AbstractVector{Float64}, u::AbstractVector{Float64}, IntS::Matri
 
         UV .*= 1 / N
     
-        UV[:, 1] ./= 2
+        # UV[:, 1] ./= 2
+        @inbounds for i in 1:N
+            UV[i, 1] /= 2
+        end
 
         mul!(UV, p_dct2_dim1, UV)
 
         UV .*= 1 / N
 
-        UV[1, :] ./= 2
+        # UV[1, :] ./= 2
+        @inbounds for i in 1:N
+            UV[1, i] /= 2
+        end
 
         # store into chebcoef
         @inbounds for i in 1:Np
@@ -87,10 +93,19 @@ function Ax!(v::AbstractVector{Float64}, u::AbstractVector{Float64}, IntS::Matri
 
         #UFV is a nr * nr zero float64 matrix 
         UFV .= 0
-        UFV[1:N,1:N] .= UV  
+        # UFV[1:N, 1:N] .= UV
+        @inbounds for j in 1:N
+            @inbounds for i in 1:N
+                UFV[i, j] = UV[i, j]
+            end
+        end
 
         # Undo the first-mode scaling for dim = 2
-        UFV[:, 1] .*= 2
+        #UFV[:, 1] .*= 2
+        @inbounds for i in 1:nr
+            UFV[i, 1] *= 2
+        end
+
         # Invert along dim = 2
         # UFV = 0.5 .* FFTW.r2r(UFV, FFTW.REDFT01, 2)
         mul!(UFV, p_dct3_dim2, UFV) 
@@ -98,7 +113,10 @@ function Ax!(v::AbstractVector{Float64}, u::AbstractVector{Float64}, IntS::Matri
         UFV .*= 0.5
 
         # Undo the first-mode scaling for dim = 1
-        UFV[1, :] .*= 2
+        # UFV[1, :] .*= 2
+        @inbounds for i in 1:nr
+            UFV[1, i] *= 2
+        end
 
         # Invert along dim = 1
         # UFV = 0.5 .* FFTW.r2r(UFV, FFTW.REDFT01, 1)
@@ -145,8 +163,12 @@ function Ax!(v::AbstractVector{Float64}, u::AbstractVector{Float64}, IntS::Matri
         ζfv₁ .= 0 
         ζfv₂ .= 0
 
-        ζfv₁[1:N] .= ζv
-        ζfv₂[1:N] .= ζv
+        # ζfv₁[1:N] .= ζv
+        # ζfv₂[1:N] .= ζv
+        @inbounds for i in 1:N
+            ζfv₁[i] = ζv[i]
+            ζfv₂[i] = ζv[i]
+        end
         
         mul!(ζfv₁, p_dct3_N1, ζfv₁) 
         mul!(ζfv₂, p_dct3_N2, ζfv₂) 
@@ -173,6 +195,7 @@ function Ax!(v::AbstractVector{Float64}, u::AbstractVector{Float64}, IntS::Matri
         col = dp.pthgo[ℓ] + j - 1
 
         @views cf = chebcoef[((ℓ - 1) * Np + 1):(ℓ * Np)] 
+
         @views SI = IntS[:, col] 
 
         v[row] = Cs * dot(SI, cf)
@@ -352,9 +375,14 @@ function Ax!(v::AbstractVector{Float64}, u::AbstractVector{Float64}, IntS::Matri
 
             Dhc = s>=0.5 ? hc^(s-1) : hc^s 
 
-            CN .= reshape(chebcoef[(k - 1) * Np + 1 : k * Np], N, N)
+            #CN .= reshape(chebcoef[(k - 1) * Np + 1 : k * Np], N, N)
+            ak = (k - 1) * Np
 
-            mul!(CNnr, CN, transpose(Tz))   # N × nr
+            @inbounds for i in 1:Np
+                CN[i] = chebcoef[ak + i]
+            end
+
+            mul!(CNnr, CN, TzT)   # N × nr
             mul!(Ubd, Tz1, CNnr)            # nbd × nr
 
             @. Ubd = Ubd * DJ₂
@@ -364,18 +392,25 @@ function Ax!(v::AbstractVector{Float64}, u::AbstractVector{Float64}, IntS::Matri
 
             dfunc!(Df, d, k, zt, s)
 
-            UFV .= reshape(ufin[(k - 1) * nrp + 1 : k * nrp], nr, nr)
+            #UFV .= reshape(ufin[(k - 1) * nrp + 1 : k * nrp], nr, nr)
+            ak = (k - 1) * nrp
 
-            @. Ur = UFV * DJ * Df 
+            @inbounds for i in 1:nrp
+                UFV[i] = ufin[ak + i]
+            end
+
+            @. Ur = UFV * DJ * Df
         end
 
         for row in 1:Lp
             
             ℓ = cld(row, Np)
             k == ℓ && continue
-            if haskey(dp.hmap, packkey(row, k))
+
+            Ikey = packkey(row, k)
+            if haskey(dp.hmap, Ikey)
                 # ---------- Near-singular patch case ----------
-                col = dp.hmap[packkey(row, k)]
+                col = dp.hmap[Ikey]
 
                 @views ck = chebcoef[(k - 1) * Np + 1 : k * Np]
 
@@ -414,9 +449,11 @@ function Ax!(v::AbstractVector{Float64}, u::AbstractVector{Float64}, IntS::Matri
                 ℓ = d.kd[k₀]
 
                 k == ℓ && continue
-                if haskey(dp.hmap, packkey(row, k))
+
+                Ikey = packkey(row, k)
+                if haskey(dp.hmap, Ikey)
                     # ---------- Near-singular patch case ----------
-                    col = dp.hmap[packkey(row, k)]
+                    col = dp.hmap[Ikey]
 
                     @views ck = chebcoef[(k-1)*Np+1:k*Np]
 
@@ -449,12 +486,16 @@ function Ax!(v::AbstractVector{Float64}, u::AbstractVector{Float64}, IntS::Matri
     # ----- STEP 4: Remaining boundary rows -----
     if s >= 0.5
 
-        for j in 1:N
+        @inbounds for j in 1:N
             @views Ct = CT[:, j]
-            for k in 1:Mbd
+            @inbounds for k in 1:Mbd
                 row = Lp + (k - 1)*N + j
                 ℓ = d.kd[k]
-                CN .= reshape(chebcoef[(ℓ - 1) * Np + 1 : ℓ * Np], N, N)
+                #CN .= reshape(chebcoef[(ℓ - 1) * Np + 1 : ℓ * Np], N, N)
+                aℓ = (ℓ - 1) * Np
+                @inbounds for i in 1:Np
+                    CN[i] = chebcoef[aℓ+i]
+                end
                 #ζv is a vector if size N, temporarily being used!
                 mul!(ζv, CN, Ct)
                 v[row] = sum(ζv) 
