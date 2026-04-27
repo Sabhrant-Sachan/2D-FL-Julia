@@ -10,6 +10,7 @@ function compress_vars(d::abstractdomain, N::Int, s::Float64,
     # Number of points per patch
     Np = N * N
     M = d.Npat
+    Mbd = length(d.kd)
     # Constant Cs
     Cs = -sinpi(s) * (gamma(s) / (π * 2^(1 - s)))^2
 
@@ -40,29 +41,6 @@ function compress_vars(d::abstractdomain, N::Int, s::Float64,
         end
     end
 
-    # Store idct values
-    t₂ = Vector{Float64}(undef, nr)
-    idctrg = Matrix{Float64}(undef, nr, N)
-
-    @inline function gs(t::Float64, N::Int)::Float64
-        th = 0.5 * t                 # t/2
-        return sin(N * th) * cos((N - 1) * th) / sin(th)
-    end
-
-    @inbounds for i in 1:nr
-        t₂[i] = π * (2 * i - 1) / (2 * nr)
-    end
-
-    @inbounds for j in 1:N
-        t₁ = π * (2 * j - 1) / (2 * N)
-        @inbounds for i in 1:nr
-            u = t₁ + t₂[i]
-            v = t₁ - t₂[i]
-
-            idctrg[i, j] = (gs(u, N) + gs(v, N) - 1.0)/ N
-        end
-    end
-
     # ----------------- BOUNDARY PATCH INTEGRALS ------------
     # For boundary patches, which have singularity on boundary
     nbd = 128
@@ -82,8 +60,6 @@ function compress_vars(d::abstractdomain, N::Int, s::Float64,
     # Tz: we want nr×N like ChebyTN(N,zr)
     # Compute nr×N and then transpose once.
     Tz = Matrix{Float64}(undef, nr, N)
-    gam = Vector{Float64}(undef, N)
-    coeffs = Matrix{Float64}(undef, N, N)
 
     @inbounds for i in 1:nbd
         z1[i] = cos(π * (2 * i - 1) / (4 * nbd))^2
@@ -103,18 +79,6 @@ function compress_vars(d::abstractdomain, N::Int, s::Float64,
     ChebyTN!(Tz1, N, yvec)          
     ChebyTN!(Tz, N, zr)         
 
-    gam[1] = 1.0
-    @inbounds for k in 2:N
-        gam[k] = 2.0
-    end
-
-    @inbounds for j in 1:N
-        c = π * (2j - 1) / (2N)
-        @inbounds for k in 1:N
-            coeffs[k, j] = gam[k] * cos(c * (k - 1)) / N
-        end
-    end
-
     # ----------------- BOUNDARY INTEGRAL -------------------
     # For the boundary integral on the boundary curves
     N_intbd = 128
@@ -129,35 +93,15 @@ function compress_vars(d::abstractdomain, N::Int, s::Float64,
     # Compute boundary parametrization on N₂ points
     y₁ = Vector{Float64}(undef, N₁)
     y₂ = Vector{Float64}(undef, N₂)
-    t₁ = Vector{Float64}(undef, N₁)
-    t₂ = Vector{Float64}(undef, N₂)
-    idctbd₁ = Matrix{Float64}(undef, N₁, N)
-    idctbd₂ = Matrix{Float64}(undef, N₂, N)
-
-    Mbd = length(d.kd)
 
     @inbounds for j in 1:N₁
-        t₁[j] = π * (2 * j - 1) / (2 * N₁)
-        y₁[j] = cos(t₁[j])
+        t₁ = π * (2 * j - 1) / (2 * N₁)
+        y₁[j] = cos(t₁)
     end
 
     @inbounds for j in 1:N₂
-        t₂[j] = π * (2 * j - 1) / (2 * N₂)
-        y₂[j] = cos(t₂[j])
-    end
-
-    @inbounds for j in 1:N
-        tp = π * (2j - 1) / (2N)
-        @inbounds for i in 1:N₁
-            u = tp + t₁[i]
-            v = tp - t₁[i]
-            idctbd₁[i, j] = (gs(u, N) + gs(v, N) - 1.0) / N
-        end
-        @inbounds for i in 1:N₂
-            u = tp + t₂[i]
-            v = tp - t₂[i]
-            idctbd₂[i, j] = (gs(u, N) + gs(v, N) - 1.0) / N
-        end
+        t₂ = π * (2 * j - 1) / (2 * N₂)
+        y₂[j] = cos(t₂)
     end
 
     # Storage for gam!(...) or gamp!(...) 
@@ -185,20 +129,16 @@ function compress_vars(d::abstractdomain, N::Int, s::Float64,
     fvals = Vector{Float64}(undef, Lᵢₙ)
     γxbd  = Vector{Float64}(undef, 2)
     kdx   = Vector{Int}(undef, 2*dₙₕ + 1)
-    Tbd = Vector{Float64}(undef, N)
-    Tbd₂ = Vector{Float64}(undef, N₂)
 
     # ------------ TEMPORARY VARS  ------------
     # ------------ Reg Integration ------------
-    CN = Matrix{Float64}(undef, N, N)
     Zx = Matrix{Float64}(undef, nr, nr)
     Zy = Matrix{Float64}(undef, nr, nr)
     DJ = Matrix{Float64}(undef, nr, nr)
     Df = Matrix{Float64}(undef, nr, nr)
 
-    Ker = Matrix{Float64}(undef, nr, nr)  # kernel at each row x
     KIr = Matrix{Float64}(undef, nr, nr)  # Ker .* Ir
-    Ur = Matrix{Float64}(undef, nr, nr)  # outer product g1*g2'
+
     # ------------ Bd Integration ------------
     Zx₂ = Matrix{Float64}(undef, nbd, nr)
     Zy₂ = Matrix{Float64}(undef, nbd, nr)
@@ -221,12 +161,7 @@ function compress_vars(d::abstractdomain, N::Int, s::Float64,
 
     end
 
-    Ker₂= Matrix{Float64}(undef, nbd, nr)  # kernel at each row x
     KIbd= Matrix{Float64}(undef, nbd, nr)  # Ker₂ .* Ubd .* DJ₂
-    Ubd = Matrix{Float64}(undef, nbd, nr)  # outer product g1*g2'
-    Ubd1= Vector{Float64}(undef, nbd)      # To store g1
-    Ubd2= Vector{Float64}(undef, nr)       # To store g2
-
     CT = Matrix{Float64}(undef, N, N)
 
     @inbounds for j in 1:N
@@ -235,9 +170,132 @@ function compress_vars(d::abstractdomain, N::Int, s::Float64,
             CT[q+1, j] = cospi(q * (2j - 1) / (2N))
         end
     end
-    #-----------------------------------------
-    #------ Matrix free case variables -------
-    if !matrix_form
+
+
+    if matrix_form
+
+        # ------ matrix-form-only coefficient machinery ------
+        # Store idct values
+        t₂ = Vector{Float64}(undef, nr)
+        idctrg = Matrix{Float64}(undef, nr, N)
+
+        @inbounds for i in 1:nr
+            t₂[i] = π * (2 * i - 1) / (2 * nr)
+        end
+
+        @inline function gs(t::Float64, N::Int)::Float64
+            th = 0.5 * t                 # t/2
+            return sin(N * th) * cos((N - 1) * th) / sin(th)
+        end
+
+        @inbounds for j in 1:N
+            t₁ = π * (2 * j - 1) / (2 * N)
+            for i in 1:nr
+                u = t₁ + t₂[i]
+                v = t₁ - t₂[i]
+                idctrg[i, j] = (gs(u, N) + gs(v, N) - 1.0) / N
+            end
+        end
+
+        gam = Vector{Float64}(undef, N)
+        coeffs = Matrix{Float64}(undef, N, N)
+        coeffs_sum = Vector{Float64}(undef, N)
+
+        gam[1] = 1.0
+        @inbounds for k in 2:N
+            gam[k] = 2.0
+        end
+
+        @inbounds for j in 1:N
+            c = π * (2j - 1) / (2N)
+            @inbounds for k in 1:N
+                coeffs[k, j] = gam[k] * cos(c * (k - 1)) / N
+            end
+        end
+
+        @inbounds for j in 1:N
+            @views cc = coeffs[:, j]
+            coeffs_sum[j] = sum(cc)
+        end
+
+        B1bd = Matrix{Float64}(undef, nbd, N)
+        B2bd = Matrix{Float64}(undef, nr, N)
+
+        mul!(B1bd, Tz1, coeffs)   # nbd × N
+        mul!(B2bd, Tz, coeffs)   # nr × N
+
+        Gbdtmp = Matrix{Float64}(undef, N, nr)
+        Gbd = Matrix{Float64}(undef, N, N)
+        Wbd = Matrix{Float64}(undef, nbd, nr)
+
+        Grgtmp = Matrix{Float64}(undef, N, nr)
+        Grg = Matrix{Float64}(undef, N, N)
+        Wrg = Matrix{Float64}(undef, nr, nr)
+
+        # boundary idct matrices used by Axbdop!
+        tbd₁ = Vector{Float64}(undef, N₁)
+        tbd₂ = Vector{Float64}(undef, N₂)
+        idctbd₁ = Matrix{Float64}(undef, N₁, N)
+        idctbd₂ = Matrix{Float64}(undef, N₂, N)
+
+        @inbounds for i in 1:N₁
+            tbd₁[i] = π * (2 * i - 1) / (2 * N₁)
+        end
+
+        @inbounds for i in 1:N₂
+            tbd₂[i] = π * (2 * i - 1) / (2 * N₂)
+        end
+
+        @inbounds for j in 1:N
+            tp = π * (2j - 1) / (2N)
+
+            @inbounds for i in 1:N₁
+                u = tp + tbd₁[i]
+                v = tp - tbd₁[i]
+                idctbd₁[i, j] = (gs(u, N) + gs(v, N) - 1.0) / N
+            end
+
+            @inbounds for i in 1:N₂
+                u = tp + tbd₂[i]
+                v = tp - tbd₂[i]
+                idctbd₂[i, j] = (gs(u, N) + gs(v, N) - 1.0) / N
+            end
+        end
+
+        Tbd = Vector{Float64}(undef, N)
+
+        #using "NamedTuples" in Julia (These are immutable)
+        # ------------ PACK EVERYTHING ------------
+        # ============================================================
+        # Matrix-form IV Used by:
+        #   Axbdop!, Axbdpth!, Axintpth!
+        # I do not pack matrix-free-only buffers or FFTW matrices here.
+        # ============================================================
+        IV1 = (N=N, Np=Np, Cs=Cs, M=M, Mbd=Mbd, nbd=nbd)
+
+        IVr = (nr=nr, fwr=fwr, nrp=nrp, zx=zx, zt=zt, zy=zy, Df=Df, idctrg=idctrg)
+
+        IVbdth = (zx2=zx2, zy2=zy2, coeffs=coeffs, coeffs_sum=coeffs_sum)
+
+        IVbd = (N₁=N₁, N₂=N₂, fw₁=fw₁, fw₂=fw₂, idctbd₁=idctbd₁, idctbd₂=idctbd₂, dₙₕ=dₙₕ)
+
+        IVt = (Zx=Zx, Zy=Zy, DJ=DJ, KIr=KIr, Wrg=Wrg, Grgtmp=Grgtmp, Grg=Grg)
+
+        IVbt1 = (Zx₂=Zx₂, Zy₂=Zy₂, DJ₂=DJ₂, KIbd=KIbd)
+
+        IVbt2 = (mfw=mfw, CT=CT, B1bd=B1bd, B2bd=B2bd, Gbdtmp=Gbdtmp, Gbd=Gbd, Wbd=Wbd)
+
+        IVbdt1 = (y₁=y₁, y₂=y₂, gamk₁=gamk₁, gamp₁=gamp₁, gamk₂=gamk₂, gamp₂=gamp₂)
+
+        IVbdt2 = (kbd₁=kbd₁, kbd₂=kbd₂, γx=γx, μ₀=μ₀, γt1=γt1, γt2=γt2)
+
+        IVbdt3 = (Lᵢₙ=Lᵢₙ, xvals=xvals, fvals=fvals, γxbd=γxbd, kdx=kdx, Tbd=Tbd)
+
+        IV = (IV1=IV1, IVr=IVr, IVbdth=IVbdth, IVbd=IVbd, IVt=IVt, IVbt1=IVbt1,
+            IVbt2=IVbt2, IVbdt1=IVbdt1, IVbdt2=IVbdt2, IVbdt3=IVbdt3)
+
+    else
+        # ------ matrix-free-only coefficient machinery ------
         chebcoef = Vector{Float64}(undef, M * Np + Mbd * N)
         ufin = Vector{Float64}(undef, M * nrp)
 
@@ -245,74 +303,78 @@ function compress_vars(d::abstractdomain, N::Int, s::Float64,
         ζ₂ = Vector{Float64}(undef, Mbd * N₂)
         ζ₂coeff = Vector{Float64}(undef, Mbd * N₂)
 
-        
         UV = Matrix{Float64}(undef, N, N)
+        CN = Matrix{Float64}(undef, N, N)
         CNnr = Matrix{Float64}(undef, N, nr)
         UFV = Matrix{Float64}(undef, nr, nr)
 
-        # apply DCT-II in-place along dim 2 then dim 1
+        Ker = Matrix{Float64}(undef, nr, nr)
+        Ur = Matrix{Float64}(undef, nr, nr)
+
+        Ker₂ = Matrix{Float64}(undef, nbd, nr)
+        Ubd = Matrix{Float64}(undef, nbd, nr)
+
         p_dct2_dim2 = FFTW.plan_r2r!(UV, FFTW.REDFT10, 2; flags=FFTW.MEASURE)
         p_dct2_dim1 = FFTW.plan_r2r!(UV, FFTW.REDFT10, 1; flags=FFTW.MEASURE)
 
-        # apply DCT-III (idct) in-place along dim 2 then dim 1
         p_dct3_dim2 = FFTW.plan_r2r!(UFV, FFTW.REDFT01, 2; flags=FFTW.MEASURE)
         p_dct3_dim1 = FFTW.plan_r2r!(UFV, FFTW.REDFT01, 1; flags=FFTW.MEASURE)
 
-        ζv  = Vector{Float64}(undef, N)
-        ζfv₁= Vector{Float64}(undef, N₁)
-        ζfv₂= Vector{Float64}(undef, N₂)
+        ζv = Vector{Float64}(undef, N)
+        ζfv₁ = Vector{Float64}(undef, N₁)
+        ζfv₂ = Vector{Float64}(undef, N₂)
 
-        # apply DCT-II in-place in one dimension
-        p_dct2_N  = FFTW.plan_r2r!(ζv  , FFTW.REDFT10; flags=FFTW.MEASURE)
+        p_dct2_N = FFTW.plan_r2r!(ζv, FFTW.REDFT10; flags=FFTW.MEASURE)
         p_dct3_N1 = FFTW.plan_r2r!(ζfv₁, FFTW.REDFT01; flags=FFTW.MEASURE)
         p_dct3_N2 = FFTW.plan_r2r!(ζfv₂, FFTW.REDFT01; flags=FFTW.MEASURE)
 
         TzT = transpose(Tz)
-    end
+        
+        Tbd₂ = Vector{Float64}(undef, N₂)
 
-    # ------------ PACK EVERYTHING ------------
+        # ============================================================
+        # Matrix-free IV Used by Ax!
+        # I do not pack matrix-assembly-only data here.
+        # ============================================================
+        IV1 = (N=N, Np=Np, Cs=Cs, M=M, Mbd=Mbd)
 
-    #using "NamedTuples" in Julia (These are immutable)
-    IV1 = (N=N, Np=Np, Cs=Cs, M=M, Mbd = Mbd)
+        IVr = (nr=nr, fwr=fwr, nrp=nrp, zx=zx, zt=zt, zy=zy, Df=Df)
 
-    IVr = (nr=nr, fwr=fwr, nrp=nrp, zx=zx, zt=zt, zy=zy, Df=Df, idctrg=idctrg)
+        IVbdth = (zx2=zx2, zy2=zy2, Tz1=Tz1)
 
-    IVbdth = (zx2=zx2, zy2=zy2, Tz1=Tz1, Tz=Tz, coeffs=coeffs)
-    
-    IVbd = (N₁=N₁, N₂=N₂, fw₁=fw₁, fw₂=fw₂, idctbd₁=idctbd₁, idctbd₂=idctbd₂, dₙₕ=dₙₕ)
+        IVbd = (N₁=N₁, N₂=N₂, fw₁=fw₁, fw₂=fw₂, dₙₕ=dₙₕ)
 
-    IVt = (Zx=Zx, Zy=Zy, DJ=DJ, Ker=Ker, KIr=KIr, Ur=Ur, CN=CN)
+        IVt = (Zx=Zx, Zy=Zy, DJ=DJ, Ker=Ker, KIr=KIr, Ur=Ur, CN=CN)
 
-    IVbt1 = (Zx₂=Zx₂, Zy₂=Zy₂, DJ₂=DJ₂, Ker₂=Ker₂, KIbd=KIbd)
+        IVbt1 = (Zx₂=Zx₂, Zy₂=Zy₂, DJ₂=DJ₂, Ker₂=Ker₂, KIbd=KIbd)
 
-    IVbt2 = (Ubd=Ubd, Ubd1=Ubd1, Ubd2=Ubd2, mfw=mfw, CT=CT)
+        IVbt2 = (Ubd=Ubd, mfw=mfw, CT=CT)
 
-    IVbdt1= (y₁=y₁, y₂=y₂, gamk₁=gamk₁, gamp₁=gamp₁, gamk₂=gamk₂, gamp₂=gamp₂)
+        IVbdt1 = (y₁=y₁, y₂=y₂, gamk₁=gamk₁, gamp₁=gamp₁, gamk₂=gamk₂, gamp₂=gamp₂)
 
-    IVbdt2= (kbd₁=kbd₁, kbd₂=kbd₂, γx=γx, μ₀=μ₀, γt1=γt1, γt2=γt2)
+        IVbdt2 = (kbd₁=kbd₁, kbd₂=kbd₂, γx=γx, μ₀=μ₀, γt1=γt1, γt2=γt2)
 
-    IVbdt3= (Lᵢₙ=Lᵢₙ, xvals=xvals, fvals=fvals, γxbd=γxbd, kdx=kdx, Tbd=Tbd, Tbd₂=Tbd₂)
+        IVbdt3 = (Lᵢₙ=Lᵢₙ, xvals=xvals, fvals=fvals, γxbd=γxbd, kdx=kdx, Tbd₂=Tbd₂)
 
-    if !matrix_form
         IVAf = (chebcoef=chebcoef, ufin=ufin, ζ₁=ζ₁, ζ₂=ζ₂, ζ₂coeff=ζ₂coeff,
-        UV = UV, UFV=UFV, ζv=ζv, ζfv₁=ζfv₁, ζfv₂=ζfv₂, CNnr=CNnr,  TzT=TzT)
+            UV=UV, UFV=UFV, ζv=ζv, ζfv₁=ζfv₁, ζfv₂=ζfv₂, CNnr=CNnr, TzT=TzT)
 
-        IVAdct = (p_dct2_dim2=p_dct2_dim2, p_dct2_dim1=p_dct2_dim1,
-            p_dct3_dim2=p_dct3_dim2, p_dct3_dim1=p_dct3_dim1, p_dct2_N=p_dct2_N,
-            p_dct3_N1=p_dct3_N1, p_dct3_N2=p_dct3_N2)
+        IVAdct = (
+            p_dct2_dim2=p_dct2_dim2,
+            p_dct2_dim1=p_dct2_dim1,
+            p_dct3_dim2=p_dct3_dim2,
+            p_dct3_dim1=p_dct3_dim1,
+            p_dct2_N=p_dct2_N,
+            p_dct3_N1=p_dct3_N1,
+            p_dct3_N2=p_dct3_N2)
 
-        IV = (IV1=IV1, IVr=IVr, IVbdth=IVbdth, IVbd=IVbd, IVt=IVt,
-            IVbt1=IVbt1, IVbt2=IVbt2, IVbdt1=IVbdt1, IVbdt2=IVbdt2,
-            IVbdt3=IVbdt3, IVAf=IVAf, IVAdct=IVAdct)
-    else
-
-        IV = (IV1=IV1, IVr=IVr, IVbdth=IVbdth, IVbd=IVbd, IVt=IVt,
-            IVbt1=IVbt1, IVbt2=IVbt2, IVbdt1=IVbdt1, IVbdt2=IVbdt2,
-            IVbdt3=IVbdt3)
-
+        IV = (IV1=IV1, IVr=IVr, IVbdth=IVbdth, IVbd=IVbd, IVt=IVt, IVbt1=IVbt1,
+            IVbt2=IVbt2, IVbdt1=IVbdt1, IVbdt2=IVbdt2, IVbdt3=IVbdt3, IVAf=IVAf,
+            IVAdct=IVAdct)
     end
 
     return IV
+
 end
 
 #Unpacking is also simple:

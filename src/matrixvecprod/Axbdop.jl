@@ -1,7 +1,7 @@
-function Axbdop!(v::SubArray{Float64}, kI::Int, d::abstractdomain, dp::domprop, s::Float64, IV)
-
+function Axbdop!(v::SubArray{Float64}, kI::Int, d::D, dp::domprop, 
+    s::Float64, IV::IVT) where {D<:abstractdomain, IVT}
     # --------- Unpack IV (NamedTuple) ---------
-    (; IV1, IVbd, IVbt2, IVbdth, IVbdt1, IVbdt2, IVbdt3) = IV
+    (; IV1, IVbdth, IVbd, IVbt2, IVbdt1, IVbdt2, IVbdt3) = IV
     (; N, Np, M, Mbd) = IV1
     (; N₁, N₂, fw₁, fw₂, idctbd₁, idctbd₂, dₙₕ) = IVbd 
     (; y₁, y₂, gamk₁, gamp₁, gamk₂, gamp₂) = IVbdt1

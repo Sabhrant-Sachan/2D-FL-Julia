@@ -215,7 +215,7 @@ function Ax!(v::AbstractVector{Float64}, u::AbstractVector{Float64}, IntS::Matri
             j = row - M * Np - (k₀ - 1) * N
 
             #---- Add singular contributions first ----
-            col = dp.pthgo[M+1] + j - 1 + N * (cld(row - Lp, N) - 1)
+            col = dp.pthgo[M+1] + j - 1 + N * (k₀ - 1)
 
             @views cf = chebcoef[((ℓ-1)*Np+1):(ℓ*Np)]
 
@@ -408,10 +408,10 @@ function Ax!(v::AbstractVector{Float64}, u::AbstractVector{Float64}, IntS::Matri
             k == ℓ && continue
 
             Ikey = packkey(row, k)
-            if haskey(dp.hmap, Ikey)
-                # ---------- Near-singular patch case ----------
-                col = dp.hmap[Ikey]
+            col = get(dp.hmap, Ikey, 0)
 
+            if col != 0
+                # ---------- Near-singular patch case ----------
                 @views ck = chebcoef[(k - 1) * Np + 1 : k * Np]
 
                 @views NSI = IntS[:, col]
@@ -451,10 +451,10 @@ function Ax!(v::AbstractVector{Float64}, u::AbstractVector{Float64}, IntS::Matri
                 k == ℓ && continue
 
                 Ikey = packkey(row, k)
-                if haskey(dp.hmap, Ikey)
-                    # ---------- Near-singular patch case ----------
-                    col = dp.hmap[Ikey]
+                col = get(dp.hmap, Ikey, 0)
 
+                if col != 0
+                    # ---------- Near-singular patch case ----------
                     @views ck = chebcoef[(k-1)*Np+1:k*Np]
 
                     @views NSI = IntS[:, col]

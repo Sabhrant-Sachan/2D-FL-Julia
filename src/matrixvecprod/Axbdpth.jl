@@ -1,14 +1,14 @@
 function Axbdpth!(v::SubArray{Float64}, kM::Int, IntS::Matrix{Float64},
-    d::abstractdomain, dp::domprop, s::Float64, IV)
+    d::D, dp::domprop, s::Float64, IV::IVT) where {D<:abstractdomain, IVT}
 
     # --------- Unpack IV (NamedTuple) ---------
-    (; IV1, IVr, IVbdth, IVt, IVbt1, IVbt2) = IV
-    (; N, Np, Cs, M, Mbd) = IV1
-    (; zx2, zy2, Tz1, Tz, coeffs) = IVbdth
-    (; Zx₂, Zy₂, DJ₂, Ker₂, KIbd) = IVbt1
-    (; Ubd, Ubd1, Ubd2, mfw, CT) = IVbt2
-    fwr = IVr.fwr
-    CN =  IVt.CN
+    (; IV1, IVr, IVbdth, IVbt1, IVbt2) = IV
+    (; N, Np, Cs, M, Mbd, nbd) = IV1
+    (; zx2, zy2, coeffs, coeffs_sum) = IVbdth
+    (; Zx₂, Zy₂, DJ₂, KIbd) = IVbt1
+    (; mfw, CT, B1bd, B2bd, Gbdtmp, Gbd, Wbd) = IVbt2
+
+    (; nr, fwr) = IVr
     # v is M*Np + Mbd*N by Np matrix (preallocated given)
     # that is, size(v) == (M*Np + Mbd*N, Np)
 
@@ -20,6 +20,14 @@ function Axbdpth!(v::SubArray{Float64}, kM::Int, IntS::Matrix{Float64},
     hc = d.pths[kM].ck1 - d.pths[kM].ck0
 
     Dhc = s>=0.5 ? hc^(s-1) : hc^s 
+
+    Cs₂ = Cs * Dhc
+
+    @inbounds for j in 1:nr
+        @inbounds for i in 1:nbd
+            Wbd[i, j] = mfw[i] * DJ₂[i, j] * fwr[j]
+        end
+    end
 
     # --------- interior rows  ---------
     Lₚ = M * Np
@@ -49,18 +57,19 @@ function Axbdpth!(v::SubArray{Float64}, kM::Int, IntS::Matrix{Float64},
                 @views c1 = coeffs[:, j1]
                 @views c2 = coeffs[:, j2]
 
-                mul!(CN, c1, c2')
-
-                v[row, jj] = Cs * dot(CN, IM)
+                #mul!(CN, c1, c2')
+                #v[row, jj] = Cs * dot(CN, IM)
+                v[row, jj] = Cs * dot(c1, IM, c2)
             end
 
         else
             # --------- Check for near-singular patch ----------
             # dp.hmap is keyed by (row,kM) :: Tuple{Int,Int}
-            if haskey(dp.hmap, packkey(row, kM))
-                # ---------- Near-singular patch case ----------
-                col = dp.hmap[packkey(row, kM)]
+            Ikey = packkey(row, kM)
+            col = get(dp.hmap, Ikey, 0)
 
+            if col != 0
+                # ---------- Near-singular patch case ----------
                 @views NSI = IntS[:, col]
 
                 @views IM = reshape(NSI, N, N)
@@ -74,32 +83,30 @@ function Axbdpth!(v::SubArray{Float64}, kM::Int, IntS::Matrix{Float64},
                     @views c1 = coeffs[:, j1]
                     @views c2 = coeffs[:, j2]
 
-                    mul!(CN, c1, c2')
-
-                    v[row, jj] = Cs * dot(CN, IM)
+                    #mul!(CN, c1, c2')
+                    #v[row, jj] = Cs * dot(CN, IM)
+                    v[row, jj] = Cs * dot(c1, IM, c2)
                 end
 
             else
-                # ---------- Regular patch  ----------
-                @. Ker₂ = 1 / ((x1 - Zx₂)^2 + (x2 - Zy₂)^2)^s
+                x1 = dp.tgtpts[1, row]
+                x2 = dp.tgtpts[2, row]
+
+                # Build W = diag(mfw) * (Ker₂ .* DJ₂) * diag(fwr)
+                @inbounds for jj in 1:nr
+                    @inbounds for ii in 1:nbd
+                        dx = x1 - Zx₂[ii, jj]
+                        dy = x2 - Zy₂[ii, jj]
+                        r2 = dx * dx + dy * dy
+                        KIbd[ii, jj] = Wbd[ii, jj] / (r2^s)
+                    end
+                end
+                # Gbd = B1bd' * W * B2bd
+                mul!(Gbdtmp, B1bd', KIbd)  # N × nr
+                mul!(Gbd, Gbdtmp, B2bd)    # N × N
 
                 @inbounds for jj in 1:Np
-
-                    q, r = divrem(jj - 1, N)
-                    j1 = r + 1     # remainder
-                    j2 = q + 1     # quotient
-
-                    @views c1 = coeffs[:, j1]
-                    @views c2 = coeffs[:, j2]
-
-                    mul!(Ubd1, Tz1, c1)
-                    mul!(Ubd2, Tz , c2)
-
-                    mul!(Ubd, Ubd1, Ubd2')
-
-                    @. KIbd = Ker₂ * Ubd * DJ₂ 
-
-                    v[row, jj] = Cs * Dhc * dot(mfw, KIbd, fwr)
+                    v[row, jj] = Cs₂ * Gbd[jj]
                 end
             end
         end
@@ -124,19 +131,18 @@ function Axbdpth!(v::SubArray{Float64}, kM::Int, IntS::Matrix{Float64},
 
                 @views CTj = CT[:, j]
 
-                @inbounds for jj in 1:Np
+                @inbounds for j2 in 1:N
 
-                    q, r = divrem(jj - 1, N)
-                    j1 = r + 1     # remainder
-                    j2 = q + 1     # quotient
-
-                    @views c1 = coeffs[:, j1]
                     @views c2 = coeffs[:, j2]
 
-                    v[row, jj] = sum(c1) * dot(c2, CTj)
+                    c2_dot_CTj = dot(c2, CTj)
 
+                    aj = (j2 - 1) * N
+
+                    for j1 in 1:N
+                        v[row, aj + j1] = coeffs_sum[j1] * c2_dot_CTj
+                    end
                 end
-
             end
         end
     else
@@ -149,7 +155,7 @@ function Axbdpth!(v::SubArray{Float64}, kM::Int, IntS::Matrix{Float64},
 
             if l == kM
                 # ---------- Singular patch ----------
-                col = dp.pthgo[M+1] + j - 1 + N*(ceil(Int, (row-M*Np)/N) - 1)
+                col = dp.pthgo[M+1] + j - 1 + N * (k₀ - 1)
 
                 @views SI = IntS[:, col]  # length Np vector
 
@@ -164,15 +170,16 @@ function Axbdpth!(v::SubArray{Float64}, kM::Int, IntS::Matrix{Float64},
                     @views c1 = coeffs[:, j1]
                     @views c2 = coeffs[:, j2]
 
-                    mul!(CN, c1, c2')
-
-                    v[row, jj] = Cs * dot(CN, IM)
+                    #mul!(CN, c1, c2')
+                    #v[row, jj] = Cs * dot(CN, IM)
+                    v[row, jj] = Cs * dot(c1, IM, c2)
                 end
 
             else
-                if haskey(dp.hmap, packkey(row, kM))
-                    # ---------- Near-singular patch case ----------
-                    col = dp.hmap[packkey(row, kM)]
+                Ikey = packkey(row, kM)
+                col = get(dp.hmap, Ikey, 0)
+
+                if col != 0
 
                     @views NSI = IntS[:, col]
 
@@ -187,34 +194,31 @@ function Axbdpth!(v::SubArray{Float64}, kM::Int, IntS::Matrix{Float64},
                         @views c1 = coeffs[:, j1]
                         @views c2 = coeffs[:, j2]
 
-                        mul!(CN, c1, c2')
-
-                        v[row, jj] = Cs * dot(CN, IM)
+                        #mul!(CN, c1, c2')
+                        #v[row, jj] = Cs * dot(CN, IM)
+                        v[row, jj] = Cs * dot(c1, IM, c2)
                     end
 
                 else
                     x1 = dp.tgtpts[1, row]
                     x2 = dp.tgtpts[2, row]
-                    # ---------- Regular patch  ----------
-                    @. Ker₂ = 1 / ((x1 - Zx₂)^2 + (x2 - Zy₂)^2)^s
+
+                    # Build W = diag(mfw) * (Ker₂ .* DJ₂) * diag(fwr)
+                    @inbounds for jj in 1:nr
+                        @inbounds for ii in 1:nbd
+                            dx = x1 - Zx₂[ii, jj]
+                            dy = x2 - Zy₂[ii, jj]
+                            r2 = dx * dx + dy * dy
+                            KIbd[ii, jj] = Wbd[ii, jj] / (r2^s)
+                        end
+                    end
+
+                    # Gbd = B1bd' * W * B2bd
+                    mul!(Gbdtmp, B1bd', KIbd)  # N × nr
+                    mul!(Gbd, Gbdtmp, B2bd)    # N × N
 
                     @inbounds for jj in 1:Np
-
-                        q, r = divrem(jj - 1, N)
-                        j1 = r + 1     # remainder
-                        j2 = q + 1     # quotient
-
-                        @views c1 = coeffs[:, j1]
-                        @views c2 = coeffs[:, j2]
-
-                        mul!(Ubd1, Tz1, c1)
-                        mul!(Ubd2, Tz, c2)
-
-                        mul!(Ubd, Ubd1, Ubd2')
-
-                        @. KIbd = Ker₂ * Ubd * DJ₂
-
-                        v[row, jj] = Cs * Dhc * dot(mfw, KIbd, fwr)
+                        v[row, jj] = Cs₂ * Gbd[jj]
                     end
                 end
             end
@@ -225,3 +229,26 @@ function Axbdpth!(v::SubArray{Float64}, kM::Int, IntS::Matrix{Float64},
     return nothing
 
 end
+
+# Old way of computing the regular patch
+# ---------- Regular patch  ----------
+# @. Ker₂ = 1 / ((x1 - Zx₂)^2 + (x2 - Zy₂)^2)^s
+
+# @inbounds for jj in 1:Np
+
+#     q, r = divrem(jj - 1, N)
+#     j1 = r + 1     # remainder
+#     j2 = q + 1     # quotient
+
+#     @views c1 = coeffs[:, j1]
+#     @views c2 = coeffs[:, j2]
+
+#     mul!(Ubd1, Tz1, c1)
+#     mul!(Ubd2, Tz, c2)
+
+#     mul!(Ubd, Ubd1, Ubd2')
+
+#     @. KIbd = Ker₂ * Ubd * DJ₂
+
+#     v[row, jj] = Cs * Dhc * dot(mfw, KIbd, fwr)
+# end
