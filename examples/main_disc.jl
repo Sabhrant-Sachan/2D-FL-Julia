@@ -1,272 +1,299 @@
 
-using Revise, FractionalLaplace2D
+using Revise, Dates, FractionalLaplace2D
 
 using FractionalLaplace2D.FLdata
 
+dobenchmark, docondnum = true, true
+
 open("solve_outputs075.txt", "w") do io
-# =============================================
-s, p = 0.75, 4;
+    # =============================================
+    s, p = 0.75, 4
 
-δ, δclsbd = 0.1, 0.01;
+    println(io, "Run started: ", Dates.now())
+    println(io, "s = ", s)
 
-dom = FractionalLaplace2D.disc(b = [1,1,1,1,1], L1=0.8, L2=0.8);
+    δ, δclsbd = 0.1, 0.01
 
-Anₚᵣ = [32, 32, 32, 32, 64, 64, 64, 128, 128];
+    dom = FractionalLaplace2D.disc(b=[1, 1, 1, 1, 1], L1=0.8, L2=0.8)
 
-AN = [3, 4, 5, 6, 7, 8, 9, 10, 12];
+    Anₚᵣ = [32, 32, 32, 32, 64, 64, 64, 128, 128]
 
-f!, uex, fv = makediscfuex(2, s);
+    AN = [3, 4, 5, 6, 7, 8, 9, 10, 12]
 
-dobenchmark, docondnum = true, true;
+    f!, uex, fv = makediscfuex(2, s)
 
-for i in 1:9
+    for i in 1:9
 
-    nₚᵣ, N = Anₚᵣ[i], AN[i]
+        nₚᵣ, N = Anₚᵣ[i], AN[i]
 
-    prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-        dₙₕ=1, (f!)=f!, uex=uex, dom=dom);
+        prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
+            dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
 
-    opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark, matrixfree=false)
+        opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark, matrixfree=false)
 
-    core_res = solveFL(prob; opts=opts);
+        core_res = solveFL(prob; opts=opts)
 
-    println(io, SolveView(prob, opts, core_res))
+        println(io, SolveView(prob, opts, core_res))
 
-    #------------- Matrix free --------
+        #------------- Matrix free --------
 
-    opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark, matrixfree=true)
+        opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark, matrixfree=true)
 
-    core_res = solveFL(prob; opts=opts);
+        core_res = solveFL(prob; opts=opts)
 
-    println(io, SolveView(prob, opts, core_res))
+        println(io, SolveView(prob, opts, core_res))
 
-end
+        flush(io)
 
-# =============================================
-dom =  FractionalLaplace2D.disc(b = [2,2,2,2,2], L1=0.8, L2=0.8);
+    end
 
-Anₚᵣ = [128, 128];
+    # =============================================
+    dom = FractionalLaplace2D.disc(b=[2, 2, 2, 2, 2], L1=0.8, L2=0.8)
 
-AN = [10, 12];
+    Anₚᵣ = [128, 128]
 
-for i in 1:2
+    AN = [10, 12]
 
-    nₚᵣ, N = Anₚᵣ[i], AN[i]
+    for i in 1:2
 
-    prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-        dₙₕ=1, (f!)=f!, uex=uex, dom=dom);
+        nₚᵣ, N = Anₚᵣ[i], AN[i]
 
-    opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark, matrixfree=false)
+        prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
+            dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
 
-    core_res = solveFL(prob; opts=opts);
+        opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark, matrixfree=false)
 
-    println(io, SolveView(prob, opts, core_res))
+        core_res = solveFL(prob; opts=opts)
 
-    #------------- Matrix free --------
+        println(io, SolveView(prob, opts, core_res))
 
-    opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark, matrixfree=true)
+        #------------- Matrix free --------
 
-    core_res = solveFL(prob; opts=opts);
+        opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark, matrixfree=true)
 
-    println(io, SolveView(prob, opts, core_res))
+        core_res = solveFL(prob; opts=opts)
 
-end
+        println(io, SolveView(prob, opts, core_res))
 
-# =============================================
-dom =  FractionalLaplace2D.disc(b = [3,3,3,3,3], L1=0.8, L2=0.8);
+        flush(io)
 
-Anₚᵣ = [128, 128];
+    end
 
-AN = [10, 12];
+    # =============================================
+    dom = FractionalLaplace2D.disc(b=[3, 3, 3, 3, 3], L1=0.8, L2=0.8)
 
-for i in 1:2
+    Anₚᵣ = [128, 128]
 
-    nₚᵣ, N = Anₚᵣ[i], AN[i]
+    AN = [10, 12]
 
-    prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-        dₙₕ=1, (f!)=f!, uex=uex, dom=dom);
+    for i in 1:2
 
-    opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark, matrixfree=false)
+        nₚᵣ, N = Anₚᵣ[i], AN[i]
 
-    core_res = solveFL(prob; opts=opts);
+        prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
+            dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
 
-    println(io, SolveView(prob, opts, core_res))
+        opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark, matrixfree=false)
 
-    #------------- Matrix free --------
+        core_res = solveFL(prob; opts=opts)
 
-    opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark, matrixfree=true)
+        println(io, SolveView(prob, opts, core_res))
 
-    core_res = solveFL(prob; opts=opts);
+        #------------- Matrix free --------
 
-    println(io, SolveView(prob, opts, core_res))
+        opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark, matrixfree=true)
 
-end
+        core_res = solveFL(prob; opts=opts)
 
-# =============================================
-dom =  FractionalLaplace2D.disc(b = [3,3,3,3,4], a=[2,2,2,2,3], L1=0.8, L2=0.8);
+        println(io, SolveView(prob, opts, core_res))
 
-Anₚᵣ = [128, 256];
+        flush(io)
 
-AN = [10, 12];
+    end
 
-for i in 1:2
+    # =============================================
+    dom = FractionalLaplace2D.disc(b=[3, 3, 3, 3, 4], a=[2, 2, 2, 2, 3], L1=0.8, L2=0.8)
 
-    nₚᵣ, N = Anₚᵣ[i], AN[i]
+    Anₚᵣ = [128, 256]
 
-    prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-        dₙₕ=1, (f!)=f!, uex=uex, dom=dom);
+    AN = [10, 12]
 
-    opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark, matrixfree=false)
+    for i in 1:2
 
-    core_res = solveFL(prob; opts=opts);
+        nₚᵣ, N = Anₚᵣ[i], AN[i]
 
-    println(io, SolveView(prob, opts, core_res))
+        prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
+            dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
 
-    #------------- Matrix free --------
+        opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark, matrixfree=false)
 
-    opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark, matrixfree=true)
+        core_res = solveFL(prob; opts=opts)
 
-    core_res = solveFL(prob; opts=opts);
+        println(io, SolveView(prob, opts, core_res))
 
-    println(io, SolveView(prob, opts, core_res))
+        #------------- Matrix free --------
 
-end
+        opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark, matrixfree=true)
 
-display("==End of Disc==")
+        core_res = solveFL(prob; opts=opts)
+
+        println(io, SolveView(prob, opts, core_res))
+
+        flush(io)
+
+    end
+
+    println(io, "==End of Disc==")
+
+    flush(io)
 
 end
 
 # ================== 2nd file ==================
 
 open("solve_outputs025.txt", "w") do io
-# =============================================
-s, p = 0.25, 4;
+    
+    # =============================================
+    s, p = 0.25, 4
 
-δ, δclsbd = 0.1, 0.01;
+    println(io, "Run started: ", Dates.now())
+    println(io, "s = ", s)
 
-dom = FractionalLaplace2D.disc(b = [1,1,1,1,1], L1=0.8, L2=0.8);
+    δ, δclsbd = 0.1, 0.01
 
-Anₚᵣ = [32, 32, 32, 32, 64, 64, 64, 128, 128];
+    dom = FractionalLaplace2D.disc(b=[1, 1, 1, 1, 1], L1=0.8, L2=0.8)
 
-AN = [3, 4, 5, 6, 7, 8, 9, 10, 12];
+    Anₚᵣ = [32, 32, 32, 32, 64, 64, 64, 128, 128]
 
-f!, uex, fv = makediscfuex(2, s);
+    AN = [3, 4, 5, 6, 7, 8, 9, 10, 12]
 
-dobenchmark, docondnum = true, true;
+    f!, uex, fv = makediscfuex(2, s)
 
-for i in 1:9
+    for i in 1:9
 
-    nₚᵣ, N = Anₚᵣ[i], AN[i]
+        nₚᵣ, N = Anₚᵣ[i], AN[i]
 
-    prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-        dₙₕ=1, (f!)=f!, uex=uex, dom=dom);
+        prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
+            dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
 
-    opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark, matrixfree=false)
+        opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark, matrixfree=false)
 
-    core_res = solveFL(prob; opts=opts);
+        core_res = solveFL(prob; opts=opts)
 
-    println(io, SolveView(prob, opts, core_res))
+        println(io, SolveView(prob, opts, core_res))
 
-    #------------- Matrix free --------
+        #------------- Matrix free --------
 
-    opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark, matrixfree=true)
+        opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark, matrixfree=true)
 
-    core_res = solveFL(prob; opts=opts);
+        core_res = solveFL(prob; opts=opts)
 
-    println(io, SolveView(prob, opts, core_res))
+        println(io, SolveView(prob, opts, core_res))
+
+        flush(io)
+
+    end
+
+    # =============================================
+    dom = FractionalLaplace2D.disc(b=[2, 2, 2, 2, 2], L1=0.8, L2=0.8)
+
+    Anₚᵣ = [128, 128]
+
+    AN = [10, 12]
+
+    for i in 1:2
+
+        nₚᵣ, N = Anₚᵣ[i], AN[i]
+
+        prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
+            dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
+
+        opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark, matrixfree=false)
+
+        core_res = solveFL(prob; opts=opts)
+
+        println(io, SolveView(prob, opts, core_res))
+
+        #------------- Matrix free --------
+
+        opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark, matrixfree=true)
+
+        core_res = solveFL(prob; opts=opts)
+
+        println(io, SolveView(prob, opts, core_res))
+
+        flush(io)
+
+    end
+
+    # =============================================
+    dom = FractionalLaplace2D.disc(b=[3, 3, 3, 3, 3], L1=0.8, L2=0.8)
+
+    Anₚᵣ = [128, 128]
+
+    AN = [10, 12]
+
+    for i in 1:2
+
+        nₚᵣ, N = Anₚᵣ[i], AN[i]
+
+        prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
+            dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
+
+        opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark, matrixfree=false)
+
+        core_res = solveFL(prob; opts=opts)
+
+        println(io, SolveView(prob, opts, core_res))
+
+        #------------- Matrix free --------
+
+        opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark, matrixfree=true)
+
+        core_res = solveFL(prob; opts=opts)
+
+        println(io, SolveView(prob, opts, core_res))
+
+        flush(io)
+
+    end
+
+    # =============================================
+    dom = FractionalLaplace2D.disc(b=[3, 3, 3, 3, 4], a=[2, 2, 2, 2, 3], L1=0.8, L2=0.8)
+
+    Anₚᵣ = [128, 256]
+
+    AN = [10, 12]
+
+    for i in 1:2
+
+        nₚᵣ, N = Anₚᵣ[i], AN[i]
+
+        prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
+            dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
+
+        opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark, matrixfree=false)
+
+        core_res = solveFL(prob; opts=opts)
+
+        println(io, SolveView(prob, opts, core_res))
+
+        #------------- Matrix free --------
+
+        opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark, matrixfree=true)
+
+        core_res = solveFL(prob; opts=opts)
+
+        println(io, SolveView(prob, opts, core_res))
+
+        flush(io)
+
+    end
+
+    println(io, "==End of Disc==")
+
+    flush(io)
 
 end
 
-# =============================================
-dom =  FractionalLaplace2D.disc(b = [2,2,2,2,2], L1=0.8, L2=0.8);
-
-Anₚᵣ = [128, 128];
-
-AN = [10, 12];
-
-for i in 1:2
-
-    nₚᵣ, N = Anₚᵣ[i], AN[i]
-
-    prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-        dₙₕ=1, (f!)=f!, uex=uex, dom=dom);
-
-    opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark, matrixfree=false)
-
-    core_res = solveFL(prob; opts=opts);
-
-    println(io, SolveView(prob, opts, core_res))
-
-    #------------- Matrix free --------
-
-    opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark, matrixfree=true)
-
-    core_res = solveFL(prob; opts=opts);
-
-    println(io, SolveView(prob, opts, core_res))
-
-end
-
-# =============================================
-dom =  FractionalLaplace2D.disc(b = [3,3,3,3,3], L1=0.8, L2=0.8);
-
-Anₚᵣ = [128, 128];
-
-AN = [10, 12];
-
-for i in 1:2
-
-    nₚᵣ, N = Anₚᵣ[i], AN[i]
-
-    prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-        dₙₕ=1, (f!)=f!, uex=uex, dom=dom);
-
-    opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark, matrixfree=false)
-
-    core_res = solveFL(prob; opts=opts);
-
-    println(io, SolveView(prob, opts, core_res))
-
-    #------------- Matrix free --------
-
-    opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark, matrixfree=true)
-
-    core_res = solveFL(prob; opts=opts);
-
-    println(io, SolveView(prob, opts, core_res))
-
-end
-
-# =============================================
-dom =  FractionalLaplace2D.disc(b = [3,3,3,3,4], a=[2,2,2,2,3], L1=0.8, L2=0.8);
-
-Anₚᵣ = [128, 256];
-
-AN = [10, 12];
-
-for i in 1:2
-
-    nₚᵣ, N = Anₚᵣ[i], AN[i]
-
-    prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-        dₙₕ=1, (f!)=f!, uex=uex, dom=dom);
-
-    opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark, matrixfree=false)
-
-    core_res = solveFL(prob; opts=opts);
-
-    println(io, SolveView(prob, opts, core_res))
-
-    #------------- Matrix free --------
-
-    opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark, matrixfree=true)
-
-    core_res = solveFL(prob; opts=opts);
-
-    println(io, SolveView(prob, opts, core_res))
-
-end
-
-display("==End of Disc==")
-
-end
+#flush(io) forces Julia to write any buffered output to the actual file immediately.
