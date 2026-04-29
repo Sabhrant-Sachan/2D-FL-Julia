@@ -361,6 +361,8 @@ open("solve_outputs025.txt", "w") do io
 
         println(io, SolveView(prob, opts, core_res))
 
+        flush(io)
+
         #------------- Matrix free --------
 
         opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark, matrixfree=true)
@@ -393,6 +395,8 @@ open("solve_outputs025.txt", "w") do io
 
         println(io, SolveView(prob, opts, core_res))
 
+        flush(io)
+
         #------------- Matrix free --------
 
         opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark, matrixfree=true)
@@ -424,6 +428,8 @@ open("solve_outputs025.txt", "w") do io
         core_res = solveFL(prob; opts=opts)
 
         println(io, SolveView(prob, opts, core_res))
+
+        flush(io)
 
         #------------- Matrix free --------
 

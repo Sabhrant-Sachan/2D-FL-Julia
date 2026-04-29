@@ -463,7 +463,6 @@ function solveFL(prob::Problem; opts::Options=Options())
         opts_core = Options(
             plot=false,
             benchmark=false,
-            save_Uapp_pre=nothing,
             solver=opts.solver,
             reltol=opts.reltol,
             abstol=opts.abstol,
