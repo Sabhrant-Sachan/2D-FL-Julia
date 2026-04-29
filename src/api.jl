@@ -17,7 +17,6 @@ using MAT
 Base.@kwdef struct Options
     plot::Bool = false                      # show plots (requires plotfunc(dp,d,vec))
     benchmark::Bool = false                 # benchmark ONLY the core solve
-    save_Uapp_pre::Union{Nothing,String} = nothing  # save evaluated field Uapp to .bin
     solver::Symbol = :gmres                 # :gmres or :direct
     cond_num::Bool = false
     # solver controls (gmres)
@@ -273,7 +272,7 @@ function solveFL_core(prob::Problem; opts::Options=Options())
             #        N is number of Chebyshev coefficients per patch and
             #        Mbd is number of boundary patches. The jth column
             #        of beta contains beta_j values over Chebyshev mesh.
-            beta = SLP_Beta(d, N)
+            beta = SLPbeta(d, N)
 
             # bZ : The single layer potential on all the
             #      target points (including the boundary).
@@ -281,10 +280,10 @@ function solveFL_core(prob::Problem; opts::Options=Options())
             #      (Npat*N*N + Mbd*N) * nh where nh is the
             #      number of holes and Npat*N*N + Mbd*N is total
             #      number of target points.
-            bZ = SLP_eval(d, dp, beta)
+            bZ = SLPeval(d, dp, beta)
 
             if s >= 0.5
-                bZ[(1+M*Np):(M*Np+Mbd*N), 1:D.Nh] .= 0.0
+                bZ[(1+M*Np):(M*Np+Mbd*N), 1:d.nh] .= 0.0
             end
 
             # Last Nh indices
@@ -352,16 +351,6 @@ end
 
 function solveFL_post(prob::Problem, core::CoreResult; opts::Options=Options())
     dp, d, A, Uapp = core.dp, core.d, core.A, core.Uapp
-
-    # Save solution
-    if opts.save_Uapp_pre !== nothing
-        path = opts.save_Uapp_pre
-        if endswith(lowercase(path), ".bin")
-            save_uapp_bin(path, Uapp)
-        else
-            error("Unknown file extension for save_Uapp_pre: $path. Use .bin.")
-        end
-    end
 
     # Evaluate solution on target points
     uappv = _compute_uappv(dp, d, Uapp, prob.N, prob.s)

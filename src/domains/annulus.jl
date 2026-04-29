@@ -2952,7 +2952,7 @@ end
 Double-layer kernel on the boundary:
 K(t, τ) = ((γ_k(τ) - γ_l(t)) ⋅ γ'_k(τ)) / ‖γ_k(τ) - γ_l(t)‖² for k ≠ l,
 and for k == l the limiting value is taken for patch k.
-The array method returns an array with the ***same shape*** as `tau`.
+The array method returns an array with the same size as `tau`.
 """
 function DLP!(out::StridedArray{Float64}, d::annulus, t::Float64, l::Int,
   tau::StridedArray{Float64}, k::Int, x::Vector{Float64},

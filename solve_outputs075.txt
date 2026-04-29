@@ -1,0 +1,1413 @@
+Run started: 2026-04-26T22:35:39.862
+s = 0.75
+================ FractionalLaplace2D ================
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[1 2 3 4]
+  Npat   = 5
+  pths   = Vector{Patch} (5 patches)
+  Qpts   = 8×5 Matrix
+  Qptsbd = 8×4 Matrix
+
+
+----------- Parameters -----------
+N=3, nₚᵣ=32, s=0.75, p=4, δ=0.1, δclsbd=0.01
+
+----------- System -----------
+Target points (Vars.) : 57
+Precomputation points : 97
+Near-singular  points : 40
+Cond. num 2-norm: 15.325576
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 4.46e-01
+Max Rel err : 4.46e-01
+L^2 error   : 1.87e+00
+Root MSE err: 2.79e-01
+
+----------- Benchmark -----------
+BenchmarkTools.Trial: 3 samples with 1 evaluation per sample.
+ Range (min … max):  185.175 ms … 195.047 ms  ┊ GC (min … max): 0.00% … 0.00%
+ Time  (median):     187.010 ms               ┊ GC (median):    0.00%
+ Time  (mean ± σ):   189.077 ms ±   5.251 ms  ┊ GC (mean ± σ):  0.00% ± 0.00%
+
+  █          █                                                █  
+  █▁▁▁▁▁▁▁▁▁▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█ ▁
+  185 ms           Histogram: frequency by time          195 ms <
+
+ Memory estimate: 3.26 MiB, allocs estimate: 735.
+=====================================================
+
+================ FractionalLaplace2D ================
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[1 2 3 4]
+  Npat   = 5
+  pths   = Vector{Patch} (5 patches)
+  Qpts   = 8×5 Matrix
+  Qptsbd = 8×4 Matrix
+
+
+----------- Parameters -----------
+N=3, nₚᵣ=32, s=0.75, p=4, δ=0.1, δclsbd=0.01
+
+----------- System -----------
+Target points (Vars.) : 57
+Precomputation points : 97
+Near-singular  points : 40
+
+----------- Solve -----------
+Solver : gmres
+Iters  : 16
+Conv   : true
+Reltol : 3.0e-15
+
+----------- Error -----------
+Max Error   : 4.46e-01
+Max Rel err : 4.46e-01
+L^2 error   : 1.87e+00
+Root MSE err: 2.79e-01
+
+----------- Benchmark -----------
+BenchmarkTools.Trial: 3 samples with 1 evaluation per sample.
+ Range (min … max):  387.277 ms … 395.702 ms  ┊ GC (min … max): 0.00% … 0.00%
+ Time  (median):     389.009 ms               ┊ GC (median):    0.00%
+ Time  (mean ± σ):   390.663 ms ±   4.449 ms  ┊ GC (mean ± σ):  0.00% ± 0.00%
+
+  █           █                                               █  
+  █▁▁▁▁▁▁▁▁▁▁▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█ ▁
+  387 ms           Histogram: frequency by time          396 ms <
+
+ Memory estimate: 3.39 MiB, allocs estimate: 939.
+=====================================================
+
+================ FractionalLaplace2D ================
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[1 2 3 4]
+  Npat   = 5
+  pths   = Vector{Patch} (5 patches)
+  Qpts   = 8×5 Matrix
+  Qptsbd = 8×4 Matrix
+
+
+----------- Parameters -----------
+N=4, nₚᵣ=32, s=0.75, p=4, δ=0.1, δclsbd=0.01
+
+----------- System -----------
+Target points (Vars.) : 96
+Precomputation points : 168
+Near-singular  points : 72
+Cond. num 2-norm: 24.103378
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 1.09e-01
+Max Rel err : 1.69e-01
+L^2 error   : 5.55e-01
+Root MSE err: 6.20e-02
+
+----------- Benchmark -----------
+BenchmarkTools.Trial: 3 samples with 1 evaluation per sample.
+ Range (min … max):  315.975 ms … 327.780 ms  ┊ GC (min … max): 0.00% … 0.00%
+ Time  (median):     320.592 ms               ┊ GC (median):    0.00%
+ Time  (mean ± σ):   321.449 ms ±   5.949 ms  ┊ GC (mean ± σ):  0.00% ± 0.00%
+
+  █                      █                                    █  
+  █▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█ ▁
+  316 ms           Histogram: frequency by time          328 ms <
+
+ Memory estimate: 3.39 MiB, allocs estimate: 737.
+=====================================================
+
+================ FractionalLaplace2D ================
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[1 2 3 4]
+  Npat   = 5
+  pths   = Vector{Patch} (5 patches)
+  Qpts   = 8×5 Matrix
+  Qptsbd = 8×4 Matrix
+
+
+----------- Parameters -----------
+N=4, nₚᵣ=32, s=0.75, p=4, δ=0.1, δclsbd=0.01
+
+----------- System -----------
+Target points (Vars.) : 96
+Precomputation points : 168
+Near-singular  points : 72
+
+----------- Solve -----------
+Solver : gmres
+Iters  : 19
+Conv   : true
+Reltol : 3.0e-15
+
+----------- Error -----------
+Max Error   : 1.09e-01
+Max Rel err : 1.69e-01
+L^2 error   : 5.55e-01
+Root MSE err: 6.20e-02
+
+----------- Benchmark -----------
+BenchmarkTools.Trial: 3 samples with 1 evaluation per sample.
+ Range (min … max):  754.308 ms … 767.915 ms  ┊ GC (min … max): 0.00% … 0.00%
+ Time  (median):     754.934 ms               ┊ GC (median):    0.00%
+ Time  (mean ± σ):   759.052 ms ±   7.682 ms  ┊ GC (mean ± σ):  0.00% ± 0.00%
+
+  █ █                                                         █  
+  █▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█ ▁
+  754 ms           Histogram: frequency by time          768 ms <
+
+ Memory estimate: 3.51 MiB, allocs estimate: 959.
+=====================================================
+
+================ FractionalLaplace2D ================
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[1 2 3 4]
+  Npat   = 5
+  pths   = Vector{Patch} (5 patches)
+  Qpts   = 8×5 Matrix
+  Qptsbd = 8×4 Matrix
+
+
+----------- Parameters -----------
+N=5, nₚᵣ=32, s=0.75, p=4, δ=0.1, δclsbd=0.01
+
+----------- System -----------
+Target points (Vars.) : 145
+Precomputation points : 241
+Near-singular  points : 96
+Cond. num 2-norm: 31.220233
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 1.23e-02
+Max Rel err : 1.23e-02
+L^2 error   : 5.51e-02
+Root MSE err: 4.93e-03
+
+----------- Benchmark -----------
+BenchmarkTools.Trial: 3 samples with 1 evaluation per sample.
+ Range (min … max):  493.859 ms … 550.269 ms  ┊ GC (min … max): 0.00% … 0.00%
+ Time  (median):     518.129 ms               ┊ GC (median):    0.00%
+ Time  (mean ± σ):   520.752 ms ±  28.296 ms  ┊ GC (mean ± σ):  0.00% ± 0.00%
+
+  █                         █                                 █  
+  █▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█ ▁
+  494 ms           Histogram: frequency by time          550 ms <
+
+ Memory estimate: 3.63 MiB, allocs estimate: 740.
+=====================================================
+
+================ FractionalLaplace2D ================
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[1 2 3 4]
+  Npat   = 5
+  pths   = Vector{Patch} (5 patches)
+  Qpts   = 8×5 Matrix
+  Qptsbd = 8×4 Matrix
+
+
+----------- Parameters -----------
+N=5, nₚᵣ=32, s=0.75, p=4, δ=0.1, δclsbd=0.01
+
+----------- System -----------
+Target points (Vars.) : 145
+Precomputation points : 241
+Near-singular  points : 96
+
+----------- Solve -----------
+Solver : gmres
+Iters  : 36
+Conv   : true
+Reltol : 3.0e-15
+
+----------- Error -----------
+Max Error   : 1.23e-02
+Max Rel err : 1.23e-02
+L^2 error   : 5.51e-02
+Root MSE err: 4.93e-03
+
+----------- Benchmark -----------
+BenchmarkTools.Trial: 3 samples with 1 evaluation per sample.
+ Range (min … max):  1.760 s …   1.785 s  ┊ GC (min … max): 0.00% … 0.00%
+ Time  (median):     1.778 s              ┊ GC (median):    0.00%
+ Time  (mean ± σ):   1.774 s ± 13.074 ms  ┊ GC (mean ± σ):  0.00% ± 0.00%
+
+  █                                        █              █  
+  █▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁█ ▁
+  1.76 s         Histogram: frequency by time        1.79 s <
+
+ Memory estimate: 3.75 MiB, allocs estimate: 1064.
+=====================================================
+
+================ FractionalLaplace2D ================
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[1 2 3 4]
+  Npat   = 5
+  pths   = Vector{Patch} (5 patches)
+  Qpts   = 8×5 Matrix
+  Qptsbd = 8×4 Matrix
+
+
+----------- Parameters -----------
+N=6, nₚᵣ=32, s=0.75, p=4, δ=0.1, δclsbd=0.01
+
+----------- System -----------
+Target points (Vars.) : 204
+Precomputation points : 332
+Near-singular  points : 128
+Cond. num 2-norm: 41.763028
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 4.65e-04
+Max Rel err : 5.61e-04
+L^2 error   : 2.41e-03
+Root MSE err: 1.79e-04
+
+----------- Benchmark -----------
+BenchmarkTools.Trial: 3 samples with 1 evaluation per sample.
+ Range (min … max):  705.198 ms … 741.427 ms  ┊ GC (min … max): 0.00% … 0.00%
+ Time  (median):     712.351 ms               ┊ GC (median):    0.00%
+ Time  (mean ± σ):   719.659 ms ±  19.188 ms  ┊ GC (mean ± σ):  0.00% ± 0.00%
+
+  █           █                                               █  
+  █▁▁▁▁▁▁▁▁▁▁▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█ ▁
+  705 ms           Histogram: frequency by time          741 ms <
+
+ Memory estimate: 4.02 MiB, allocs estimate: 741.
+=====================================================
+
+================ FractionalLaplace2D ================
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[1 2 3 4]
+  Npat   = 5
+  pths   = Vector{Patch} (5 patches)
+  Qpts   = 8×5 Matrix
+  Qptsbd = 8×4 Matrix
+
+
+----------- Parameters -----------
+N=6, nₚᵣ=32, s=0.75, p=4, δ=0.1, δclsbd=0.01
+
+----------- System -----------
+Target points (Vars.) : 204
+Precomputation points : 332
+Near-singular  points : 128
+
+----------- Solve -----------
+Solver : gmres
+Iters  : 41
+Conv   : true
+Reltol : 3.0e-15
+
+----------- Error -----------
+Max Error   : 4.65e-04
+Max Rel err : 5.61e-04
+L^2 error   : 2.41e-03
+Root MSE err: 1.79e-04
+
+----------- Benchmark -----------
+BenchmarkTools.Trial: 3 samples with 1 evaluation per sample.
+ Range (min … max):  2.929 s …    3.153 s  ┊ GC (min … max): 0.00% … 0.00%
+ Time  (median):     3.067 s               ┊ GC (median):    0.00%
+ Time  (mean ± σ):   3.050 s ± 113.075 ms  ┊ GC (mean ± σ):  0.00% ± 0.00%
+
+  █                                  █                     █  
+  █▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█ ▁
+  2.93 s         Histogram: frequency by time         3.15 s <
+
+ Memory estimate: 4.13 MiB, allocs estimate: 1095.
+=====================================================
+
+================ FractionalLaplace2D ================
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[1 2 3 4]
+  Npat   = 5
+  pths   = Vector{Patch} (5 patches)
+  Qpts   = 8×5 Matrix
+  Qptsbd = 8×4 Matrix
+
+
+----------- Parameters -----------
+N=7, nₚᵣ=64, s=0.75, p=4, δ=0.1, δclsbd=0.01
+
+----------- System -----------
+Target points (Vars.) : 273
+Precomputation points : 473
+Near-singular  points : 200
+Cond. num 2-norm: 50.185438
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 2.07e-05
+Max Rel err : 2.07e-05
+L^2 error   : 9.20e-05
+Root MSE err: 5.88e-06
+
+----------- Benchmark -----------
+BenchmarkTools.Trial: 3 samples with 1 evaluation per sample.
+ Range (min … max):  1.726 s …    2.031 s  ┊ GC (min … max): 0.00% … 0.00%
+ Time  (median):     1.798 s               ┊ GC (median):    0.00%
+ Time  (mean ± σ):   1.852 s ± 159.499 ms  ┊ GC (mean ± σ):  0.00% ± 0.00%
+
+  █            █                                           █  
+  █▁▁▁▁▁▁▁▁▁▁▁▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█ ▁
+  1.73 s         Histogram: frequency by time         2.03 s <
+
+ Memory estimate: 5.96 MiB, allocs estimate: 752.
+=====================================================
+
+================ FractionalLaplace2D ================
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[1 2 3 4]
+  Npat   = 5
+  pths   = Vector{Patch} (5 patches)
+  Qpts   = 8×5 Matrix
+  Qptsbd = 8×4 Matrix
+
+
+----------- Parameters -----------
+N=7, nₚᵣ=64, s=0.75, p=4, δ=0.1, δclsbd=0.01
+
+----------- System -----------
+Target points (Vars.) : 273
+Precomputation points : 473
+Near-singular  points : 200
+
+----------- Solve -----------
+Solver : gmres
+Iters  : 55
+Conv   : true
+Reltol : 3.0e-15
+
+----------- Error -----------
+Max Error   : 2.07e-05
+Max Rel err : 2.07e-05
+L^2 error   : 9.20e-05
+Root MSE err: 5.88e-06
+
+----------- Benchmark -----------
+BenchmarkTools.Trial: 3 samples with 1 evaluation per sample.
+ Range (min … max):  5.386 s …    5.738 s  ┊ GC (min … max): 0.00% … 0.00%
+ Time  (median):     5.423 s               ┊ GC (median):    0.00%
+ Time  (mean ± σ):   5.516 s ± 193.656 ms  ┊ GC (mean ± σ):  0.00% ± 0.00%
+
+  █     █                                                  █  
+  █▁▁▁▁▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█ ▁
+  5.39 s         Histogram: frequency by time         5.74 s <
+
+ Memory estimate: 6.07 MiB, allocs estimate: 1193.
+=====================================================
+
+================ FractionalLaplace2D ================
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[1 2 3 4]
+  Npat   = 5
+  pths   = Vector{Patch} (5 patches)
+  Qpts   = 8×5 Matrix
+  Qptsbd = 8×4 Matrix
+
+
+----------- Parameters -----------
+N=8, nₚᵣ=64, s=0.75, p=4, δ=0.1, δclsbd=0.01
+
+----------- System -----------
+Target points (Vars.) : 352
+Precomputation points : 608
+Near-singular  points : 256
+Cond. num 2-norm: 62.067978
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 1.15e-05
+Max Rel err : 1.28e-05
+L^2 error   : 5.84e-05
+Root MSE err: 3.27e-06
+
+----------- Benchmark -----------
+BenchmarkTools.Trial: 3 samples with 1 evaluation per sample.
+ Range (min … max):  2.265 s …   2.307 s  ┊ GC (min … max): 0.00% … 0.00%
+ Time  (median):     2.271 s              ┊ GC (median):    0.00%
+ Time  (mean ± σ):   2.281 s ± 22.413 ms  ┊ GC (mean ± σ):  0.00% ± 0.00%
+
+  █       █                                               █  
+  █▁▁▁▁▁▁▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█ ▁
+  2.27 s         Histogram: frequency by time        2.31 s <
+
+ Memory estimate: 6.91 MiB, allocs estimate: 759.
+=====================================================
+
+================ FractionalLaplace2D ================
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[1 2 3 4]
+  Npat   = 5
+  pths   = Vector{Patch} (5 patches)
+  Qpts   = 8×5 Matrix
+  Qptsbd = 8×4 Matrix
+
+
+----------- Parameters -----------
+N=8, nₚᵣ=64, s=0.75, p=4, δ=0.1, δclsbd=0.01
+
+----------- System -----------
+Target points (Vars.) : 352
+Precomputation points : 608
+Near-singular  points : 256
+
+----------- Solve -----------
+Solver : gmres
+Iters  : 59
+Conv   : true
+Reltol : 3.0e-15
+
+----------- Error -----------
+Max Error   : 1.15e-05
+Max Rel err : 1.28e-05
+L^2 error   : 5.84e-05
+Root MSE err: 3.27e-06
+
+----------- Benchmark -----------
+BenchmarkTools.Trial: 3 samples with 1 evaluation per sample.
+ Range (min … max):  7.413 s …   7.469 s  ┊ GC (min … max): 0.00% … 0.00%
+ Time  (median):     7.417 s              ┊ GC (median):    0.00%
+ Time  (mean ± σ):   7.433 s ± 30.758 ms  ┊ GC (mean ± σ):  0.00% ± 0.00%
+
+  █   █                                                   █  
+  █▁▁▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█ ▁
+  7.41 s         Histogram: frequency by time        7.47 s <
+
+ Memory estimate: 7.02 MiB, allocs estimate: 1220.
+=====================================================
+
+================ FractionalLaplace2D ================
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[1 2 3 4]
+  Npat   = 5
+  pths   = Vector{Patch} (5 patches)
+  Qpts   = 8×5 Matrix
+  Qptsbd = 8×4 Matrix
+
+
+----------- Parameters -----------
+N=9, nₚᵣ=64, s=0.75, p=4, δ=0.1, δclsbd=0.01
+
+----------- System -----------
+Target points (Vars.) : 441
+Precomputation points : 745
+Near-singular  points : 304
+Cond. num 2-norm: 71.765195
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 5.06e-07
+Max Rel err : 5.06e-07
+L^2 error   : 2.50e-06
+Root MSE err: 1.24e-07
+
+----------- Benchmark -----------
+BenchmarkTools.Trial: 3 samples with 1 evaluation per sample.
+ Range (min … max):  2.886 s …   2.930 s  ┊ GC (min … max): 0.00% … 0.00%
+ Time  (median):     2.888 s              ┊ GC (median):    0.00%
+ Time  (mean ± σ):   2.902 s ± 24.455 ms  ┊ GC (mean ± σ):  0.00% ± 0.00%
+
+  █ █                                                     █  
+  █▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█ ▁
+  2.89 s         Histogram: frequency by time        2.93 s <
+
+ Memory estimate: 8.27 MiB, allocs estimate: 766.
+=====================================================
+
+================ FractionalLaplace2D ================
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[1 2 3 4]
+  Npat   = 5
+  pths   = Vector{Patch} (5 patches)
+  Qpts   = 8×5 Matrix
+  Qptsbd = 8×4 Matrix
+
+
+----------- Parameters -----------
+N=9, nₚᵣ=64, s=0.75, p=4, δ=0.1, δclsbd=0.01
+
+----------- System -----------
+Target points (Vars.) : 441
+Precomputation points : 745
+Near-singular  points : 304
+
+----------- Solve -----------
+Solver : gmres
+Iters  : 67
+Conv   : true
+Reltol : 3.0e-15
+
+----------- Error -----------
+Max Error   : 5.06e-07
+Max Rel err : 5.06e-07
+L^2 error   : 2.50e-06
+Root MSE err: 1.24e-07
+
+----------- Benchmark -----------
+BenchmarkTools.Trial: 3 samples with 1 evaluation per sample.
+ Range (min … max):  10.295 s …  10.392 s  ┊ GC (min … max): 0.00% … 0.00%
+ Time  (median):     10.347 s              ┊ GC (median):    0.00%
+ Time  (mean ± σ):   10.345 s ± 48.199 ms  ┊ GC (mean ± σ):  0.00% ± 0.00%
+
+  █                              █                         █  
+  █▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█ ▁
+  10.3 s         Histogram: frequency by time         10.4 s <
+
+ Memory estimate: 8.36 MiB, allocs estimate: 1275.
+=====================================================
+
+================ FractionalLaplace2D ================
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[1 2 3 4]
+  Npat   = 5
+  pths   = Vector{Patch} (5 patches)
+  Qpts   = 8×5 Matrix
+  Qptsbd = 8×4 Matrix
+
+
+----------- Parameters -----------
+N=10, nₚᵣ=128, s=0.75, p=4, δ=0.1, δclsbd=0.01
+
+----------- System -----------
+Target points (Vars.) : 540
+Precomputation points : 916
+Near-singular  points : 376
+Cond. num 2-norm: 84.814924
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 2.84e-07
+Max Rel err : 3.04e-07
+L^2 error   : 1.47e-06
+Root MSE err: 6.59e-08
+
+----------- Benchmark -----------
+BenchmarkTools.Trial: 3 samples with 1 evaluation per sample.
+ Range (min … max):  10.746 s …   10.963 s  ┊ GC (min … max): 0.00% … 0.00%
+ Time  (median):     10.939 s               ┊ GC (median):    0.00%
+ Time  (mean ± σ):   10.883 s ± 119.015 ms  ┊ GC (mean ± σ):  0.00% ± 0.00%
+
+  █                                                   █     █  
+  █▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█▁▁▁▁▁█ ▁
+  10.7 s          Histogram: frequency by time           11 s <
+
+ Memory estimate: 15.82 MiB, allocs estimate: 779.
+=====================================================
+
+================ FractionalLaplace2D ================
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[1 2 3 4]
+  Npat   = 5
+  pths   = Vector{Patch} (5 patches)
+  Qpts   = 8×5 Matrix
+  Qptsbd = 8×4 Matrix
+
+
+----------- Parameters -----------
+N=10, nₚᵣ=128, s=0.75, p=4, δ=0.1, δclsbd=0.01
+
+----------- System -----------
+Target points (Vars.) : 540
+Precomputation points : 916
+Near-singular  points : 376
+
+----------- Solve -----------
+Solver : gmres
+Iters  : 72
+Conv   : true
+Reltol : 3.0e-15
+
+----------- Error -----------
+Max Error   : 2.84e-07
+Max Rel err : 3.04e-07
+L^2 error   : 1.47e-06
+Root MSE err: 6.59e-08
+
+----------- Benchmark -----------
+BenchmarkTools.Trial: 3 samples with 1 evaluation per sample.
+ Range (min … max):  20.452 s …  20.634 s  ┊ GC (min … max): 0.00% … 0.00%
+ Time  (median):     20.614 s              ┊ GC (median):    0.00%
+ Time  (mean ± σ):   20.567 s ± 99.911 ms  ┊ GC (mean ± σ):  0.00% ± 0.00%
+
+  █                                                  █     █  
+  █▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█▁▁▁▁▁█ ▁
+  20.5 s         Histogram: frequency by time         20.6 s <
+
+ Memory estimate: 14.86 MiB, allocs estimate: 1326.
+=====================================================
+
+================ FractionalLaplace2D ================
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[1 2 3 4]
+  Npat   = 5
+  pths   = Vector{Patch} (5 patches)
+  Qpts   = 8×5 Matrix
+  Qptsbd = 8×4 Matrix
+
+
+----------- Parameters -----------
+N=12, nₚᵣ=128, s=0.75, p=4, δ=0.1, δclsbd=0.01
+
+----------- System -----------
+Target points (Vars.) : 768
+Precomputation points : 1336
+Near-singular  points : 568
+Cond. num 2-norm: 109.787881
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 4.30e-09
+Max Rel err : 4.51e-09
+L^2 error   : 2.47e-08
+Root MSE err: 9.21e-10
+
+----------- Benchmark -----------
+BenchmarkTools.Trial: 3 samples with 1 evaluation per sample.
+ Range (min … max):  16.258 s …  16.407 s  ┊ GC (min … max): 0.00% … 0.00%
+ Time  (median):     16.376 s              ┊ GC (median):    0.00%
+ Time  (mean ± σ):   16.347 s ± 78.529 ms  ┊ GC (mean ± σ):  0.00% ± 0.00%
+
+  █                                             █          █  
+  █▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█▁▁▁▁▁▁▁▁▁▁█ ▁
+  16.3 s         Histogram: frequency by time         16.4 s <
+
+ Memory estimate: 21.74 MiB, allocs estimate: 785.
+=====================================================
+
+================ FractionalLaplace2D ================
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[1 2 3 4]
+  Npat   = 5
+  pths   = Vector{Patch} (5 patches)
+  Qpts   = 8×5 Matrix
+  Qptsbd = 8×4 Matrix
+
+
+----------- Parameters -----------
+N=12, nₚᵣ=128, s=0.75, p=4, δ=0.1, δclsbd=0.01
+
+----------- System -----------
+Target points (Vars.) : 768
+Precomputation points : 1336
+Near-singular  points : 568
+
+----------- Solve -----------
+Solver : gmres
+Iters  : 83
+Conv   : true
+Reltol : 3.0e-15
+
+----------- Error -----------
+Max Error   : 4.30e-09
+Max Rel err : 4.51e-09
+L^2 error   : 2.47e-08
+Root MSE err: 9.21e-10
+
+----------- Benchmark -----------
+BenchmarkTools.Trial: 3 samples with 1 evaluation per sample.
+ Range (min … max):  32.134 s …   32.639 s  ┊ GC (min … max): 0.00% … 0.00%
+ Time  (median):     32.361 s               ┊ GC (median):    0.00%
+ Time  (mean ± σ):   32.378 s ± 252.989 ms  ┊ GC (mean ± σ):  0.00% ± 0.00%
+
+  █                         █                               █  
+  █▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█ ▁
+  32.1 s          Histogram: frequency by time         32.6 s <
+
+ Memory estimate: 17.00 MiB, allocs estimate: 1399.
+=====================================================
+
+================ FractionalLaplace2D ================
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[3 4 7 … 12 15 16]
+  Npat   = 20
+  pths   = Vector{Patch} (20 patches)
+  Qpts   = 8×20 Matrix
+  Qptsbd = 8×8 Matrix
+
+
+----------- Parameters -----------
+N=10, nₚᵣ=128, s=0.75, p=4, δ=0.1, δclsbd=0.01
+
+----------- System -----------
+Target points (Vars.) : 2080
+Precomputation points : 5116
+Near-singular  points : 3036
+Cond. num 2-norm: 195.707609
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 1.85e-10
+Max Rel err : 1.85e-10
+L^2 error   : 1.28e-09
+Root MSE err: 2.86e-11
+
+----------- Benchmark -----------
+BenchmarkTools.Trial: 3 samples with 1 evaluation per sample.
+ Range (min … max):  45.577 s …   45.810 s  ┊ GC (min … max): 0.01% … 0.01%
+ Time  (median):     45.683 s               ┊ GC (median):    0.01%
+ Time  (mean ± σ):   45.690 s ± 116.499 ms  ┊ GC (mean ± σ):  0.01% ± 0.01%
+
+  █                         █                               █  
+  █▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█ ▁
+  45.6 s          Histogram: frequency by time         45.8 s <
+
+ Memory estimate: 80.86 MiB, allocs estimate: 782.
+=====================================================
+
+================ FractionalLaplace2D ================
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[3 4 7 … 12 15 16]
+  Npat   = 20
+  pths   = Vector{Patch} (20 patches)
+  Qpts   = 8×20 Matrix
+  Qptsbd = 8×8 Matrix
+
+
+----------- Parameters -----------
+N=10, nₚᵣ=128, s=0.75, p=4, δ=0.1, δclsbd=0.01
+
+----------- System -----------
+Target points (Vars.) : 2080
+Precomputation points : 5116
+Near-singular  points : 3036
+
+----------- Solve -----------
+Solver : gmres
+Iters  : 92
+Conv   : true
+Reltol : 3.0e-15
+
+----------- Error -----------
+Max Error   : 1.85e-10
+Max Rel err : 1.85e-10
+L^2 error   : 1.28e-09
+Root MSE err: 2.86e-11
+
+----------- Benchmark -----------
+BenchmarkTools.Trial: 3 samples with 1 evaluation per sample.
+ Range (min … max):  211.774 s …  212.977 s  ┊ GC (min … max): 0.00% … 0.00%
+ Time  (median):     212.468 s               ┊ GC (median):    0.00%
+ Time  (mean ± σ):   212.406 s ± 603.585 ms  ┊ GC (mean ± σ):  0.00% ± 0.00%
+
+  █                                 █                        █  
+  █▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█ ▁
+  212 s           Histogram: frequency by time           213 s <
+
+ Memory estimate: 23.83 MiB, allocs estimate: 1450.
+=====================================================
+
+================ FractionalLaplace2D ================
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[3 4 7 … 12 15 16]
+  Npat   = 20
+  pths   = Vector{Patch} (20 patches)
+  Qpts   = 8×20 Matrix
+  Qptsbd = 8×8 Matrix
+
+
+----------- Parameters -----------
+N=12, nₚᵣ=128, s=0.75, p=4, δ=0.1, δclsbd=0.01
+
+----------- System -----------
+Target points (Vars.) : 2976
+Precomputation points : 7412
+Near-singular  points : 4436
+Cond. num 2-norm: 255.888598
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 1.16e-11
+Max Rel err : 1.16e-11
+L^2 error   : 5.97e-11
+Root MSE err: 1.11e-12
+
+----------- Benchmark -----------
+BenchmarkTools.Trial: 3 samples with 1 evaluation per sample.
+ Range (min … max):  67.460 s …   68.091 s  ┊ GC (min … max): 0.00% … 0.09%
+ Time  (median):     68.028 s               ┊ GC (median):    0.01%
+ Time  (mean ± σ):   67.860 s ± 347.387 ms  ┊ GC (mean ± σ):  0.03% ± 0.05%
+
+  █                                                    █    █  
+  █▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█▁▁▁▁█ ▁
+  67.5 s          Histogram: frequency by time         68.1 s <
+
+ Memory estimate: 154.80 MiB, allocs estimate: 783.
+=====================================================
+
+================ FractionalLaplace2D ================
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[3 4 7 … 12 15 16]
+  Npat   = 20
+  pths   = Vector{Patch} (20 patches)
+  Qpts   = 8×20 Matrix
+  Qptsbd = 8×8 Matrix
+
+
+----------- Parameters -----------
+N=12, nₚᵣ=128, s=0.75, p=4, δ=0.1, δclsbd=0.01
+
+----------- System -----------
+Target points (Vars.) : 2976
+Precomputation points : 7412
+Near-singular  points : 4436
+
+----------- Solve -----------
+Solver : gmres
+Iters  : 102
+Conv   : true
+Reltol : 3.0e-15
+
+----------- Error -----------
+Max Error   : 1.16e-11
+Max Rel err : 1.16e-11
+L^2 error   : 5.97e-11
+Root MSE err: 1.11e-12
+
+----------- Benchmark -----------
+BenchmarkTools.Trial: 3 samples with 1 evaluation per sample.
+ Range (min … max):  330.934 s … 333.226 s  ┊ GC (min … max): 0.00% … 0.00%
+ Time  (median):     331.947 s              ┊ GC (median):    0.00%
+ Time  (mean ± σ):   332.036 s ±   1.149 s  ┊ GC (mean ± σ):  0.00% ± 0.00%
+
+  █                         █                               █  
+  █▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█ ▁
+  331 s           Histogram: frequency by time          333 s <
+
+ Memory estimate: 31.72 MiB, allocs estimate: 1511.
+=====================================================
+
+================ FractionalLaplace2D ================
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[4 5 6 … 22 23 24]
+  Npat   = 30
+  pths   = Vector{Patch} (30 patches)
+  Qpts   = 8×30 Matrix
+  Qptsbd = 8×12 Matrix
+
+
+----------- Parameters -----------
+N=10, nₚᵣ=128, s=0.75, p=4, δ=0.1, δclsbd=0.01
+
+----------- System -----------
+Target points (Vars.) : 3120
+Precomputation points : 8224
+Near-singular  points : 5104
+Cond. num 2-norm: 197.736750
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 1.69e-10
+Max Rel err : 1.69e-10
+L^2 error   : 9.44e-10
+Root MSE err: 1.72e-11
+
+----------- Benchmark -----------
+BenchmarkTools.Trial: 3 samples with 1 evaluation per sample.
+ Range (min … max):  71.014 s …   72.180 s  ┊ GC (min … max): 0.01% … 0.00%
+ Time  (median):     72.130 s               ┊ GC (median):    0.01%
+ Time  (mean ± σ):   71.775 s ± 659.356 ms  ┊ GC (mean ± σ):  0.03% ± 0.05%
+
+  █                                                       █ █  
+  █▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█▁█ ▁
+  71 s            Histogram: frequency by time         72.2 s <
+
+ Memory estimate: 165.83 MiB, allocs estimate: 783.
+=====================================================
+
+================ FractionalLaplace2D ================
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[4 5 6 … 22 23 24]
+  Npat   = 30
+  pths   = Vector{Patch} (30 patches)
+  Qpts   = 8×30 Matrix
+  Qptsbd = 8×12 Matrix
+
+
+----------- Parameters -----------
+N=10, nₚᵣ=128, s=0.75, p=4, δ=0.1, δclsbd=0.01
+
+----------- System -----------
+Target points (Vars.) : 3120
+Precomputation points : 8224
+Near-singular  points : 5104
+
+----------- Solve -----------
+Solver : gmres
+Iters  : 103
+Conv   : true
+Reltol : 3.0e-15
+
+----------- Error -----------
+Max Error   : 1.69e-10
+Max Rel err : 1.69e-10
+L^2 error   : 9.44e-10
+Root MSE err: 1.72e-11
+
+----------- Benchmark -----------
+BenchmarkTools.Trial: 3 samples with 1 evaluation per sample.
+ Range (min … max):  505.746 s … 507.790 s  ┊ GC (min … max): 0.00% … 0.00%
+ Time  (median):     505.976 s              ┊ GC (median):    0.00%
+ Time  (mean ± σ):   506.504 s ±   1.120 s  ┊ GC (mean ± σ):  0.00% ± 0.00%
+
+  █     █                                                   █  
+  █▁▁▁▁▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█ ▁
+  506 s           Histogram: frequency by time          508 s <
+
+ Memory estimate: 30.00 MiB, allocs estimate: 1517.
+=====================================================
+
+================ FractionalLaplace2D ================
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[4 5 6 … 22 23 24]
+  Npat   = 30
+  pths   = Vector{Patch} (30 patches)
+  Qpts   = 8×30 Matrix
+  Qptsbd = 8×12 Matrix
+
+
+----------- Parameters -----------
+N=12, nₚᵣ=128, s=0.75, p=4, δ=0.1, δclsbd=0.01
+
+----------- System -----------
+Target points (Vars.) : 4464
+Precomputation points : 12092
+Near-singular  points : 7628
+Cond. num 2-norm: 258.542651
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 2.06e-12
+Max Rel err : 2.06e-12
+L^2 error   : 1.19e-11
+Root MSE err: 1.82e-13
+
+----------- Benchmark -----------
+BenchmarkTools.Trial: 3 samples with 1 evaluation per sample.
+ Range (min … max):  106.603 s …  106.973 s  ┊ GC (min … max): 0.06% … 0.00%
+ Time  (median):     106.848 s               ┊ GC (median):    0.06%
+ Time  (mean ± σ):   106.808 s ± 188.199 ms  ┊ GC (mean ± σ):  0.14% ± 0.19%
+
+  █                                      █                   █  
+  █▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█ ▁
+  107 s           Histogram: frequency by time           107 s <
+
+ Memory estimate: 329.13 MiB, allocs estimate: 783.
+=====================================================
+
+================ FractionalLaplace2D ================
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[4 5 6 … 22 23 24]
+  Npat   = 30
+  pths   = Vector{Patch} (30 patches)
+  Qpts   = 8×30 Matrix
+  Qptsbd = 8×12 Matrix
+
+
+----------- Parameters -----------
+N=12, nₚᵣ=128, s=0.75, p=4, δ=0.1, δclsbd=0.01
+
+----------- System -----------
+Target points (Vars.) : 4464
+Precomputation points : 12092
+Near-singular  points : 7628
+
+----------- Solve -----------
+Solver : gmres
+Iters  : 113
+Conv   : true
+Reltol : 3.0e-15
+
+----------- Error -----------
+Max Error   : 2.04e-12
+Max Rel err : 2.04e-12
+L^2 error   : 1.19e-11
+Root MSE err: 1.81e-13
+
+----------- Benchmark -----------
+BenchmarkTools.Trial: 3 samples with 1 evaluation per sample.
+ Range (min … max):  788.105 s … 790.146 s  ┊ GC (min … max): 0.00% … 0.00%
+ Time  (median):     788.106 s              ┊ GC (median):    0.00%
+ Time  (mean ± σ):   788.786 s ±   1.178 s  ┊ GC (mean ± σ):  0.00% ± 0.00%
+
+  █                                                         ▁  
+  █▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█ ▁
+  788 s           Histogram: frequency by time          790 s <
+
+ Memory estimate: 42.40 MiB, allocs estimate: 1577.
+=====================================================
+
+================ FractionalLaplace2D ================
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[4 5 6 … 22 23 24]
+  Npat   = 36
+  pths   = Vector{Patch} (36 patches)
+  Qpts   = 8×36 Matrix
+  Qptsbd = 8×12 Matrix
+
+
+----------- Parameters -----------
+N=10, nₚᵣ=128, s=0.75, p=4, δ=0.1, δclsbd=0.01
+
+----------- System -----------
+Target points (Vars.) : 3720
+Precomputation points : 10764
+Near-singular  points : 7044
+Cond. num 2-norm: 236.435356
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 5.64e-12
+Max Rel err : 5.66e-12
+L^2 error   : 5.74e-11
+Root MSE err: 9.57e-13
+
+----------- Benchmark -----------
+BenchmarkTools.Trial: 3 samples with 1 evaluation per sample.
+ Range (min … max):  81.943 s …   82.391 s  ┊ GC (min … max): 0.02% … 0.00%
+ Time  (median):     82.046 s               ┊ GC (median):    0.01%
+ Time  (mean ± σ):   82.127 s ± 234.703 ms  ┊ GC (mean ± σ):  0.01% ± 0.01%
+
+  █            █                                            █  
+  █▁▁▁▁▁▁▁▁▁▁▁▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█ ▁
+  81.9 s          Histogram: frequency by time         82.4 s <
+
+ Memory estimate: 230.63 MiB, allocs estimate: 784.
+=====================================================
+
+================ FractionalLaplace2D ================
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[4 5 6 … 22 23 24]
+  Npat   = 36
+  pths   = Vector{Patch} (36 patches)
+  Qpts   = 8×36 Matrix
+  Qptsbd = 8×12 Matrix
+
+
+----------- Parameters -----------
+N=10, nₚᵣ=128, s=0.75, p=4, δ=0.1, δclsbd=0.01
+
+----------- System -----------
+Target points (Vars.) : 3720
+Precomputation points : 10764
+Near-singular  points : 7044
+
+----------- Solve -----------
+Solver : gmres
+Iters  : 102
+Conv   : true
+Reltol : 3.0e-15
+
+----------- Error -----------
+Max Error   : 5.69e-12
+Max Rel err : 5.71e-12
+L^2 error   : 5.74e-11
+Root MSE err: 9.57e-13
+
+----------- Benchmark -----------
+BenchmarkTools.Trial: 3 samples with 1 evaluation per sample.
+ Range (min … max):  652.013 s … 655.241 s  ┊ GC (min … max): 0.00% … 0.00%
+ Time  (median):     652.567 s              ┊ GC (median):    0.00%
+ Time  (mean ± σ):   653.274 s ±   1.726 s  ┊ GC (mean ± σ):  0.00% ± 0.00%
+
+  █         █                                               █  
+  █▁▁▁▁▁▁▁▁▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█ ▁
+  652 s           Histogram: frequency by time          655 s <
+
+ Memory estimate: 34.30 MiB, allocs estimate: 1512.
+=====================================================
+
+================ FractionalLaplace2D ================
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[4 5 6 … 22 23 24]
+  Npat   = 36
+  pths   = Vector{Patch} (36 patches)
+  Qpts   = 8×36 Matrix
+  Qptsbd = 8×12 Matrix
+
+
+----------- Parameters -----------
+N=12, nₚᵣ=256, s=0.75, p=4, δ=0.1, δclsbd=0.01
+
+----------- System -----------
+Target points (Vars.) : 5328
+Precomputation points : 15680
+Near-singular  points : 10352
+Cond. num 2-norm: 309.509937
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 7.42e-14
+Max Rel err : 7.44e-14
+L^2 error   : 7.97e-13
+Root MSE err: 1.11e-14
+
+----------- Benchmark -----------
+BenchmarkTools.Trial: 3 samples with 1 evaluation per sample.
+ Range (min … max):  425.166 s … 428.074 s  ┊ GC (min … max): 0.00% … 0.09%
+ Time  (median):     427.349 s              ┊ GC (median):    0.02%
+ Time  (mean ± σ):   426.863 s ±   1.513 s  ┊ GC (mean ± σ):  0.04% ± 0.05%
+
+  █                                           █             █  
+  █▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█▁▁▁▁▁▁▁▁▁▁▁▁▁█ ▁
+  425 s           Histogram: frequency by time          428 s <
+
+ Memory estimate: 486.84 MiB, allocs estimate: 808.
+=====================================================
+
+================ FractionalLaplace2D ================
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[4 5 6 … 22 23 24]
+  Npat   = 36
+  pths   = Vector{Patch} (36 patches)
+  Qpts   = 8×36 Matrix
+  Qptsbd = 8×12 Matrix
+
+
+----------- Parameters -----------
+N=12, nₚᵣ=256, s=0.75, p=4, δ=0.1, δclsbd=0.01
+
+----------- System -----------
+Target points (Vars.) : 5328
+Precomputation points : 15680
+Near-singular  points : 10352
+
+----------- Solve -----------
+Solver : gmres
+Iters  : 112
+Conv   : true
+Reltol : 3.0e-15
+
+----------- Error -----------
+Max Error   : 2.21e-13
+Max Rel err : 2.22e-13
+L^2 error   : 1.10e-12
+Root MSE err: 1.53e-14
+
+----------- Benchmark -----------
+BenchmarkTools.Trial: 3 samples with 1 evaluation per sample.
+ Range (min … max):  1323.713 s … 1333.594 s  ┊ GC (min … max): 0.00% … 0.00%
+ Time  (median):     1327.823 s               ┊ GC (median):    0.00%
+ Time  (mean ± σ):   1328.377 s ±    4.964 s  ┊ GC (mean ± σ):  0.00% ± 0.00%
+
+  █                        █                                  █  
+  █▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█ ▁
+  1320 s           Histogram: frequency by time          1330 s <
+
+ Memory estimate: 74.05 MiB, allocs estimate: 1596.
+=====================================================
+
+==End of Disc==

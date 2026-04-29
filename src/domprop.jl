@@ -24,7 +24,7 @@ mutable struct domprop
     # 2 × (M*N^2 + Mbd*N), representing number of tgt pts
     # 1st and 2nd row are x and y points in real space of tgt pt resp.
     # The patch in which the point is present is given by 
-    #
+    # (Let i denote the column index of target point, then)
     # ℓ = ceil(i/Np), if i<=M*Np (interioir target point)
     # k₀ = ceil((i-M*Np)/N), ℓ = d.kd(k₀), if i>M*Np (bd tgt point)
     #
