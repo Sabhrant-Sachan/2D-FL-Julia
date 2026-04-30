@@ -32,6 +32,12 @@ d = ellipse(b =  [3,3,3,3,3])
 @benchmark disc(b = [3,3,3,3,3])
 
 
+dom = FractionalLaplace2D.disc(b=[5, 5, 5, 5, 5], a=[3, 3, 3, 3, 4], L1=0.8, L2=0.8)
+
+dom = FractionalLaplace2D.disc(b=[6, 6, 6, 6, 6], a=[3, 3, 3, 3, 5], L1=0.8, L2=0.8)
+
+FractionalLaplace2D.draw(dom)
+
 dp = domprop(12,0.1,0.01,d)
 
 @btime domprop(12,0.1,0.01,$d)

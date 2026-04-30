@@ -193,7 +193,7 @@ function precompsH(d::abstractdomain, dp::domprop, s::Float64, p::Int
     dfy = Vector{Float64}(undef, nr)
 
     #This is nt is the finest one
-    nt = 2*n
+    nt = 2 * n
     dfYc= Matrix{Float64}(undef, nt, nr)
 
     QuadT = makeThetaQuad(nt, nr, q, s, wz1, wz2)

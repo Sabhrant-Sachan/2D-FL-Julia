@@ -268,19 +268,13 @@ function solveFL_core(prob::Problem; opts::Options=Options())
             # in matrix U. We now compute the Single layer potentials.
             (; N, Np, M, Mbd) = IV.IV1
 
-            # beta - A rectangular matrix of size (Mbd*N) * nh where
-            #        N is number of Chebyshev coefficients per patch and
-            #        Mbd is number of boundary patches. The jth column
-            #        of beta contains beta_j values over Chebyshev mesh.
-            beta = SLPbeta(d, N)
-
             # bZ : The single layer potential on all the
             #      target points (including the boundary).
             #      It's a rectangular matrix of size
             #      (Npat*N*N + Mbd*N) * nh where nh is the
             #      number of holes and Npat*N*N + Mbd*N is total
             #      number of target points.
-            bZ = SLPeval(d, dp, beta)
+            bZ = SLPeval(d, dp)
 
             if s >= 0.5
                 bZ[(1+M*Np):(M*Np+Mbd*N), 1:d.nh] .= 0.0
@@ -318,18 +312,22 @@ function solveFL_core(prob::Problem; opts::Options=Options())
         end
 
     elseif opts.solver == :gmres
-        Uapp = copy(b)
-        (; N, Np, M, Mbd) = IV.IV1
-        Lp = M * Np + Mbd * N
-        restart_eff = min(opts.restart, Lp)
 
-        Uapp, ch = gmres!(Uapp, A, b;
-            reltol=opts.reltol, abstol=opts.abstol, restart=restart_eff, log=true)
+        if d.nh == 0
+            Uapp = copy(b)
+            (; N, Np, M, Mbd) = IV.IV1
+            Lp = M * Np + Mbd * N
+            restart_eff = min(opts.restart, Lp)
 
-        iters = hasproperty(ch, :iters) ? ch.iters : 0
-        conv = hasproperty(ch, :isconverged) ? ch.isconverged : false
-        info = SolveInfo(solver=:gmres, iters=iters, converged=conv, reltol=opts.reltol)
+            Uapp, ch = gmres!(Uapp, A, b;
+                reltol=opts.reltol, abstol=opts.abstol, restart=restart_eff, log=true)
 
+            iters = hasproperty(ch, :iters) ? ch.iters : 0
+            conv = hasproperty(ch, :isconverged) ? ch.isconverged : false
+            info = SolveInfo(solver=:gmres, iters=iters, converged=conv, reltol=opts.reltol)
+        else
+            error("solver=$(opts.solver) not possible. Use direct solver.")
+        end
     else
         error("Unknown solver=$(opts.solver). Use :gmres or :direct.")
     end

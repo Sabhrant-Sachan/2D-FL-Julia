@@ -12,9 +12,9 @@ Target boundary points are indexed globally as
 
 where
 
-    k₀ = cld(i, N)              # boundary-patch block index
-    k  = kd[k₀]                 # actual domain patch index
-    j  = i - (k₀ - 1)*N         # local Chebyshev index on that boundary patch
+    kI = cld(i, N)              # boundary-patch block index
+    k  = kd[kI]                 # actual domain patch index
+    j  = i - (kI - 1)*N         # local Chebyshev index on that boundary patch
 
 The target point is
 
@@ -28,10 +28,10 @@ always be recovered from the column index `i` as shown above.
     prepts[1, col] = boundary target index i
     prepts[2, col] = integration boundary patch k
 
-For each boundary integration patch kd[k₀], the precomputation layout is
+For each boundary integration patch kd[kI], the precomputation layout is
 
     N regular boundary targets on that patch,
-    followed by nspsz[k₀] near-singular boundary targets.
+    followed by nspsz[kI] near-singular boundary targets.
 
 `hmap` maps
 
@@ -41,9 +41,9 @@ for near-singular pairs.
 
 `projpts` stores the projected parameter values for near-singular pairs only.
 There is no `hmaproj`: if `col` is the column in `prepts` for a near-singular
-point in boundary block `k₀`, then its column in `projpts` is
+point in boundary block `kI`, then its column in `projpts` is
 
-    ll = col - k₀*N
+    ll = col - kI*N
 
 because each previous boundary block contributes exactly N regular points.
 """
@@ -222,20 +222,247 @@ mutable struct dompropbd
     end
 end
 
-function SLPprecomps(d::abstractdomain, dpbd::dompropbd, p::Int; n::Int=128)::Matrix{Float64}
+function SLPprecomps(d::D, dpbd::dompropbd, p::Int; 
+    n::Int = 128)::Matrix{Float64} where {D<:abstractdomain}
+
+    kd = dpbd.kd
+    N = dpbd.N
+    Mbd = length(kd)
+    Nd = Mbd * N
+    Tnsp = sum(dpbd.nspsz)
+
+    Lₚ = Nd + Tnsp
+
+    # ------------------------------------------------------------
+    # Chebyshev boundary target nodes.
+    # zp[j]  = cospi((2j - 1)/(2N))
+    # zp1[j] = zp[j] + 1
+    # zp2[j] = zp[j] - 1
+    # So:
+    #   zp1[j] = t + 1
+    #  -zp2[j] = 1 - t
+    # ------------------------------------------------------------
+    zp  = Vector{Float64}(undef, N)
+    zp1 = Vector{Float64}(undef, N)
+    zp2 = Vector{Float64}(undef, N)
+
+    @inbounds for j in 1:N
+        c = π * (2 * j - 1) / (2 * N)
+        zp[j]  = cos(c)
+        zp1[j] = 2 * cos(c / 2)^2       # 1 + cos(c)
+        zp2[j] = -2 * sin(c / 2)^2      # cos(c) - 1
+    end
+
+    # ------------------------------------------------------------
+    # Quadrature nodes for singular / near-singular splitting.
+    #   z1 = cospi((2*(0:n-1)+1)/(4*n)).^2
+    #   z2 = sinpi((2*(0:n-1)+1)/(4*n)).^2
+    # ------------------------------------------------------------
+    z1 = Vector{Float64}(undef, n)
+    z2 = Vector{Float64}(undef, n)
+
+    @inbounds for i in 1:n
+        c = π * (2 * i - 1) / (2 * n)
+        z1[i] = cos(c / 2)^2
+        z2[i] = sin(c / 2)^2
+    end
+
+    fw = getF1W(n)
+
+    # ------------------------------------------------------------
+    # Scratch arrays.
+    # ------------------------------------------------------------
+    d1 = Vector{Float64}(undef, n)
+    d2 = Vector{Float64}(undef, n)
+
+    y1 = Vector{Float64}(undef, n)
+    y2 = Vector{Float64}(undef, n)
+
+    Iv1 = Vector{Float64}(undef, n)
+    Iv2 = Vector{Float64}(undef, n)
+
+    I1 = Vector{Float64}(undef, N)
+    I2 = Vector{Float64}(undef, N)
+
+    # For diff_map! singular distance fixup.
+    zx  = Vector{Float64}(undef, n)
+    zy  = Vector{Float64}(undef, n)
+    DJℓ = Vector{Float64}(undef, n)
+    DIF = Vector{Float64}(undef, n)
+
+    # Boundary coordinates and derivatives.
+    TNy = Matrix{Float64}(undef, n, N)
+
+    IntS = Matrix{Float64}(undef, N, Lₚ)
+
+    gamk = Matrix{Float64}(undef, 2, n)
+    dgamk= Matrix{Float64}(undef, 2, n)
+
+    # ------------------------------------------------------------
+    # Store w(-z1), w(-z2), w'(z1), w'(z2).
+    # ------------------------------------------------------------
+    wmz₁ = Vector{Float64}(undef, n)
+    wmz₂ = Vector{Float64}(undef, n)
+    dwz₁ = Vector{Float64}(undef, n)
+    dwz₂ = Vector{Float64}(undef, n)
+
+    wfunc!(wmz₁, p, z1; α = -1.0)
+    wfunc!(wmz₂, p, z2; α = -1.0)
+
+    dwfunc!(dwz₁, p, z1)
+    dwfunc!(dwz₂, p, z2)
+
+    inv2π = 1 / (2π)
+
+    # Map actual boundary patch label k -> boundary block index kI (1 to Mbd).
+    # Needed because dpbd.projpts is packed by boundary integration block.
+    kd_to_kI = Dict{Int,Int}()
+    sizehint!(kd_to_kI, Mbd)
+
+    @inbounds for kI in 1:Mbd
+        kd_to_kI[kd[kI]] = kI
+    end
+
+    # ------------------------------------------------------------
+    # Main precomputation loop.
+    # ------------------------------------------------------------
+    @inbounds for i in 1:Lₚ
+
+        # col is the boundary target index.
+        col = dpbd.prepts[1, i]
+
+        # k is the actual integration boundary patch.
+        k = dpbd.prepts[2, i]
+
+        # Recover the target boundary block and local Chebyshev index.
+        tgt_kI = cld(col, N)
+        ℓ = kd[tgt_kI]
+        j = col - (tgt_kI - 1) * N
+
+        if ℓ == k
+            # Singular integration case.
+            t = zp[j]
+
+            @. d1 = zp1[j] * wmz₁
+            @. d2 = zp2[j] * wmz₂
+
+            @. y1 = t - d1
+            @. y2 = t - d2
+
+            # First side: y1.
+            diff_map!(DIF, zx, zy, DJℓ, d, 1.0, t, 1.0, y1, 0.0, d1, k)
+
+            ChebyTN!(TNy, N, y1)
+
+            @. Iv1 = fw * log(DIF) * inv2π * dwz₁ * DJℓ
+
+            # I1 = TNy' * Iv1
+            mul!(I1, transpose(TNy), Iv1)
+
+            # Second side: y2.
+            diff_map!(DIF, zx, zy, DJℓ, d, 1.0, t, 1.0, y2, 0.0, d2, k)
+
+            ChebyTN!(TNy, N, y2)
+
+            @. Iv2 = fw * log(DIF) * inv2π * dwz₂ * DJℓ
+
+            # I2 = TNy' * Iv2
+            mul!(I2, transpose(TNy), Iv2)
+
+            @inbounds for row in 1:N
+                IntS[row, i] = (zp1[j] * I1[row] - zp2[j] * I2[row]) / 2
+            end
+
+        else
+            # Near-singular integration case.
+            x1 = dpbd.tgtpts[1, col]
+            x2 = dpbd.tgtpts[2, col]
+
+            # kI is the boundary block index of the integration patch k.
+            kI = kd_to_kI[k]
+
+            # Column in projpts because prepts is packed by boundary 
+            # integration block. Each previous/current block contributes
+            # N regular columns that are not represented in projpts.
+            # Therefore for a near-singular prepts column i:
+            ll = i - kI * N
+
+            t₀ = dpbd.projpts[ll]
+
+            @. y1 = t₀ - (t₀ + 1) * wmz₁
+            @. y2 = t₀ + (1 - t₀) * wmz₂
+
+            # First side: y1.
+            gam!(gamk, d, y1, k)
+            dgam!(dgamk, d, y1, k)
+
+            @inbounds for r in 1:n
+                dx = x1 - gamk[1, r]
+                dy = x2 - gamk[2, r]
+
+                DIF[r] = hypot(dx, dy)
+                DJℓ[r] = hypot(dgamk[1, r], dgamk[2, r])
+            end
+
+
+            ChebyTN!(TNy, N, y1)
+
+            @. Iv1 = fw * log(DIF) * inv2π * dwz₁ * DJℓ
+
+            mul!(I1, transpose(TNy), Iv1)
+
+            # Second side: y2.
+            gam!(gamk, d, y2, k)
+            dgam!(dgamk, d, y2, k)
+            
+            @inbounds for r in 1:n
+                dx = x1 - gamk[1, r]
+                dy = x2 - gamk[2, r]
+
+                DIF[r] = hypot(dx, dy)
+                DJℓ[r] = hypot(dgamk[1, r], dgamk[2, r])
+            end
+
+            ChebyTN!(TNy, N, y2)
+
+            @. Iv2 = fw * log(DIF) * inv2π * dwz₂ * DJℓ
+
+            mul!(I2, transpose(TNy), Iv2)
+
+            @inbounds for row in 1:N
+                IntS[row, i] = ((t₀ + 1) * I1[row] + (1 - t₀) * I2[row]) / 2
+            end
+        end
+    end
+
+    return IntS
+end
+
+function SLPbeta(d::abstractdomain, dpbd::dompropbd, N::Int)::Matrix{Float64}
+
+    Mbd, p = length(d.kd), 6
+
+    Nd = Mbd * N
+
+    IntS = SLPprecomps(d, dpbd, p)
+
+    # Initialize the matrix A
+    # For overdetermined systems, Julia backslash 
+    # gives least-squares solution. 
+    A = zeros(Float64, Nd + 1, Nd)
 
 end
 
-function SLPbeta(d::abstractdomain, N::Int)::Matrix{Float64}
+function SLPeval(d::abstractdomain, dp::domprop)::Matrix{Float64}
 
-Mbd = length(d.kd)
+    N, δ = dp.N, 0.1
 
-Nd = Mbd * N
+    dpbd = dompropbd(N, δ, d)
+    # β: A rectangular matrix of size (Mbd*N) * nh where
+    #    N is number of Chebyshev coefficients per patch and
+    #    Mbd is number of boundary patches. The jth column
+    #    of beta contains βⱼ function values over Chebyshev mesh.
+    β = SLPbeta(d, N)
 
-δ, p = 0.1, 6
-
-dpbd = dompropbd(N, δ, d)
-
-IntS = SLPprecomps(d, dpbd, p)
-
+    
 end

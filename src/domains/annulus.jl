@@ -5318,8 +5318,6 @@ function diff_map!(out::Matrix{Float64},
   βu = p.ck0 + αu
   βv = p.tk0 + αv
 
-  mapxy_Dmap!(Zx, Zy, DJ, d, u2, v2, k)
-
   # --- Precomputed geometry params
   c₁ = d.RP.Cθ₁
   s₁ = d.RP.Sθ₁
@@ -5383,7 +5381,6 @@ function diff_map!(out::Matrix{Float64},
   dybx = Δthb * (-R21c2 * stb - R22s2 * ctb)
   dyby = Δthb * (-R21s2 * stb + R22c2 * ctb)
 
-  # Higher derivatives: exactly as MATLAB
   # d2 = -(Δth)^2 * (y - center), 
   # d3 = -(Δth)^2 * d1,
   # d4 = -(Δth)^2 * d2
@@ -5476,6 +5473,253 @@ function diff_map!(out::Matrix{Float64},
     end
   end
 
+end
+
+
+"""
+    diff_map!(out, Zx, Zy, DJℓ, d, u, v, u2, v2, du, dv, k; tol=1e-5)
+
+Vector version of `diff_map!` which Computes
+
+    out[j] = ‖τ_k(u,v) - τ_k(u2, v2[j])‖
+
+with Taylor fixup near `(u,v)`. Here:
+
+    u, v  :: Float64          evaluation point
+    u2    :: Float64          fixed source u-coordinate
+    v2    :: Vector{Float64}  varying source v-coordinate
+    du    :: Float64          du = u - u2
+    dv    :: Vector{Float64}  dv[j] = v - v2[j]
+
+`Zx`, `Zy`, and `DJℓ` are filled with τ_k(u2, v2[j]) and the
+1D line Jacobian |∂τ/∂v(u2,v2[j])|. 
+"""
+function diff_map!(out::Vector{Float64},
+  Zx::Vector{Float64}, Zy::Vector{Float64}, DJℓ::Vector{Float64},
+  d::annulus, u::Float64, v::Float64,
+  u2::Float64, v2::Vector{Float64},
+  du::Float64, dv::Vector{Float64}, k::Int;
+  tol::Float64=1e-5)
+
+  nd_v = length(out)
+
+  # Optional while testing:
+  # @assert length(Zx) == nd_v
+  # @assert length(Zy) == nd_v
+  # @assert length(DJℓ)== nd_v
+  # @assert length(v2) == nd_v
+  # @assert length(dv) == nd_v
+
+  p = d.pths[k]
+  reg = p.reg
+
+  # Affine scalings from reference [-1,1]^2 to patch coordinates.
+  hc = p.ck1 - p.ck0
+  ht = p.tk1 - p.tk0
+  αu = 0.5 * hc
+  αv = 0.5 * ht
+  αuv = αu * αv
+  βu = p.ck0 + αu
+  βv = p.tk0 + αv
+
+  # Precomputed geometry parameters.
+  c₁ = d.RP.Cθ₁
+  s₁ = d.RP.Sθ₁
+  c₂ = d.RP.Cθ₂
+  s₂ = d.RP.Sθ₂
+
+  R11s1, R11c1 = d.R11 * s₁, d.R11 * c₁
+  R12s1, R12c1 = d.R12 * s₁, d.R12 * c₁
+
+  R21s2, R21c2 = d.R21 * s₂, d.R21 * c₂
+  R22s2, R22c2 = d.R22 * s₂, d.R22 * c₂
+
+  # τ(u,v), the scalar evaluation point.
+  tux, tvy = mapxy(d, u, v, k)
+
+  # Physical patch coordinates for the evaluation point.
+  xi1 = muladd(αu, u, βu)
+  xi2 = muladd(αv, v, βv)
+
+  # Select the two boundary curves used by this annulus patch.
+  if reg == 1 || reg == 5
+    th0a, Δtha = d.T1[1], d.T1[2] - d.T1[1]
+    th0b, Δthb = d.T2[1], d.T2[2] - d.T2[1]
+  elseif reg == 2 || reg == 6
+    th0a, Δtha = d.T1[2], d.T1[3] - d.T1[2]
+    th0b, Δthb = d.T2[2], d.T2[3] - d.T2[2]
+  elseif reg == 3 || reg == 7
+    th0a, Δtha = d.T1[3], d.T1[4] - d.T1[3]
+    th0b, Δthb = d.T2[3], d.T2[4] - d.T2[3]
+  elseif reg == 4 || reg == 8
+    th0a, Δtha = d.T1[4], d.T1[1] - d.T1[4] + 2.0 * pi
+    th0b, Δthb = d.T2[4], d.T2[1] - d.T2[4] + 2.0 * pi
+  else
+    throw(ArgumentError("diff_map! Taylor fixup expects reg in 1–8; got reg=$reg"))
+  end
+
+  # ============================================================
+  # 1. Fill Zx, Zy, DJℓ along the line (u2, v2[j]).
+  #
+  # This is the vector/line analogue of
+  #     mapxy_Dmap!(Zx, Zy, DJℓ, d, u2_matrix, v2_matrix, k)
+  # ============================================================
+  xi1q = muladd(αu, u2, βu)
+  tpq = muladd(0.5, xi1q, 0.5)
+  tmq = muladd(0.5, -xi1q, 0.5)
+
+  @inbounds for j in 1:nd_v
+    xi2q = muladd(αv, v2[j], βv)
+
+    tha = muladd(Δtha, xi2q, th0a)
+    thb = muladd(Δthb, xi2q, th0b)
+
+    sta, cta = sincos(tha)
+    stb, ctb = sincos(thb)
+
+    # Curve a.
+    yax = muladd(-sta, R12s1, muladd(cta, R11c1, d.A))
+    yay = muladd(sta, R12c1, muladd(cta, R11s1, d.B))
+
+    dyax = Δtha * (-R11c1 * sta - R12s1 * cta)
+    dyay = Δtha * (-R11s1 * sta + R12c1 * cta)
+
+    # Curve b.
+    ybx = muladd(-stb, R22s2, muladd(ctb, R21c2, d.A))
+    yby = muladd(stb, R22c2, muladd(ctb, R21s2, d.B))
+
+    dybx = Δthb * (-R21c2 * stb - R22s2 * ctb)
+    dyby = Δthb * (-R21s2 * stb + R22c2 * ctb)
+
+    if reg <= 4
+      ya_yb_x = yax - ybx
+      ya_yb_y = yay - yby
+
+      Zx[j] = muladd(tpq, ya_yb_x, ybx)
+      Zy[j] = muladd(tpq, ya_yb_y, yby)
+
+      dvx = tpq * dyax + tmq * dybx
+      dvy = tpq * dyay + tmq * dyby
+    else
+      yb_ya_x = ybx - yax
+      yb_ya_y = yby - yay
+
+      Zx[j] = muladd(tpq, yb_ya_x, yax)
+      Zy[j] = muladd(tpq, yb_ya_y, yay)
+
+      dvx = tpq * dybx + tmq * dyax
+      dvy = tpq * dyby + tmq * dyay
+    end
+
+    DJℓ[j] = αv * hypot(dvx, dvy)
+  end
+
+  # ============================================================
+  # 2. Taylor data at the evaluation point (u,v).
+  # ============================================================
+  tha = muladd(Δtha, xi2, th0a)
+  thb = muladd(Δthb, xi2, th0b)
+
+  sta, cta = sincos(tha)
+  stb, ctb = sincos(thb)
+
+  yax = muladd(-sta, R12s1, muladd(cta, R11c1, d.A))
+  ybx = muladd(-stb, R22s2, muladd(ctb, R21c2, d.A))
+
+  yay = muladd(sta, R12c1, muladd(cta, R11s1, d.B))
+  yby = muladd(stb, R22c2, muladd(ctb, R21s2, d.B))
+
+  dyax = Δtha * (-R11c1 * sta - R12s1 * cta)
+  dyay = Δtha * (-R11s1 * sta + R12c1 * cta)
+
+  dybx = Δthb * (-R21c2 * stb - R22s2 * ctb)
+  dyby = Δthb * (-R21s2 * stb + R22c2 * ctb)
+
+  d2yax = -Δtha^2 * (yax - d.A)
+  d2yay = -Δtha^2 * (yay - d.B)
+  d3yax = -Δtha^2 * dyax
+  d3yay = -Δtha^2 * dyay
+  d4yax = -Δtha^2 * d2yax
+  d4yay = -Δtha^2 * d2yay
+
+  d2ybx = -Δthb^2 * (ybx - d.A)
+  d2yby = -Δthb^2 * (yby - d.B)
+  d3ybx = -Δthb^2 * dybx
+  d3yby = -Δthb^2 * dyby
+  d4ybx = -Δthb^2 * d2ybx
+  d4yby = -Δthb^2 * d2yby
+
+  if reg <= 4
+    dux = αu * (yax - ybx) / 2
+    duvx = αuv * (dyax - dybx) / 2
+    duv2x = αv * αuv * (d2yax - d2ybx) / 2
+    duv3x = αv^2 * αuv * (d3yax - d3ybx) / 2
+
+    dvx = αv * ((1 + xi1) * dyax + (1 - xi1) * dybx) / 2
+    dv2x = αv^2 * ((1 + xi1) * d2yax + (1 - xi1) * d2ybx) / 2
+    dv3x = αv^3 * ((1 + xi1) * d3yax + (1 - xi1) * d3ybx) / 2
+    dv4x = αv^4 * ((1 + xi1) * d4yax + (1 - xi1) * d4ybx) / 2
+
+    duy = αu * (yay - yby) / 2
+    duvy = αuv * (dyay - dyby) / 2
+    duv2y = αv * αuv * (d2yay - d2yby) / 2
+    duv3y = αv^2 * αuv * (d3yay - d3yby) / 2
+
+    dvy = αv * ((1 + xi1) * dyay + (1 - xi1) * dyby) / 2
+    dv2y = αv^2 * ((1 + xi1) * d2yay + (1 - xi1) * d2yby) / 2
+    dv3y = αv^3 * ((1 + xi1) * d3yay + (1 - xi1) * d3yby) / 2
+    dv4y = αv^4 * ((1 + xi1) * d4yay + (1 - xi1) * d4yby) / 2
+  else
+    dux = αu * (ybx - yax) / 2
+    duvx = αuv * (dybx - dyax) / 2
+    duv2x = αv * αuv * (d2ybx - d2yax) / 2
+    duv3x = αv^2 * αuv * (d3ybx - d3yax) / 2
+
+    dvx = αv * ((1 + xi1) * dybx + (1 - xi1) * dyax) / 2
+    dv2x = αv^2 * ((1 + xi1) * d2ybx + (1 - xi1) * d2yax) / 2
+    dv3x = αv^3 * ((1 + xi1) * d3ybx + (1 - xi1) * d3yax) / 2
+    dv4x = αv^4 * ((1 + xi1) * d4ybx + (1 - xi1) * d4yax) / 2
+
+    duy = αu * (yby - yay) / 2
+    duvy = αuv * (dyby - dyay) / 2
+    duv2y = αv * αuv * (d2yby - d2yay) / 2
+    duv3y = αv^2 * αuv * (d3yby - d3yay) / 2
+
+    dvy = αv * ((1 + xi1) * dyby + (1 - xi1) * dyay) / 2
+    dv2y = αv^2 * ((1 + xi1) * d2yby + (1 - xi1) * d2yay) / 2
+    dv3y = αv^3 * ((1 + xi1) * d3yby + (1 - xi1) * d3yay) / 2
+    dv4y = αv^4 * ((1 + xi1) * d4yby + (1 - xi1) * d4yay) / 2
+  end
+
+  # ============================================================
+  # 3. Final distance with Taylor fixup near the evaluation point.
+  # ============================================================
+  @inbounds for j in 1:nd_v
+    vv = v2[j]
+
+    if (abs(u - u2) < tol) && (abs(v - vv) < tol)
+      dvj = dv[j]
+      dvj2 = dvj * dvj
+      dvj3 = dvj2 * dvj
+      dvj4 = dvj2 * dvj2
+
+      Dx = (du * dux + dvj * dvx) -
+           (du * dvj * duvx + dvj2 * (dv2x / 2)) +
+           (du * dvj2 * (duv2x / 2) + dvj3 * (dv3x / 6)) -
+           (du * dvj3 * (duv3x / 6) + dvj4 * (dv4x / 24))
+
+      Dy = (du * duy + dvj * dvy) -
+           (du * dvj * duvy + dvj2 * (dv2y / 2)) +
+           (du * dvj2 * (duv2y / 2) + dvj3 * (dv3y / 6)) -
+           (du * dvj3 * (duv3y / 6) + dvj4 * (dv4y / 24))
+
+      out[j] = hypot(Dx, Dy)
+    else
+      out[j] = hypot(tux - Zx[j], tvy - Zy[j])
+    end
+  end
+
+  return nothing
 end
 
 """
