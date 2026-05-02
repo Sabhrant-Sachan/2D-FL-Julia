@@ -1789,8 +1789,6 @@ function precompsL(d::abstractdomain, dp::domprop, s::Float64, p::Int
         @. y1 = x1 - x1m * rs₃ / 2
         y2 .= yr'
 
-        @. y1tmp = 1 - y1
-
         ChebyTN!(TNy, N, yr)
 
         @inbounds for i₁ in 1:N
@@ -1870,8 +1868,6 @@ function precompsL(d::abstractdomain, dp::domprop, s::Float64, p::Int
         @. y1 = x1 - x1m * rs₃ / 2
         y2 .= yr'
 
-        @. y1tmp = 1 - y1
-
         ChebyTN!(TNy, N, yr)
 
         @inbounds for i₁ in 1:N
@@ -1932,7 +1928,7 @@ function precompsL(d::abstractdomain, dp::domprop, s::Float64, p::Int
         @. y2 = x2 - x2p * rs₁
 
         ChebyTN!(TNy, N, yr)
-        @. yr = 1 - yr
+        @. yr = 2.0 * wz2
 
         @inbounds for i₂ in 1:N
             @views Ty = TY[:, :, i₂]
@@ -1973,7 +1969,7 @@ function precompsL(d::abstractdomain, dp::domprop, s::Float64, p::Int
         @. yr = x2 - x2p * wz2
         @. y1 = 1.0 - 2.0 * rs₁
         y2 .= yr'
-        @. y1tmp = 1 - y1
+        @. y1tmp = 2.0 * rs₁
 
         ChebyTN!(TNy, N, yr)
 
@@ -2019,7 +2015,7 @@ function precompsL(d::abstractdomain, dp::domprop, s::Float64, p::Int
         @. y2 = x2 - x2m * rs₁
 
         ChebyTN!(TNy, N, yr)
-        @. yr = 1 - yr
+        @. yr = 2.0 * wz2
 
         @inbounds for i₂ in 1:N
             @views Ty = TY[:, :, i₂]
@@ -2060,7 +2056,7 @@ function precompsL(d::abstractdomain, dp::domprop, s::Float64, p::Int
         @. yr = x2 - x2m * wz2
         @. y1 = 1.0 - 2.0 * rs₁
         y2 .= yr'
-        @. y1tmp = 1 - y1
+        @. y1tmp = 2.0 * rs₁
 
         ChebyTN!(TNy, N, yr)
 

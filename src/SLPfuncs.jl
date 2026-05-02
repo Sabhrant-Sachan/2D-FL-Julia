@@ -444,6 +444,7 @@ function SLPbeta(d::abstractdomain, dpbd::dompropbd, N::Int)::Matrix{Float64}
 
     Nd = Mbd * N
 
+    #I AM Here
     IntS = SLPprecomps(d, dpbd, p)
 
     # Initialize the matrix A

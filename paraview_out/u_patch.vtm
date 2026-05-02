@@ -103,29 +103,5 @@
     <DataSet index="99" file="u_patch_100.vts"/>
     <DataSet index="100" file="u_patch_101.vts"/>
     <DataSet index="101" file="u_patch_102.vts"/>
-    <DataSet index="102" file="u_patch_103.vts"/>
-    <DataSet index="103" file="u_patch_104.vts"/>
-    <DataSet index="104" file="u_patch_105.vts"/>
-    <DataSet index="105" file="u_patch_106.vts"/>
-    <DataSet index="106" file="u_patch_107.vts"/>
-    <DataSet index="107" file="u_patch_108.vts"/>
-    <DataSet index="108" file="u_patch_109.vts"/>
-    <DataSet index="109" file="u_patch_110.vts"/>
-    <DataSet index="110" file="u_patch_111.vts"/>
-    <DataSet index="111" file="u_patch_112.vts"/>
-    <DataSet index="112" file="u_patch_113.vts"/>
-    <DataSet index="113" file="u_patch_114.vts"/>
-    <DataSet index="114" file="u_patch_115.vts"/>
-    <DataSet index="115" file="u_patch_116.vts"/>
-    <DataSet index="116" file="u_patch_117.vts"/>
-    <DataSet index="117" file="u_patch_118.vts"/>
-    <DataSet index="118" file="u_patch_119.vts"/>
-    <DataSet index="119" file="u_patch_120.vts"/>
-    <DataSet index="120" file="u_patch_121.vts"/>
-    <DataSet index="121" file="u_patch_122.vts"/>
-    <DataSet index="122" file="u_patch_123.vts"/>
-    <DataSet index="123" file="u_patch_124.vts"/>
-    <DataSet index="124" file="u_patch_125.vts"/>
-    <DataSet index="125" file="u_patch_126.vts"/>
   </vtkMultiBlockDataSet>
 </VTKFile>
