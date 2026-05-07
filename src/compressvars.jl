@@ -197,19 +197,19 @@ function compress_vars(d::abstractdomain, N::Int, s::Float64,
             end
         end
 
-        gam = Vector{Float64}(undef, N)
+        gamvals = Vector{Float64}(undef, N)
         coeffs = Matrix{Float64}(undef, N, N)
         coeffs_sum = Vector{Float64}(undef, N)
 
-        gam[1] = 1.0
+        gamvals[1] = 1.0
         @inbounds for k in 2:N
-            gam[k] = 2.0
+            gamvals[k] = 2.0
         end
 
         @inbounds for j in 1:N
             c = π * (2j - 1) / (2N)
             @inbounds for k in 1:N
-                coeffs[k, j] = gam[k] * cos(c * (k - 1)) / N
+                coeffs[k, j] = gamvals[k] * cos(c * (k - 1)) / N
             end
         end
 

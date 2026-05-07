@@ -388,49 +388,100 @@ function SLPprecomps(d::D, dpbd::dompropbd, p::Int;
             ll = i - kI * N
 
             t₀ = dpbd.projpts[ll]
+            if t₀ == 1.0
+                # So only the y1-side contributes.
+                @. y1 = 1.0 - 2.0 * wmz₁
 
-            @. y1 = t₀ - (t₀ + 1) * wmz₁
-            @. y2 = t₀ + (1 - t₀) * wmz₂
+                gam!(gamk, d, y1, k)
+                dgam!(dgamk, d, y1, k)
 
-            # First side: y1.
-            gam!(gamk, d, y1, k)
-            dgam!(dgamk, d, y1, k)
+                @inbounds for r in 1:n
+                    dx = x1 - gamk[1, r]
+                    dy = x2 - gamk[2, r]
 
-            @inbounds for r in 1:n
-                dx = x1 - gamk[1, r]
-                dy = x2 - gamk[2, r]
+                    DIF[r] = hypot(dx, dy)
+                    DJℓ[r] = hypot(dgamk[1, r], dgamk[2, r])
+                end
 
-                DIF[r] = hypot(dx, dy)
-                DJℓ[r] = hypot(dgamk[1, r], dgamk[2, r])
-            end
+                ChebyTN!(TNy, N, y1)
 
+                @. Iv1 = fw * log(DIF) * inv2π * dwz₁ * DJℓ
 
-            ChebyTN!(TNy, N, y1)
+                mul!(I1, transpose(TNy), Iv1)
 
-            @. Iv1 = fw * log(DIF) * inv2π * dwz₁ * DJℓ
+                @inbounds for row in 1:N
+                    IntS[row, i] = I1[row]
+                end
 
-            mul!(I1, transpose(TNy), Iv1)
+            elseif t₀ == -1.0
+                # So only the y2-side contributes.
+                @. y2 = -1.0 + 2.0 * wmz₂
 
-            # Second side: y2.
-            gam!(gamk, d, y2, k)
-            dgam!(dgamk, d, y2, k)
-            
-            @inbounds for r in 1:n
-                dx = x1 - gamk[1, r]
-                dy = x2 - gamk[2, r]
+                gam!(gamk, d, y2, k)
+                dgam!(dgamk, d, y2, k)
 
-                DIF[r] = hypot(dx, dy)
-                DJℓ[r] = hypot(dgamk[1, r], dgamk[2, r])
-            end
+                @inbounds for r in 1:n
+                    dx = x1 - gamk[1, r]
+                    dy = x2 - gamk[2, r]
 
-            ChebyTN!(TNy, N, y2)
+                    DIF[r] = hypot(dx, dy)
+                    DJℓ[r] = hypot(dgamk[1, r], dgamk[2, r])
+                end
 
-            @. Iv2 = fw * log(DIF) * inv2π * dwz₂ * DJℓ
+                ChebyTN!(TNy, N, y2)
 
-            mul!(I2, transpose(TNy), Iv2)
+                @. Iv2 = fw * log(DIF) * inv2π * dwz₂ * DJℓ
 
-            @inbounds for row in 1:N
-                IntS[row, i] = ((t₀ + 1) * I1[row] + (1 - t₀) * I2[row]) / 2
+                mul!(I2, transpose(TNy), Iv2)
+
+                @inbounds for row in 1:N
+                    IntS[row, i] = I2[row]
+                end
+
+            else
+                # Both sides contribute:
+                @. y1 = t₀ - (t₀ + 1.0) * wmz₁
+                @. y2 = t₀ + (1.0 - t₀) * wmz₂
+
+                # First side: y1.
+                gam!(gamk, d, y1, k)
+                dgam!(dgamk, d, y1, k)
+
+                @inbounds for r in 1:n
+                    dx = x1 - gamk[1, r]
+                    dy = x2 - gamk[2, r]
+
+                    DIF[r] = hypot(dx, dy)
+                    DJℓ[r] = hypot(dgamk[1, r], dgamk[2, r])
+                end
+
+                ChebyTN!(TNy, N, y1)
+
+                @. Iv1 = fw * log(DIF) * inv2π * dwz₁ * DJℓ
+
+                mul!(I1, transpose(TNy), Iv1)
+
+                # Second side: y2.
+                gam!(gamk, d, y2, k)
+                dgam!(dgamk, d, y2, k)
+
+                @inbounds for r in 1:n
+                    dx = x1 - gamk[1, r]
+                    dy = x2 - gamk[2, r]
+
+                    DIF[r] = hypot(dx, dy)
+                    DJℓ[r] = hypot(dgamk[1, r], dgamk[2, r])
+                end
+
+                ChebyTN!(TNy, N, y2)
+
+                @. Iv2 = fw * log(DIF) * inv2π * dwz₂ * DJℓ
+
+                mul!(I2, transpose(TNy), Iv2)
+
+                @inbounds for row in 1:N
+                    IntS[row, i] = ((t₀ + 1.0) * I1[row] + (1.0 - t₀) * I2[row]) / 2.0
+                end
             end
         end
     end
@@ -438,9 +489,13 @@ function SLPprecomps(d::D, dpbd::dompropbd, p::Int;
     return IntS
 end
 
-function SLPbeta(d::abstractdomain, dpbd::dompropbd, N::Int)::Matrix{Float64}
+function SLPbeta(d::D, dpbd::dompropbd)::Matrix{Float64} where {D<:abstractdomain}
 
     Mbd, p = length(d.kd), 6
+
+    kd = dpbd.kd
+
+    N  = dpbd.N 
 
     Nd = Mbd * N
 
@@ -452,10 +507,156 @@ function SLPbeta(d::abstractdomain, dpbd::dompropbd, N::Int)::Matrix{Float64}
     # gives least-squares solution. 
     A = zeros(Float64, Nd + 1, Nd)
 
+    gamvals = Vector{Float64}(undef, N)
+    coeffs = Matrix{Float64}(undef, N, N)
+
+    gamvals[1] = 1.0
+    @inbounds for k in 2:N
+        gamvals[k] = 2.0
+    end
+
+    @inbounds for j in 1:N
+        c = π * (2j - 1) / (2N)
+        @inbounds for k in 1:N
+            coeffs[k, j] = gamvals[k] * cos(c * (k - 1)) / N
+        end
+    end
+
+    # Define nr, number of nodes for regular integral, with weights
+    nr = 32
+    fwr = getF1W(nr)
+
+    zr = Vector{Float64}(undef, nr)
+    Ir = Vector{Float64}(undef, nr)
+
+    @inbounds for i in 1:nr
+        ph = π * (2 * i - 1) / (2 * nr)
+        zr[i] = cos(ph)
+    end
+
+    # Store idct values
+    t₁ = Vector{Float64}(undef, N)
+    t₂ = Vector{Float64}(undef, nr)
+    KER = Vector{Float64}(undef, nr)
+    idctrg = Matrix{Float64}(undef, nr, N)
+
+    @inbounds for i in 1:nr
+        t₂[i] = π * (2 * i - 1) / (2 * nr)
+    end
+
+    @inline function gs(t::Float64, N::Int)::Float64
+        th = 0.5 * t                 # t/2
+        return sin(N * th) * cos((N - 1) * th) / sin(th)
+    end
+
+    @inbounds for j in 1:N
+        t₁[j] = π * (2 * j - 1) / (2 * N)
+        for i in 1:nr
+            u = t₁[j] + t₂[i]
+            v = t₁[j] - t₂[i]
+            idctrg[i, j] = (gs(u, N) + gs(v, N) - 1.0) / N
+        end
+    end
+
+    #For boundary
+    gamk = Matrix{Float64}(undef, 2, nr)
+    dgamk = Matrix{Float64}(undef, 2, nr)
+    DJ   = Vector{Float64}(undef, nr) 
+
+    inv_2pi = 1 / (2 * pi)
+    
+    #------------ PART I: compute matrix A ------------
+    @inbounds for kk in 1:Mbd
+
+        k = kd[kk]
+
+        gam!(gamk, d, zr, k)
+        gamp!(dgamk, d, zr, k)
+
+        @views v = A[:, 1+N*(kk-1):N*kk]
+
+        @inbounds for jj in 1:nr
+            DJ[jj] = hypot(dgamk[1,jj],dgamk[2,jj])
+        end 
+
+        @inbounds for row in 1:Nd
+
+            kI = cld(row, N)              
+            ℓ  = kd[kI]                 
+            j  = row - (kI - 1)*N
+            if ℓ == k
+                #Singular integration
+                @views SI = IntS[:, dpbd.pthgo[kI]+j-1]
+                @inbounds for jj in 1:N
+                    @views c = coeffs[:, jj]
+                    v[row, jj] = dot(c, SI)
+                end
+            else
+                Ikey = packkey(row, k)
+                col = get(dpbd.hmap, Ikey, 0)
+                if col != 0
+
+                    @views NSI = IntS[:, col]
+                    @inbounds for jj in 1:N
+                        @views c = coeffs[:, jj]
+                        v[row, jj] = dot(c, NSI)
+                    end
+
+                else
+
+                    x1 = dpbd.tgtpts[1, row]
+                    x2 = dpbd.tgtpts[2, row]
+                    @inbounds for jj in 1:nr
+                        dx1 = x1 - gamk[1, jj]
+                        dx2 = x2 - gamk[2, jj]
+                        KER[jj] = inv_2pi * log(hypot(dx1, dx2))
+                    end
+
+                    @inbounds for jj in 1:N
+                        @views Ur = idctrg[:, jj]
+                        @. Ir = KER * Ur * DJ 
+                        v[row, jj] = dot(fwr, Ir)
+                    end
+                    
+                end
+
+            end
+
+        end
+
+        @inbounds for jj in 1:N
+            @views Ur = idctrg[:, jj] 
+            @. Ir = Ur * DJ 
+            v[Nd+1, jj] = dot(fwr, Ir)
+        end
+    end
+
+    #------------ PART II: compute RHS b ------------
+    beta = Matrix{Float64}(undef, Nd, d.nh)
+    bv = Vector{Float64}(undef, Nd+1)
+
+    @inbounds for H in 1:d.nh
+        fill!(bv, 0.0)
+
+        @inbounds for i in 1:Mbd
+            if bdno(d, kd[i]) == H + 1
+                aN = N*(i-1)
+                @inbounds for jj in 1:N
+                    bv[aN + jj] = 1
+                end
+            end
+        end
+
+        @views beta[:, H] .= A \ bv
+
+    end
+
+    return beta
 end
 
-function SLPeval(d::abstractdomain, dp::domprop)::Matrix{Float64}
-
+function SLPeval(d::D, dp::domprop)::Matrix{Float64} where {D<:abstractdomain}
+    #This function evaluates the single layer potentials 
+    #for interioir points 
     N, δ = dp.N, 0.1
 
     dpbd = dompropbd(N, δ, d)

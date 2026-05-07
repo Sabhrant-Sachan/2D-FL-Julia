@@ -453,6 +453,123 @@ end
 # =============================================
 #Direct solver for many value of s
 
+open("solve_outputs9999_direct.txt", "w") do io
+    # =============================================
+    s, p = 0.9999, 5000
+
+    println(io, "Run started: ", Dates.now())
+    println(io, "s = ", s)
+
+    δ, δclsbd = 0.1, 0.01
+
+    dom = FractionalLaplace2D.disc(b=[1, 1, 1, 1, 1], L1=0.8, L2=0.8)
+
+    Anₚᵣ = [128, 128]
+
+    AN = [10, 12]
+
+    f!, uex, fv = makediscfuex(5, s)
+
+    for i in 1:2
+
+        nₚᵣ, N = Anₚᵣ[i], AN[i]
+
+        prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
+            dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
+
+        opts = Options(; plot=false, solver=:direct)
+
+        core_res = solveFL(prob; opts=opts)
+
+        println(io, SolveView(prob, opts, core_res))
+
+        flush(io)
+
+    end
+
+    # =============================================
+    dom = FractionalLaplace2D.disc(b=[2, 2, 2, 2, 2], L1=0.8, L2=0.8)
+
+    nₚᵣ, N = 256, 12
+
+    prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
+        dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
+
+    opts = Options(; plot=false, solver=:direct)
+
+    core_res = solveFL(prob; opts=opts)
+
+    println(io, SolveView(prob, opts, core_res))
+
+    flush(io)
+
+    # =============================================
+    dom = FractionalLaplace2D.disc(b=[3, 3, 3, 3, 3], L1=0.8, L2=0.8)
+
+    nₚᵣ, N = 256, 12
+
+    prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
+        dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
+
+    opts = Options(; plot=false, solver=:direct)
+
+    core_res = solveFL(prob; opts=opts)
+
+    println(io, SolveView(prob, opts, core_res))
+
+    flush(io)
+
+    # =============================================
+    dom = FractionalLaplace2D.disc(b=[5, 5, 5, 5, 5], a=[3, 3, 3, 3, 4], L1=0.8, L2=0.8)
+
+    nₚᵣ, N = 512, 12
+
+    prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
+        dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
+
+    opts = Options(; plot=false, solver=:direct)
+
+    core_res = solveFL(prob; opts=opts)
+
+    println(io, SolveView(prob, opts, core_res))
+
+    flush(io)
+
+    # =============================================
+    dom = FractionalLaplace2D.disc(b=[6, 6, 6, 6, 6], a=[3, 3, 3, 3, 5], L1=0.8, L2=0.8)
+
+    nₚᵣ, N = 512, 12
+
+    prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
+        dₙₕ=2, (f!)=f!, uex=uex, dom=dom)
+
+    opts = Options(; plot=false, solver=:direct)
+
+    core_res = solveFL(prob; opts=opts)
+
+    println(io, SolveView(prob, opts, core_res))
+
+    flush(io)
+
+    # =============================================
+    dom = FractionalLaplace2D.disc(b=[5, 5, 5, 5, 5], a=[3, 3, 3, 3, 4], L1=0.8, L2=0.8)
+
+    nₚᵣ, N = 1024, 12
+
+    prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
+        dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
+
+    opts = Options(; plot=false, solver=:direct)
+
+    core_res = solveFL(prob; opts=opts)
+
+    println(io, SolveView(prob, opts, core_res))
+
+    flush(io)
+
+    println(io, "==End of Disc==")
+
+end
 
 open("solve_outputs0999_direct.txt", "w") do io
     # =============================================
@@ -982,412 +1099,6 @@ open("solve_outputs0500_direct.txt", "w") do io
 
 end
 
-open("solve_outputs0250_direct.txt", "w") do io
-    # =============================================
-    s, p = 0.25, 4
-
-    println(io, "Run started: ", Dates.now())
-    println(io, "s = ", s)
-
-    δ, δclsbd = 0.1, 0.01
-
-    dom = FractionalLaplace2D.disc(b=[1, 1, 1, 1, 1], L1=0.8, L2=0.8)
-
-    Anₚᵣ = [128, 128]
-
-    AN = [10, 12]
-
-    f!, uex, fv = makediscfuex(5, s)
-
-    for i in 1:2
-
-        nₚᵣ, N = Anₚᵣ[i], AN[i]
-
-        prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-            dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
-
-        opts = Options(; plot=false, solver=:direct)
-
-        core_res = solveFL(prob; opts=opts)
-
-        println(io, SolveView(prob, opts, core_res))
-
-        flush(io)
-
-    end
-
-    # =============================================
-    dom = FractionalLaplace2D.disc(b=[2, 2, 2, 2, 2], L1=0.8, L2=0.8)
-
-    nₚᵣ, N = 128, 12
-
-    prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-        dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
-
-    opts = Options(; plot=false, solver=:direct)
-
-    core_res = solveFL(prob; opts=opts)
-
-    println(io, SolveView(prob, opts, core_res))
-
-    flush(io)
-
-    # =============================================
-    dom = FractionalLaplace2D.disc(b=[3, 3, 3, 3, 3], L1=0.8, L2=0.8)
-
-    nₚᵣ, N = 128, 12
-
-    prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-        dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
-
-    opts = Options(; plot=false, solver=:direct)
-
-    core_res = solveFL(prob; opts=opts)
-
-    println(io, SolveView(prob, opts, core_res))
-
-    flush(io)
-
-    # =============================================
-    dom = FractionalLaplace2D.disc(b=[5, 5, 5, 5, 5], a=[3, 3, 3, 3, 4], L1=0.8, L2=0.8)
-
-    nₚᵣ, N = 256, 12
-
-    prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-        dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
-
-    opts = Options(; plot=false, solver=:direct)
-
-    core_res = solveFL(prob; opts=opts)
-
-    println(io, SolveView(prob, opts, core_res))
-
-    flush(io)
-
-    # =============================================
-    dom = FractionalLaplace2D.disc(b=[6, 6, 6, 6, 6], a=[3, 3, 3, 3, 5], L1=0.8, L2=0.8)
-
-    nₚᵣ, N = 256, 12
-
-    prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-        dₙₕ=2, (f!)=f!, uex=uex, dom=dom)
-
-    opts = Options(; plot=false, solver=:direct)
-
-    core_res = solveFL(prob; opts=opts)
-
-    println(io, SolveView(prob, opts, core_res))
-
-    flush(io)
-
-    println(io, "==End of Disc==")
-
-end
-
-open("solve_outputs0100_direct.txt", "w") do io
-    # =============================================
-    s, p = 0.1, 10
-
-    println(io, "Run started: ", Dates.now())
-    println(io, "s = ", s)
-
-    δ, δclsbd = 0.1, 0.01
-
-    dom = FractionalLaplace2D.disc(b=[1, 1, 1, 1, 1], L1=0.8, L2=0.8)
-
-    Anₚᵣ = [128, 128]
-
-    AN = [10, 12]
-
-    f!, uex, fv = makediscfuex(5, s)
-
-    for i in 1:2
-
-        nₚᵣ, N = Anₚᵣ[i], AN[i]
-
-        prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-            dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
-
-        opts = Options(; plot=false, solver=:direct)
-
-        core_res = solveFL(prob; opts=opts)
-
-        println(io, SolveView(prob, opts, core_res))
-
-        flush(io)
-
-    end
-
-    # =============================================
-    dom = FractionalLaplace2D.disc(b=[2, 2, 2, 2, 2], L1=0.8, L2=0.8)
-
-    nₚᵣ, N = 128, 12
-
-    prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-        dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
-
-    opts = Options(; plot=false, solver=:direct)
-
-    core_res = solveFL(prob; opts=opts)
-
-    println(io, SolveView(prob, opts, core_res))
-
-    flush(io)
-
-    # =============================================
-    dom = FractionalLaplace2D.disc(b=[3, 3, 3, 3, 3], L1=0.8, L2=0.8)
-
-    nₚᵣ, N = 128, 12
-
-    prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-        dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
-
-    opts = Options(; plot=false, solver=:direct)
-
-    core_res = solveFL(prob; opts=opts)
-
-    println(io, SolveView(prob, opts, core_res))
-
-    flush(io)
-
-    # =============================================
-    dom = FractionalLaplace2D.disc(b=[5, 5, 5, 5, 5], a=[3, 3, 3, 3, 4], L1=0.8, L2=0.8)
-
-    nₚᵣ, N = 256, 12
-
-    prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-        dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
-
-    opts = Options(; plot=false, solver=:direct)
-
-    core_res = solveFL(prob; opts=opts)
-
-    println(io, SolveView(prob, opts, core_res))
-
-    flush(io)
-
-    # =============================================
-    dom = FractionalLaplace2D.disc(b=[6, 6, 6, 6, 6], a=[3, 3, 3, 3, 5], L1=0.8, L2=0.8)
-
-    nₚᵣ, N = 256, 12
-
-    prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-        dₙₕ=2, (f!)=f!, uex=uex, dom=dom)
-
-    opts = Options(; plot=false, solver=:direct)
-
-    core_res = solveFL(prob; opts=opts)
-
-    println(io, SolveView(prob, opts, core_res))
-
-    flush(io)
-
-    println(io, "==End of Disc==")
-
-end
-
-open("solve_outputs0010_direct.txt", "w") do io
-    # =============================================
-    s, p = 0.01, 10
-
-    println(io, "Run started: ", Dates.now())
-    println(io, "s = ", s)
-
-    δ, δclsbd = 0.1, 0.01
-
-    dom = FractionalLaplace2D.disc(b=[1, 1, 1, 1, 1], L1=0.8, L2=0.8)
-
-    Anₚᵣ = [128, 128]
-
-    AN = [10, 12]
-
-    f!, uex, fv = makediscfuex(5, s)
-
-    for i in 1:2
-
-        nₚᵣ, N = Anₚᵣ[i], AN[i]
-
-        prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-            dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
-
-        opts = Options(; plot=false, solver=:direct)
-
-        core_res = solveFL(prob; opts=opts)
-
-        println(io, SolveView(prob, opts, core_res))
-
-        flush(io)
-
-    end
-
-    # =============================================
-    dom = FractionalLaplace2D.disc(b=[2, 2, 2, 2, 2], L1=0.8, L2=0.8)
-
-    nₚᵣ, N = 128, 12
-
-    prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-        dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
-
-    opts = Options(; plot=false, solver=:direct)
-
-    core_res = solveFL(prob; opts=opts)
-
-    println(io, SolveView(prob, opts, core_res))
-
-    flush(io)
-
-    # =============================================
-    dom = FractionalLaplace2D.disc(b=[3, 3, 3, 3, 3], L1=0.8, L2=0.8)
-
-    nₚᵣ, N = 128, 12
-
-    prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-        dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
-
-    opts = Options(; plot=false, solver=:direct)
-
-    core_res = solveFL(prob; opts=opts)
-
-    println(io, SolveView(prob, opts, core_res))
-
-    flush(io)
-
-    # =============================================
-    dom = FractionalLaplace2D.disc(b=[5, 5, 5, 5, 5], a=[3, 3, 3, 3, 4], L1=0.8, L2=0.8)
-
-    nₚᵣ, N = 256, 12
-
-    prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-        dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
-
-    opts = Options(; plot=false, solver=:direct)
-
-    core_res = solveFL(prob; opts=opts)
-
-    println(io, SolveView(prob, opts, core_res))
-
-    flush(io)
-
-    # =============================================
-    dom = FractionalLaplace2D.disc(b=[6, 6, 6, 6, 6], a=[3, 3, 3, 3, 5], L1=0.8, L2=0.8)
-
-    nₚᵣ, N = 512, 12
-
-    prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-        dₙₕ=2, (f!)=f!, uex=uex, dom=dom)
-
-    opts = Options(; plot=false, solver=:direct)
-
-    core_res = solveFL(prob; opts=opts)
-
-    println(io, SolveView(prob, opts, core_res))
-
-    flush(io)
-
-    println(io, "==End of Disc==")
-
-end
-
-open("solve_outputs0001_direct.txt", "w") do io
-    # =============================================
-    s, p = 0.001, 10
-
-    println(io, "Run started: ", Dates.now())
-    println(io, "s = ", s)
-
-    δ, δclsbd = 0.1, 0.01
-
-    dom = FractionalLaplace2D.disc(b=[1, 1, 1, 1, 1], L1=0.8, L2=0.8)
-
-    Anₚᵣ = [128, 128]
-
-    AN = [10, 12]
-
-    f!, uex, fv = makediscfuex(5, s)
-
-    for i in 1:2
-
-        nₚᵣ, N = Anₚᵣ[i], AN[i]
-
-        prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-            dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
-
-        opts = Options(; plot=false, solver=:direct)
-
-        core_res = solveFL(prob; opts=opts)
-
-        println(io, SolveView(prob, opts, core_res))
-
-        flush(io)
-
-    end
-
-    # =============================================
-    dom = FractionalLaplace2D.disc(b=[2, 2, 2, 2, 2], L1=0.8, L2=0.8)
-
-    nₚᵣ, N = 128, 12
-
-    prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-        dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
-
-    opts = Options(; plot=false, solver=:direct)
-
-    core_res = solveFL(prob; opts=opts)
-
-    println(io, SolveView(prob, opts, core_res))
-
-    flush(io)
-
-    # =============================================
-    dom = FractionalLaplace2D.disc(b=[3, 3, 3, 3, 3], L1=0.8, L2=0.8)
-
-    nₚᵣ, N = 256, 12
-
-    prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-        dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
-
-    opts = Options(; plot=false, solver=:direct)
-
-    core_res = solveFL(prob; opts=opts)
-
-    println(io, SolveView(prob, opts, core_res))
-
-    flush(io)
-
-    # =============================================
-    dom = FractionalLaplace2D.disc(b=[5, 5, 5, 5, 5], a=[3, 3, 3, 3, 4], L1=0.8, L2=0.8)
-
-    nₚᵣ, N = 512, 12
-
-    prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-        dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
-
-    opts = Options(; plot=false, solver=:direct)
-
-    core_res = solveFL(prob; opts=opts)
-
-    println(io, SolveView(prob, opts, core_res))
-
-    flush(io)
-
-    # =============================================
-    dom = FractionalLaplace2D.disc(b=[6, 6, 6, 6, 6], a=[3, 3, 3, 3, 5], L1=0.8, L2=0.8)
-
-    nₚᵣ, N = 512, 12
-
-    prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-        dₙₕ=2, (f!)=f!, uex=uex, dom=dom)
-
-    opts = Options(; plot=false, solver=:direct)
-
-    core_res = solveFL(prob; opts=opts)
-
-    println(io, SolveView(prob, opts, core_res))
-
-    flush(io)
-
-    println(io, "==End of Disc==")
-
-end
+#For small s, refer to other solver
 
 #flush(io) forces Julia to write any buffered output to the actual file immediately.

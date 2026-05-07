@@ -517,7 +517,7 @@ function show(io::IO, ::MIME"text/plain", v::SolveView)
     res = solveFL_post(v.prob, v.core; opts=v.opts)
 
     #Everytime show is called, the paraview files are changed!
-    u_to_paraview(v.core.dp, v.core.d, v.core.Uapp, v.prob.s)
+    #u_to_paraview(v.core.dp, v.core.d, v.core.Uapp, v.prob.s)
 
     println(io, "\n----------- Domain -----------")
     try
