@@ -231,3 +231,37 @@ L^2 error   : 1.75e-11
 Root MSE err: 1.63e-13
 =====================================================
 ==End of Disc==
+
+================ FractionalLaplace2D ================
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[3 4 7 … 12 15 16]
+  Npat   = 20
+  pths   = Vector{Patch} (20 patches)
+  Qpts   = 8×20 Matrix
+  Qptsbd = 8×8 Matrix
+
+
+----------- Parameters -----------
+N=12, nₚᵣ=128, s=0.9999999999, p=5000000000, δ=0.1, δclsbd=0.01
+
+----------- System -----------
+Target points (Vars.) : 2976
+Precomputation points : 7412
+Near-singular  points : 4436
+Cond. num 2-norm: 62.994935
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 2.20e-10
+Max Rel err : 2.20e-10
+L^2 error   : 2.30e-09
+Root MSE err: 4.29e-11
+=====================================================
