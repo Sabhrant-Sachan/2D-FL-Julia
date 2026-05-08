@@ -1,9 +1,4 @@
 using Revise, FL2D
-using LinearAlgebra, Printf
-using IterativeSolvers
-using GLMakie, LaTeXStrings, ColorSchemes
-using SpecialFunctions: gamma
-using HypergeometricFunctions: pFq
 
 import FL2D.FLdata as FLdata
 
@@ -23,7 +18,11 @@ d = FL2D.annulus(b = [4, 5, 4, 5, 4, 5, 4, 5])
 
 dp = FL2D.domprop(12, 0.1, 0.1, d)
 
-FL2D.plotnsbd(dp, d, 62)
+f!, uex, fv = FLdata.makediscfuex(5, 0.1);
+
+FL2D.plotu(dp, d, uex)
+
+FL2D.plotfunc(dp, d, f!)
 
 d = FL2D.kite(b=[4, 5, 9, 9, 5, 4, 5, 5, 5, 5, 4, 4],
 a=[4, 3, 7, 7, 3, 4, 3, 6, 6, 3, 3, 3])

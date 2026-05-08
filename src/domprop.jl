@@ -658,424 +658,495 @@ function plotprojbd(dp::domprop, d::abstractdomain, k::Integer)
 end
 
 """
- ========== Dispatch 1: f is given in closed-form ==========
-The code below uses Makie’s reactive Observables to unify colors across many surfaces 
-in a single pass. We create `clims = Observable((lo, hi))` and pass it directly to each
-`surface!` via `colorrange = clims`. Plot attributes that receive an Observable keep a 
-live reference to it: every surface “subscribes” to `clims`. Inside the loop, for each 
-patch we compute Z once, widen 
-          `clims[] = (min(current_lo, minimum(Z)), max(current_hi, maximum(Z)))`,
-and Makie automatically re-colors all previously drawn surfaces—no re-plotting, no second 
-pass, and no giant stitched matrices. This differs from reading snapshots like `clims[][1]`, 
-which returns plain values that won’t update; only the Observable itself is reactive. We 
-don’t need `lift`/`@lift` here because we bind the Observable directly to a plot attribute 
-(not creating a derived Observable). If one prefer's non-reactive alternatives, use a two-pass 
-approach (first gather global min/max, then plot with a fixed `colorrange`). Outside the plot
-environment 
-        lift(f, obs...) = create a new observable that updates whenever any input changes.
-        on(obs) do v ... end = subscribe and run side-effects on changes.
-For instance: clims = Observable((0.0, 1.0)); x = Observable(0.0); y = Observable(0.0);
-                  S = Observable(0.0); 
+Plot a closed-form function `f(x,y)` over the patched domain.
 
-on(clims) do (lo, hi)
-    x[] = lo
-    y[] = hi
-    S[] = lo + hi
-end
-
-clims[] = (-1, 10); #x, y and S automatically update
-
-x[]  # -> -1; y[]  # -> 10; S[]  # -> 9
-
-Immutable payloads (numbers, tuples): changing them always means assign, so Observables 
-auto-notify.Mutable payloads (arrays, dicts): mutations don’t notify—either reassign 
-A[] = A[] (or a copy), or call notify(A) after you mutate. Use reassignment (A[] = new)
-or notify(A) after in-place edits to trigger listeners.
+The function is evaluated on a dense closed Chebyshev grid on each patch,
+mapped to physical space with `mapxy`. All patch surfaces share one reactive
+color scale, so the colormap is consistent across the whole domain.
 """
-function plotfunc(dp::domprop, d::abstractdomain, f::Function)
+function plotfunc(dp::domprop, d::abstractdomain, f!::Function)
 
-    # Closed Chebyshev nodes on [-1,1] 
-    z = cospi.((0:4*dp.N) ./ (4*dp.N))
-    zx = repeat(z, 1, 4*dp.N+1)
-    zy = repeat(z', 4*dp.N+1, 1)
-
-    # figure + 3D axis with labels
-    fig = Figure(size = (650, 650))
-
-    ax  = Axis3(fig[1, 1];
-        aspect = :equal,
-        xlabel = latexstring("\$x\$"),
-        ylabel = latexstring("\$y\$"),
-        zlabel = latexstring("\$f(x,y)\$"),
-        xlabelsize = 22, ylabelsize = 22, zlabelsize = 22,
-        xticklabelsize = 18, yticklabelsize = 18, zticklabelsize = 18
-    )
-
+    # -------------------------------------------------------------------------
+    # Notation
+    # -------------------------------------------------------------------------
+    # n     number of Chebyshev nodes per coordinate direction used by dp
+    # ℓ     number of plotting nodes per coordinate direction, 4n+1
+    # M     number of patches
+    # k     actual patch index
+    # -------------------------------------------------------------------------
+    n = dp.N
+    ℓ = 4n + 1
     M = d.Npat
 
-    clims = Observable((0.0, 1.0))  # placeholder; will be updated from first patch
+    z  = cospi.((0:4n) ./ (4n))
+    zx = repeat(z, 1, ℓ)
+    zy = repeat(z', ℓ, 1)
+    X = similar(zx)
+    Y = similar(zx)
+    F = similar(zx)
 
-    X, Y = mapxy(d, zx, zy, 1)
+    cmap = :jet1
 
-    Z = real.(f.(X, Y))
+    fig = Figure(size = (800, 650))
+    ax  = Axis3(fig[1, 1];
+        aspect = :equal,
+        xlabel = latexstring("\$x_1\$"),
+        ylabel = latexstring("\$x_2\$"),
+        zlabel = latexstring("\$f(x_1,x_2)\$"),
+        xlabelsize = 22,
+        ylabelsize = 22,
+        zlabelsize = 22,
+        xticklabelsize = 18,
+        yticklabelsize = 18,
+        zticklabelsize = 18)
 
-    clims[] = extrema(Z)
-
-    surface!(ax, X, Y, Z; color=Z, colorrange=clims)
-
-    for P in 2:M
-        X, Y = mapxy(d, zx, zy, P)
-
-        Z = real.(f.(X, Y))
-
-        # widen the shared colorrange and all already-plotted surfaces will update
-        c0, c1 = clims[]
-        z0, z1 = extrema(Z)
-
-        clims[] = (min(c0, z0), max(c1, z1))
-
-        # plot this patch using the shared colorrange (bound to the Observable)
-        surface!(ax, X, Y, Z; color=Z, colorrange=clims)
+    widen_clims!(clims, Z) = begin
+        zlo, zhi = extrema(Z)
+        clo, chi = clims[]
+        clims[] = (min(clo, zlo), max(chi, zhi))
+        nothing
     end
 
-    display(GLMakie.Screen(), fig)
+    clims = Observable((Inf, -Inf))
+    surf = nothing
 
-    return (fig, ax)
+    @inbounds for k in 1:M
+        # compute into reusable buffers
+        mapxy!(X, Y, d, zx, zy, k)
+        f!(F, X, Y)
+
+        # freeze this patch for plotting
+        Zk = real.(F)
+        Xk = copy(X)
+        Yk = copy(Y)
+
+        if k == 1
+            clims[] = extrema(Zk)
+        else
+            widen_clims!(clims, Zk)
+        end
+
+        p = surface!(ax, Xk, Yk, Zk;
+            color = Zk,
+            colorrange = clims,
+            colormap = cmap,
+            shading = NoShading)
+
+        if surf === nothing
+            surf = p
+        end
+    end
+
+    Colorbar(fig[1, 2], surf;
+        label = latexstring("\$f(x_1,x_2)\$"),
+        labelsize = 20,
+        ticklabelsize = 16)
+
+    display(GLMakie.Screen(), fig)
+    return fig, ax
 end
 
-"""
-This function plots a surface when the function values are already known on each patch’s 
-n×n open Chebyshev grid. It computes the open nodes z = cospi((2j-1)/(2n)), maps them 
-to each patch with mapxy(d, zx, zy, P), reshapes the corresponding slice of f to n×n,
-and draws one surface! per patch. All surfaces share a single, reactive color scale 
-via a common Observable clims, so the colormap is same across all the patches. Axes are 
-styled with Axis3 aspect = :equal,LaTeX labels to make the plot beautiful.
-If function is called with interpolate=true, it switches to interpolation on denser
-closed Chebyshev mesh and then plotting it.
-"""
-
 function plotfunc(dp::domprop, d::abstractdomain, f::AbstractVector; interpolate::Bool = false)
-    # grid sizes
+    # -------------------------------------------------------------------------
+    # Notation
+    # -------------------------------------------------------------------------
+    # n     number of Chebyshev nodes per coordinate direction
+    # M     number of patches
+    # Np    number of tensor-product nodes per patch, n^2
+    # k     actual patch index
+    # ℓ     number of plotting nodes per coordinate direction in interpolated mode
+    # -------------------------------------------------------------------------
+
     n  = dp.N
     M  = d.Npat
     Np = n^2
 
-    # figure + axis
-    fig = Figure(size = (650, 650))
+    cmap = :jet1
+
+    fig = Figure(size = (800, 650))
     ax  = Axis3(fig[1, 1];
         aspect = :equal,
-        xlabel = latexstring("\$x\$"),
-        ylabel = latexstring("\$y\$"),
-        zlabel = latexstring("\$f(x,y)\$"),
-        xlabelsize = 22, ylabelsize = 22, zlabelsize = 22,
-        xticklabelsize = 18, yticklabelsize = 18, zticklabelsize = 18
-    )
+        xlabel = latexstring("\$x_1\$"),
+        ylabel = latexstring("\$x_2\$"),
+        zlabel = latexstring("\$f(x_1,x_2)\$"),
+        xlabelsize = 22,
+        ylabelsize = 22,
+        zlabelsize = 22,
+        xticklabelsize = 18,
+        yticklabelsize = 18,
+        zticklabelsize = 18)
+
+    widen_clims!(clims, Z) = begin
+        zlo, zhi = extrema(real.(Z))
+        clo, chi = clims[]
+        clims[] = (min(clo, zlo), max(chi, zhi))
+        nothing
+    end
+
+    clims = Observable((Inf, -Inf))
+    surf = nothing
 
     if !interpolate
-        # ---------- NO INTERPOLATION: plot the raw samples ----------
-        # Open Chebyshev (Gauss) nodes: z_j = cos( (2j-1)π / (2n) ), j=1..n
-        z = cospi.((2 .* (1:n) .- 1) ./ (2n))
-        zx = repeat(z, 1, n)         
-        zy = repeat(z', n, 1)        
+        # ---------------------------------------------------------------------
+        # Plot raw values on the open Chebyshev grid
+        # ---------------------------------------------------------------------
+        z  = cospi.((2 .* (1:n) .- 1) ./ (2n))
+        zx = repeat(z, 1, n)
+        zy = repeat(z', n, 1)
 
-        # Single-pass, unified colormap via Observable
-        X, Y = mapxy(d, zx, zy, 1)
-        Z = reshape(@view(f[1:Np]), n, n) |> real
-        clims = Observable(extrema(Z))
-        surface!(ax, X, Y, Z; color=Z, colorrange=clims)
-        scatter!(ax, X, Y, Z;
-            marker=:circle,
-            markersize=9,
-            color=:black)
+        @inbounds for k in 1:M
+            idx = (k - 1) * Np + 1 : k * Np
 
-        for P in 2:M
-            X, Y = mapxy(d, zx, zy, P)
-            Z = reshape(@view(f[(P-1)*Np+1:P*Np]), n, n) |> real
+            X, Y = mapxy(d, zx, zy, k)
+            Z = real.(reshape(@view(f[idx]), n, n))
 
-            (lo, hi) = clims[]
-            (zlo, zhi) = extrema(Z)
-            clims[] = (min(lo, zlo), max(hi, zhi))
+            if k == 1
+                clims[] = extrema(Z)
+            else
+                widen_clims!(clims, Z)
+            end
 
-            surface!(ax, X, Y, Z; color=Z, colorrange=clims)
+            p = surface!(ax, X, Y, Z;
+                color = Z,
+                colorrange = clims,
+                colormap = cmap,
+                shading = NoShading)
+
+            if surf === nothing
+                surf = p
+            end
+
             scatter!(ax, X, Y, Z;
-                marker=:circle,
-                markersize=9,
-                color=:black)
+                marker = :circle,
+                markersize = 9,
+                color = :black)
         end
 
-        display(GLMakie.Screen(),fig)
+    else
+        # ---------------------------------------------------------------------
+        # Interpolate onto a denser closed Chebyshev grid, then plot
+        # ---------------------------------------------------------------------
+        ℓ  = 4n + 1
+        z  = cospi.((0:4n) ./ (4n))
+        zx = repeat(z, 1, ℓ)
+        zy = repeat(z', ℓ, 1)
 
-        return (fig, ax)
+        T = ChebyTN(n, z)
+
+        chebcoef = similar(f, M * Np)
+
+        @inbounds for k in 1:M
+            idx = (k - 1) * Np + 1 : k * Np
+            F = reshape(@view(f[idx]), n, n)
+
+            # DCT-II in second dimension
+            C = (1 / n) .* FFTW.r2r(F, FFTW.REDFT10, 2)
+            C[:, 1] ./= 2
+
+            # DCT-II in first dimension
+            C = (1 / n) .* FFTW.r2r(C, FFTW.REDFT10, 1)
+            C[1, :] ./= 2
+
+            chebcoef[idx] .= vec(C)
+        end
+
+        @inbounds for k in 1:M
+            idx = (k - 1) * Np + 1 : k * Np
+
+            C = reshape(@view(chebcoef[idx]), n, n)
+            Z = real.(T * C * transpose(T))
+            X, Y = mapxy(d, zx, zy, k)
+
+            if k == 1
+                clims[] = extrema(Z)
+            else
+                widen_clims!(clims, Z)
+            end
+
+            p = surface!(ax, X, Y, Z;
+                color = Z,
+                colorrange = clims,
+                colormap = cmap,
+                shading = NoShading)
+
+            if surf === nothing
+                surf = p
+            end
+        end
     end
 
-    # closed Chebyshev nodes on [-1,1] for plotting
-    z  = cospi.((0:4*n) ./ (4*n))
-    zx = repeat(z, 1, 4*n + 1)
-    zy = repeat(z', 4*n + 1, 1)
-    T  = ChebyTN(n, z)
-
-    # Compute Chebyshev coefficients
-    # https://www.fftw.org/fftw3_doc/1d-Real_002deven-DFTs-_0028DCTs_0029.html
-    chebcoef = similar(f, M * Np)
-    for k in 1:M
-        idx = (k-1)*Np + 1 : k*Np
-        fv  = reshape(@views(f[idx]), n, n)
-
-        # columns first (dim = 2), DCT-II
-        c = (1 / n) .* FFTW.r2r(fv, FFTW.REDFT10, 2)
-        c[:, 1] ./= 2
-
-        # rows next (dim = 1), DCT-II
-        c = (1 / n) .* FFTW.r2r(c,  FFTW.REDFT10, 1)
-        c[1, :] ./= 2
-
-        chebcoef[idx] .= vec(c)
-    end
-
-    # first patch → initialize clims and plot
-    c = reshape(@view(chebcoef[1:Np]), n, n)
-    Z = T * c * transpose(T)
-    X, Y = mapxy(d, zx, zy, 1)
-
-    clims = Observable(extrema(real(Z)))
-    surface!(ax, X, Y, real.(Z); color = real.(Z), colorrange = clims)
-
-    # remaining patches (single pass, widen clims as we go)
-    for P in 2:M
-        c = reshape(@view(chebcoef[(P-1)*Np + 1 : P*Np]), n, n)
-        Z  = T * c * transpose(T)
-        X, Y = mapxy(d, zx, zy, P)
-
-        z0, z1 = extrema(real(Z))
-        c0, c1 = clims[]
-        clims[] = (min(c0, z0), max(c1, z1))
-
-        surface!(ax, X, Y, real.(Z); color = real.(Z), colorrange = clims)
-    end
+    Colorbar(fig[1, 2], surf;
+        label = latexstring("\$f(x_1,x_2)\$"),
+        labelsize = 20,
+        ticklabelsize = 16)
 
     display(GLMakie.Screen(), fig)
-    return (fig, ax)
+    return fig, ax
 end
 
 # ---------------------------------------------------------------
 # u given in closed form; enforce u=0 on the boundary of domain.
-# (Closed Chebyshev grid includes the boundary, so we can zero edges.)
+# Closed Chebyshev grid includes the boundary, so we can zero edges.
 # ---------------------------------------------------------------
 function plotu(dp::domprop, d::abstractdomain, u::Function)
+
+    # -------------------------------------------------------------------------
+    # Notation
+    # -------------------------------------------------------------------------
+    # n     number of Chebyshev nodes per coordinate direction used by dp
+    # ℓ     number of plotting nodes per coordinate direction, 4n+1
+    # M     number of volume patches
+    # k     actual patch index
+    # -------------------------------------------------------------------------
+
     n = dp.N
-    ℓ = 4n+1
-    z  = cospi.((0:4n) ./ (4n))        # closed Chebyshev nodes ∈ [-1,1]
+    M = d.Npat
+    ℓ = 4n + 1
+
+    # Closed Chebyshev nodes on [-1,1]
+    z  = cospi.((0:4n) ./ (4n))
     zx = repeat(z, 1, ℓ)
     zy = repeat(z', ℓ, 1)
+
+    cmap = :jet1
 
     fig = Figure(size = (650, 650))
     ax  = Axis3(fig[1, 1];
         aspect = :equal,
-        xlabel = latexstring("\$x\$"),
-        ylabel = latexstring("\$y\$"),
-        zlabel = latexstring("\$u(x,y)\$"),
-        xlabelsize = 22, ylabelsize = 22, zlabelsize = 22,
-        xticklabelsize = 18, yticklabelsize = 18, zticklabelsize = 18
-    )
+        xlabel = latexstring("\$x_1\$"),
+        ylabel = latexstring("\$x_2\$"),
+        zlabel = latexstring("\$u(x_1,x_2)\$"),
+        xlabelsize = 22,
+        ylabelsize = 22,
+        zlabelsize = 22,
+        xticklabelsize = 18,
+        yticklabelsize = 18,
+        zticklabelsize = 18)
 
-    # First patch → initialize clims after enforcing boundary zeros
-    X, Y = mapxy(d, zx, zy, 1)
-    # enforce homogeneous Dirichlet boundary
-    # v varying u= +1 fixed
-    if isbdpatch(d, 1)
-        Z = u.(X[2:ℓ, :], Y[2:ℓ, :])
-        Z = vcat(zeros(Float64, ℓ)', Z)
-    else
-        Z = u.(X, Y)
+    widen_clims!(clims, Z) = begin
+        zlo, zhi = extrema(Z)
+        clo, chi = clims[]
+        clims[] = (min(clo, zlo), max(chi, zhi))
+        nothing
     end
 
-    clims = Observable(extrema(Z))
-    surface!(ax, X, Y, Z; color = Z, colorrange = clims)
+    clims = Observable((Inf, -Inf))
 
-    # Remaining patches (single pass; widen shared colorrange)
-    for P in 2:d.Npat
-        X, Y = mapxy(d, zx, zy, P)
-        if isbdpatch(d, P)
+    surf = nothing
+
+    @inbounds for k in 1:M
+
+        X, Y = mapxy(d, zx, zy, k)
+
+        if isbdpatch(d, k)
+            # Boundary patch: first row corresponds to the domain boundary,
+            # so enforce homogeneous Dirichlet data there.
             Z = u.(X[2:ℓ, :], Y[2:ℓ, :])
             Z = vcat(zeros(Float64, ℓ)', Z)
         else
             Z = u.(X, Y)
         end
 
-        (lo, hi) = clims[]; (zlo, zhi) = extrema(Z)
-        clims[] = (min(lo, zlo), max(hi, zhi))
+        if k == 1
+            clims[] = extrema(Z)
+        else
+            widen_clims!(clims, Z)
+        end
 
-        surface!(ax, X, Y, Z; color = Z, colorrange = clims)
+        p = surface!(ax, X, Y, Z;
+            color=Z,
+            colorrange=clims,
+            colormap=cmap,
+            shading=NoShading)
+
+        surf === nothing && (surf = p)
     end
 
+    Colorbar(fig[1, 2], surf;
+        label = latexstring("\$u(x_1,x_2)\$"),
+        labelsize = 20,
+        ticklabelsize = 16)
+
     display(GLMakie.Screen(), fig)
-    return (fig, ax)
-    #save("myplot.png",fig; px_per_unit=10)
+    return fig, ax
 end
 
-#u is being mutated inside!
-function plotu(dp::domprop, d::abstractdomain, u::AbstractVector, s::Real; interpolate::Bool=true)
+function plotu(dp::domprop, d::abstractdomain, u::AbstractVector, s::Real; interpolate::Bool = true)
 
-    # grid sizes
+    # -------------------------------------------------------------------------
+    # Notation
+    # -------------------------------------------------------------------------
+    # n     number of Chebyshev nodes per coordinate direction
+    # M     number of volume patches
+    # Np    number of tensor-product nodes per patch, n^2
+    # i     global interior target index
+    # ip    local node index inside patch
+    # k     actual patch index
+    # j1    first local tensor-product index
+    # ℓ     number of plotting nodes per coordinate direction
+    # v     plotted/scaled copy of u
+    # -------------------------------------------------------------------------
+
     n = dp.N
     M = d.Npat
     Np = n^2
-    #https://docs.makie.org/dev/explanations/colors
-    cmap = :jet1 #:hsv
 
-    # figure + axis
-    fig = Figure(size= (850, 650))
+    cmap = :jet1
+
+    # Work on a copy so the input vector u is not mutated.
+    v = copy(u)
+
+    fig = Figure(size = (850, 650))
+
     ax = Axis3(fig[1, 1];
-        #aspect=:equal,
-        xlabel=latexstring("\$x\$"),
-        ylabel=latexstring("\$y\$"),
-        zlabel=latexstring("\$u(x,y)\$"),
-        xlabelsize=22, ylabelsize=22, zlabelsize=22,
-        xticklabelsize=18, yticklabelsize=18, zticklabelsize=18
-    )
+        xlabel = latexstring("\$x_1\$"),
+        ylabel = latexstring("\$x_2\$"),
+        zlabel = latexstring("\$u(x_1,x_2)\$"),
+        xlabelsize = 22,
+        ylabelsize = 22,
+        zlabelsize = 22,
+        xticklabelsize = 18,
+        yticklabelsize = 18,
+        zticklabelsize = 18)
 
+    # -------------------------------------------------------------------------
+    # Small local helper: update color limits
+    # -------------------------------------------------------------------------
+    widen_clims!(clims, Z) = begin
+        zlo, zhi = extrema(real.(Z))
+        clo, chi = clims[]
+        clims[] = (min(clo, zlo), max(chi, zhi))
+        nothing
+    end
+
+    # -------------------------------------------------------------------------
+    # Case 1: no interpolation, plot raw samples
+    # -------------------------------------------------------------------------
     if !interpolate
-        # ---------- NO INTERPOLATION: plot the raw samples ----------
-        # Open Chebyshev (Gauss) nodes: z_j = cos( (2j-1)π / (2n) ), j=1..n
+
         z = cospi.((2 .* (1:n) .- 1) ./ (2n))
+
         zx = repeat(z, 1, n)
         zy = repeat(z', n, 1)
 
+        # For boundary patches, add the boundary row ξ = 1.
         zxb = vcat(ones(Float64, n)', zx)
         zyb = vcat(z', zy)
 
-        for i in 1:M*Np
-
+        # Apply distance factor to interior samples.
+        @inbounds for i in 1:M*Np
             k = cld(i, Np)
-            j = i - (k - 1) * Np
+            ip = i - (k - 1) * Np
 
-            j1 = mod(j - 1, n) + 1
-            
-            u[i] = u[i] * dfunc(d, k, 2 * sinpi((2 * j1 - 1) / (4 * n))^2, s)
+            j1 = mod(ip - 1, n) + 1
+            ρ = 2 * sinpi((2*j1 - 1) / (4n))^2
 
+            v[i] *= dfunc(d, k, ρ, s)
         end
 
-        # Single-pass, unified colormap via Observable
-        if isbdpatch(d, 1)
-            #Put boundary points together 
-            X, Y = mapxy(d, zxb, zyb, 1)
-            Z = reshape(@view(u[1:Np]), n, n) 
-            Z = vcat(zeros(Float64, n)', Z)
-        else
-            X, Y = mapxy(d, zx, zy, 1)
-            Z = reshape(@view(u[1:Np]), n, n) 
-        end
+        clims = Observable((Inf, -Inf))
 
-        clims = Observable(extrema(Z))
-        surface!(ax, X, Y, Z; color=Z, colorrange=clims, colormap = cmap, shading = NoShading)
-        scatter!(ax, X, Y, Z;
-            marker=:circle,
-            markersize=9,
-            color=:black,
-        )
+        @inbounds for k in 1:M
+            idx = (k - 1) * Np + 1 : k * Np
+            Z = reshape(@view(v[idx]), n, n)
 
-        for P in 2:M
-            if isbdpatch(d, P)
-                X, Y = mapxy(d, zxb, zyb, P)
-                Z = reshape(@view(u[(P-1)*Np+1:P*Np]), n, n)
+            if isbdpatch(d, k)
+                X, Y = mapxy(d, zxb, zyb, k)
                 Z = vcat(zeros(Float64, n)', Z)
             else
-                X, Y = mapxy(d, zx, zy, P)
-                Z = reshape(@view(u[(P-1)*Np+1:P*Np]), n, n)
+                X, Y = mapxy(d, zx, zy, k)
             end
 
-            (lo, hi) = clims[]
-            (zlo, zhi) = extrema(Z)
-            clims[] = (min(lo, zlo), max(hi, zhi))
+            if k == 1
+                clims[] = extrema(real.(Z))
+            else
+                widen_clims!(clims, Z)
+            end
 
-            surface!(ax, X, Y, Z; color=Z, colorrange=clims, colormap = cmap, shading = NoShading)
-            scatter!(ax, X, Y, Z;
-                marker=:circle,
-                markersize=9,
-                color=:black,
-            )
+            surface!(ax, X, Y, real.(Z);
+                color = real.(Z),
+                colorrange = clims,
+                colormap = cmap,
+                shading = NoShading)
+
+            scatter!(ax, X, Y, real.(Z);
+                marker = :circle,
+                markersize = 9,
+                color = :black)
         end
 
         display(GLMakie.Screen(), fig)
-
-        return (fig, ax)
+        return fig, ax
     end
 
-    # ---------- INTERPOLATION: plot the denser samples ----------
-    # closed Chebyshev nodes on [-1,1] for plotting
-    ℓ = 4n+1
-    z = cospi.((0:4*n) ./ (4*n))
-    #First row of matrix zx is [1,1,...,1,1]
+    # -------------------------------------------------------------------------
+    # Case 2: interpolation, plot denser Chebyshev samples
+    # -------------------------------------------------------------------------
+
+    ℓ = 4n + 1
+
+    z = cospi.((0:4n) ./ (4n))
+
     zx = repeat(z, 1, ℓ)
     zy = repeat(z', ℓ, 1)
 
     T = ChebyTN(n, z)
 
-    # Compute Chebyshev coefficients
-    # https://www.fftw.org/fftw3_doc/1d-Real_002deven-DFTs-_0028DCTs_0029.html
-    chebcoef = similar(u, M * Np)
-    for k in 1:M
-        idx = (k-1)*Np+1:k*Np
-        fv = reshape(@views(u[idx]), n, n)
+    chebcoef = similar(v, M * Np)
 
-        # columns first (dim = 2), DCT-II
-        c = (1 / n) .* FFTW.r2r(fv, FFTW.REDFT10, 2)
-        c[:, 1] ./= 2
+    # Compute Chebyshev coefficients patch-by-patch.
+    @inbounds for k in 1:M
+        idx = (k - 1) * Np + 1 : k * Np
+        F = reshape(@view(v[idx]), n, n)
 
-        # rows next (dim = 1), DCT-II
-        c = (1 / n) .* FFTW.r2r(c, FFTW.REDFT10, 1)
-        c[1, :] ./= 2
+        # DCT-II in second dimension.
+        C = (1 / n) .* FFTW.r2r(F, FFTW.REDFT10, 2)
+        C[:, 1] ./= 2
 
-        chebcoef[idx] .= vec(c)
+        # DCT-II in first dimension.
+        C = (1 / n) .* FFTW.r2r(C, FFTW.REDFT10, 1)
+        C[1, :] ./= 2
+
+        chebcoef[idx] .= vec(C)
     end
 
-    # first patch → initialize clims 
-    c = reshape(@view(chebcoef[1:Np]), n, n)
-    Z = T * c * transpose(T)
-    X, Y = mapxy(d, zx, zy, 1)
-    for i in 2:ℓ
-        Z[i, :] = Z[i, :] .* dfunc(d, 1, 2 * sinpi((i - 1) / (8 * n))^2, s)
-    end
+    clims = Observable((Inf, -Inf))
 
-    if isbdpatch(d, 1)
-        #Multiply the distance factor
-        Z[1,:] = zeros(Float64, ℓ)
-    else
-        Z[1, :] = Z[1, :] .* dfunc(d, 1, 0.0, s)
-    end
+    @inbounds for k in 1:M
+        idx = (k - 1) * Np + 1 : k * Np
 
-    clims = Observable(extrema(real(Z)))
+        C = reshape(@view(chebcoef[idx]), n, n)
+        Z = T * C * transpose(T)
 
-    surface!(ax, X, Y, real.(Z); color=real.(Z), colorrange=clims, colormap = cmap, shading = NoShading)
+        X, Y = mapxy(d, zx, zy, k)
 
-    # remaining patches (single pass, widen clims as we go)
-    for P in 2:M
-
-        c = reshape(@view(chebcoef[(P-1)*Np+1:P*Np]), n, n)
-        Z = T * c * transpose(T)
-        X, Y = mapxy(d, zx, zy, P)
-
-        #Multiply the distance factor
-        for i in 2:ℓ
-            Z[i, :] = Z[i, :] .* dfunc(d, P, 2 * sinpi((i - 1) / (8 * n))^2, s)
+        # Apply distance factor row-by-row.
+        for row in 2:ℓ
+            ρ = 2 * sinpi((row - 1) / (8n))^2
+            Z[row, :] .*= dfunc(d, k, ρ, s)
         end
 
-        if isbdpatch(d, P)
-            Z[1,:] = zeros(Float64, ℓ)
+        if isbdpatch(d, k)
+            Z[1, :] .= 0
         else
-            Z[1, :] = Z[1, :] .* dfunc(d, P, 0.0, s)
+            Z[1, :] .*= dfunc(d, k, 0.0, s)
         end
 
-        z0, z1 = extrema(real(Z))
-        c0, c1 = clims[]
-        clims[] = (min(c0, z0), max(c1, z1))
+        if k == 1
+            clims[] = extrema(real.(Z))
+        else
+            widen_clims!(clims, Z)
+        end
 
-        surface!(ax, X, Y, real.(Z); color=real.(Z), colorrange=clims, colormap = cmap, shading = NoShading)
+        surface!(ax, X, Y, real.(Z);
+            color = real.(Z),
+            colorrange = clims,
+            colormap = cmap,
+            shading = NoShading)
     end
 
     display(GLMakie.Screen(), fig)
-    return (fig, ax)
-
+    return fig, ax
 end
 
 # outdir: folder where files will be written (default "paraview_out")
@@ -1269,7 +1340,6 @@ function chkinvpts(dp::domprop, d::abstractdomain,flag=nothing)::Float64
 
             # pull (t,s) and map back to real space on patch k
             t̂ = dp.invpts[1, ll]
-
             ŝ = dp.invpts[2, ll]
 
             zx, zy = mapxy(d, t̂, ŝ, k)
