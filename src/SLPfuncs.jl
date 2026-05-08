@@ -224,7 +224,7 @@ end
 
 # These are preocmputations within the boundary, not for interioir points.
 # They will be used for solving the densities βⱼ, 1 <= j <= nh on the boundary.  
-function SLPprecomps(d::D, dpbd::dompropbd, p::Int; 
+function precompsSLP(d::D, dpbd::dompropbd, p::Int; 
     n::Int = 128)::Matrix{Float64} where {D<:abstractdomain}
 
     kd = dpbd.kd
@@ -501,8 +501,7 @@ function SLPbeta(d::D, dpbd::dompropbd)::Matrix{Float64} where {D<:abstractdomai
 
     Nd = Mbd * N
 
-    #I AM Here
-    IntS = SLPprecomps(d, dpbd, p)
+    IntS = precompsSLP(d, dpbd, p)
 
     # Initialize the matrix A
     # For overdetermined systems, Julia backslash 
@@ -547,7 +546,7 @@ function SLPbeta(d::D, dpbd::dompropbd)::Matrix{Float64} where {D<:abstractdomai
     end
 
     @inline function gs(t::Float64, N::Int)::Float64
-        th = 0.5 * t                 # t/2
+        th = 0.5 * t                 
         return sin(N * th) * cos((N - 1) * th) / sin(th)
     end
 

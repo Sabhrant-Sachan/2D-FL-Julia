@@ -648,6 +648,8 @@ function plotprojbd(dp::domprop, d::abstractdomain, k::Integer)
     end
 
     if !isempty(xt)
+        smallest_arrow_length= minimum(sqrt.((xp .- xt).^2 + (yp .- yt).^2))
+        @printf("Smallest distance : %.2e\n", smallest_arrow_length)
         arrows2d!(ax, xt, yt, xp .- xt, yp .- yt;
             tipwidth=8, tiplength=12, shaftwidth=1.5, color=:gray)
         scatter!(ax, xt, yt; markersize=9, color=:black,strokewidth=0)

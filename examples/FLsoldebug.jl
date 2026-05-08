@@ -4,15 +4,15 @@ import FL2D.FLdata as FLdata
 
 #----------------------------
 
-d = FL2D.disc(b=[2, 2, 2, 2, 2])
+d = FL2D.disc(b=[6, 6, 6, 6, 6], a=[3, 3, 3, 3, 5])
 
-dp = FL2D.domprop(8, 0.1, 0.1, d)
+dp = FL2D.domprop(24, 0.1, 0.1, d)
 
 FL2D.plotns(dp, d, 1)
 
-FL2D.plotnsbd(dp, d, 4)
+FL2D.plotnsbd(dp, d, 14)
 
-FL2D.plotprojbd(dp, d, 4)
+FL2D.plotprojbd(dp, d, 18)
 
 d = FL2D.annulus(b = [4, 5, 4, 5, 4, 5, 4, 5])
 
@@ -23,6 +23,21 @@ f!, uex, fv = FLdata.makediscfuex(5, 0.1);
 FL2D.plotu(dp, d, uex)
 
 FL2D.plotfunc(dp, d, f!)
+
+IntSbdex = FL2D.precompsDLP(d, dp, 2; n=2048);
+
+for n in (64, 128, 256, 512, 1024)
+    IntSbd = FL2D.precompsDLP(d, dp, 2; n=n);
+    Err = maximum(abs.(IntSbd .- IntSbdex))
+    FL2D.@printf("Err = %.2e\n", Err)
+end
+
+
+IntSbd = FL2D.precompsDLP(d, dp, 2; n=256);
+
+FL2D.testDLPint(d, dp, IntSbd; nreg=64, plot_err = true)
+
+#----------------------------
 
 d = FL2D.kite(b=[4, 5, 9, 9, 5, 4, 5, 5, 5, 5, 4, 4],
 a=[4, 3, 7, 7, 3, 4, 3, 6, 6, 3, 3, 3])

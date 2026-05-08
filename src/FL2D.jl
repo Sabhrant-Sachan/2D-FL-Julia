@@ -40,6 +40,10 @@ include("domprop.jl")
 include("bvec.jl")
 include("precomps.jl")
 
+#Boundary Integral files
+include("DLPfuncs.jl")
+include("SLPfuncs.jl")
+
 # Matrix assembly kernels
 include("matrixvecprod/Axintpth.jl")
 include("matrixvecprod/Axbdpth.jl")
