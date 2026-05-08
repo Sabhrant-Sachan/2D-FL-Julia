@@ -20,11 +20,11 @@ function Axbdop!(v::SubArray{Float64}, kI::Int, d::D, dp::domprop,
     gamp!(gamp₂, d, y₂, k)
 
     # --------- interior rows  ---------
-    Lₚ = M * Np
+    Ni = M * Np
 
     ℓbd = 0
 
-    @inbounds for row in 1:Lₚ
+    @inbounds for row in 1:Ni
 
         γx[1] = dp.tgtpts[1, row]
         γx[2] = dp.tgtpts[2, row]
@@ -156,17 +156,18 @@ function Axbdop!(v::SubArray{Float64}, kI::Int, d::D, dp::domprop,
 
     if s<0.5
 
-        Lₚₘ = Lₚ + 1
-        Lₚₙ = Lₚ + Mbd * N
+        Nb = Mbd * N
+        Lₚₘ = Ni + 1
+        Lₚₙ = Ni + Nb
         CT = IVbt2.CT
 
         for row in Lₚₘ : Lₚₙ
 
-            k₀ = cld(row - M*Np, N)
+            k₀ = cld(row - Ni, N)
             
             ptl = d.kd[k₀]
 
-            ptj = row - M*Np - (k₀ - 1) * N
+            ptj = row - Ni - (k₀ - 1) * N
 
             rview = @view v[row, :]
 
@@ -178,7 +179,7 @@ function Axbdop!(v::SubArray{Float64}, kI::Int, d::D, dp::domprop,
         end
         #The limiting value from the interioir is 1/2,
         for j in 1:N
-            v[Lₚ+N*(kI-1)+j, j] += 0.5
+            v[Ni+N*(kI-1)+j, j] += 0.5
         end
     end
 

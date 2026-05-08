@@ -1,6 +1,6 @@
-using Revise, FractionalLaplace2D, MAT
+using Revise, FL2D, MAT
 
-using FractionalLaplace2D.FLdata
+using FL2D.FLdata
 
 # =============================================
 # Run this once and save the exact solution
@@ -12,7 +12,7 @@ if ~isfile("kite_ex_Eg1.bin")
 
     nₚᵣ, Nf = 256, 10
 
-    domf = FractionalLaplace2D.kite(b=[4, 4, 5, 5, 4, 4, 4, 3, 3, 4, 4, 4],
+    domf = FL2D.kite(b=[4, 4, 5, 5, 4, 4, 4, 3, 3, 4, 4, 4],
         a=[4, 2, 4, 4, 2, 4, 2, 5, 5, 2, 2, 2])
 
     f!, _, fv = makekitefuex(0, s)
@@ -30,7 +30,7 @@ if ~isfile("kite_ex_Eg1.bin")
 
     display("==Reference for Kite finished==")
 
-    FractionalLaplace2D.save_uapp_bin("kite_ex_Eg1.bin", coref.Uapp)
+    FL2D.save_uapp_bin("kite_ex_Eg1.bin", coref.Uapp)
 end
 # ======================0=======================
 
@@ -38,9 +38,9 @@ s, p = 0.75, 8;
 
 δ, δclsbd = 0.1, 0.01;
 
-Uexf = FractionalLaplace2D.load_vec_bin("kite_ex_Eg1.bin");
+Uexf = FL2D.load_vec_bin("kite_ex_Eg1.bin");
 
-domf = FractionalLaplace2D.kite(b=[4, 4, 5, 5, 4, 4, 4, 3, 3, 4, 4, 4],
+domf = FL2D.kite(b=[4, 4, 5, 5, 4, 4, 4, 3, 3, 4, 4, 4],
         a=[4, 2, 4, 4, 2, 4, 2, 5, 5, 2, 2, 2]);
 
 Nf = 10;
@@ -49,13 +49,13 @@ f!, _, fv = makekitefuex(0, s);
 
 # ======================1=======================
 
-dom = FractionalLaplace2D.kite(b = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]);
+dom = FL2D.kite(b = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]);
 
 dobenchmark, docondnum = false, false;
 
 nₚᵣ, N = 64, 10
 
-Uexc = FractionalLaplace2D.build_ref_coarse(Uexf, domf, Nf, dom, N);
+Uexc = FL2D.build_ref_coarse(Uexf, domf, Nf, dom, N);
 
 prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
     dₙₕ=1, (f!)=f!, uex=Uexc, dom=dom);
@@ -68,12 +68,12 @@ println(SolveView(prob, opts, core_res))
 
 # =======================2======================
 
-dom = FractionalLaplace2D.kite(b=[2, 1, 2, 2, 1, 2, 1, 1, 1, 1, 1, 1],
+dom = FL2D.kite(b=[2, 1, 2, 2, 1, 2, 1, 1, 1, 1, 1, 1],
     a=[1, 1, 2, 2, 1, 1, 1, 2, 2, 1, 1, 1]);
 
 nₚᵣ, N = 128, 10;
 
-Uex = FractionalLaplace2D.build_ref_coarse(Uexf, domf, Nf, dom, N);
+Uex = FL2D.build_ref_coarse(Uexf, domf, Nf, dom, N);
 
 prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
     dₙₕ=1, (f!)=f!, uex=Uex, dom=dom);
@@ -86,12 +86,12 @@ println(SolveView(prob, opts, core_res))
 
 # ======================3=======================
 
-dom = FractionalLaplace2D.kite(b=[3, 2, 4, 4, 2, 3, 2, 2, 2, 2, 2, 2],
+dom = FL2D.kite(b=[3, 2, 4, 4, 2, 3, 2, 2, 2, 2, 2, 2],
     a=[2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 2, 2]);
 
 nₚᵣ, N = 128, 10;
 
-Uex = FractionalLaplace2D.build_ref_coarse(Uexf, domf, Nf, dom, N);
+Uex = FL2D.build_ref_coarse(Uexf, domf, Nf, dom, N);
 
 prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
     dₙₕ=2, (f!)=f!, uex=Uex, dom=dom);
@@ -104,14 +104,14 @@ println(SolveView(prob, opts, core_res))
 
 # ======================4=======================
 
-dom = FractionalLaplace2D.kite(b=[3, 2, 4, 4, 2, 3, 2, 2, 2, 2, 2, 2],
+dom = FL2D.kite(b=[3, 2, 4, 4, 2, 3, 2, 2, 2, 2, 2, 2],
     a=[2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 2, 2]);
 
-FractionalLaplace2D.refine!(dom, 1, 2, [4, 6, 34, 36]);
+FL2D.refine!(dom, 1, 2, [4, 6, 34, 36]);
 
 nₚᵣ, N = 128, 10;
 
-Uex = FractionalLaplace2D.build_ref_coarse(Uexf, domf, Nf, dom, N);
+Uex = FL2D.build_ref_coarse(Uexf, domf, Nf, dom, N);
 
 prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
     dₙₕ=2, (f!)=f!, uex=Uex, dom=dom);
@@ -124,12 +124,12 @@ println(SolveView(prob, opts, core_res))
 
 # ======================5=======================
 
-dom = FractionalLaplace2D.kite(b=[4, 3, 5, 5, 3, 4, 3, 3, 3, 3, 3, 3],
+dom = FL2D.kite(b=[4, 3, 5, 5, 3, 4, 3, 3, 3, 3, 3, 3],
     a=[3, 2, 3, 3, 2, 3, 2, 4, 4, 2, 2, 2]);
 
 nₚᵣ, N = 256, 10;
 
-Uex = FractionalLaplace2D.build_ref_coarse(Uexf, domf, Nf, dom, N);
+Uex = FL2D.build_ref_coarse(Uexf, domf, Nf, dom, N);
 
 prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
     dₙₕ=3, (f!)=f!, uex=Uex, dom=dom);

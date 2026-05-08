@@ -51,7 +51,8 @@ function Ax!(v::AbstractVector{Float64}, u::AbstractVector{Float64}, IntS::Matri
 
     (; Lᵢₙ, xvals, fvals, γxbd, kdx, Tbd₂) = IVbdt3
      
-    Lp = M * Np
+    Ni = M * Np
+    Nb = Mbd * N
 
     # ----- STEP 1: Get chebyshev coefficients and finer function values -----
     # ----- Compute Chebyshev coeffs for interior patches + refined ufin -----
@@ -136,7 +137,7 @@ function Ax!(v::AbstractVector{Float64}, u::AbstractVector{Float64}, IntS::Matri
     # ----- Boundary ζ: coefficients + values on N₁ and N₂ grids -----
     # For k=1:Mbd boundary patches, u has ζ values on N Cheby nodes for each bd patch.
     @inbounds for k in 1:Mbd
-        ak = Lp + (k - 1) * N
+        ak = Ni + (k - 1) * N
         i₁ = (k - 1) * N₁
         i₂ = (k - 1) * N₂
         # load ζv from u boundary values
@@ -187,7 +188,7 @@ function Ax!(v::AbstractVector{Float64}, u::AbstractVector{Float64}, IntS::Matri
     end
 
     # ----- STEP 2: Singular Integrals over all rows and DLP contributions -----
-    @inbounds for row in 1:Lp
+    @inbounds for row in 1:Ni
 
         ℓ = cld(row, Np)
         j = row - (ℓ - 1) * Np
@@ -203,12 +204,12 @@ function Ax!(v::AbstractVector{Float64}, u::AbstractVector{Float64}, IntS::Matri
 
     if s < 0.5
 
-        Lₚₘ = Lp + 1
-        Lₚₙ = Lp + Mbd * N
+        Lₚₘ = Ni + 1
+        Lₚₙ = Ni + Nb
 
         @inbounds for row in Lₚₘ:Lₚₙ
 
-            k₀ = cld(row - Lp, N)
+            k₀ = cld(row - Ni, N)
 
             ℓ = d.kd[k₀]
 
@@ -228,7 +229,7 @@ function Ax!(v::AbstractVector{Float64}, u::AbstractVector{Float64}, IntS::Matri
     end
 
     #If s<0.5, all values of vector v are now initlized.
-    #If s>=0.5, all rows from 1:Lp of v are now initlized.
+    #If s>=0.5, all rows from 1:Ni of v are now initlized.
 
     # ----- Contribution from DLP starts here -----
 
@@ -242,7 +243,7 @@ function Ax!(v::AbstractVector{Float64}, u::AbstractVector{Float64}, IntS::Matri
         gamp!(gamp₂, d, y₂, ℓ)
 
         #Contribution of all points for the ℓth patch
-        @inbounds for row in 1:Lp
+        @inbounds for row in 1:Ni
 
             γx[1] = dp.tgtpts[1, row]
             γx[2] = dp.tgtpts[2, row]
@@ -402,7 +403,7 @@ function Ax!(v::AbstractVector{Float64}, u::AbstractVector{Float64}, IntS::Matri
             @. Ur = UFV * DJ * Df
         end
 
-        for row in 1:Lp
+        for row in 1:Ni
             
             ℓ = cld(row, Np)
             k == ℓ && continue
@@ -439,12 +440,12 @@ function Ax!(v::AbstractVector{Float64}, u::AbstractVector{Float64}, IntS::Matri
 
         if s < 0.5
 
-            Lₚₘ = Lp + 1
-            Lₚₙ = Lp + Mbd * N
+            Lₚₘ = Ni + 1
+            Lₚₙ = Ni + Nb
 
             for row in Lₚₘ:Lₚₙ
 
-                k₀ = cld(row - Lp, N)
+                k₀ = cld(row - Ni, N)
 
                 ℓ = d.kd[k₀]
 
@@ -489,7 +490,7 @@ function Ax!(v::AbstractVector{Float64}, u::AbstractVector{Float64}, IntS::Matri
         @inbounds for j in 1:N
             @views Ct = CT[:, j]
             @inbounds for k in 1:Mbd
-                row = Lp + (k - 1)*N + j
+                row = Ni + (k - 1)*N + j
                 ℓ = d.kd[k]
                 #CN .= reshape(chebcoef[(ℓ - 1) * Np + 1 : ℓ * Np], N, N)
                 aℓ = (ℓ - 1) * Np
@@ -504,8 +505,8 @@ function Ax!(v::AbstractVector{Float64}, u::AbstractVector{Float64}, IntS::Matri
 
     else #s<0.5 case
 
-        Lₚₘ = Lp + 1
-        Lₚₙ = Lp + Mbd * N
+        Lₚₘ = Ni + 1
+        Lₚₙ = Ni + Nb
 
         for row in Lₚₘ : Lₚₙ
 

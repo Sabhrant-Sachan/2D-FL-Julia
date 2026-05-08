@@ -30,9 +30,9 @@ function Axbdpth!(v::SubArray{Float64}, kM::Int, IntS::Matrix{Float64},
     end
 
     # --------- interior rows  ---------
-    Lₚ = M * Np
+    Ni = M * Np
 
-    @inbounds for row in 1:Lₚ
+    @inbounds for row in 1:Ni
 
         x1 = dp.tgtpts[1, row]
         x2 = dp.tgtpts[2, row]
@@ -116,16 +116,16 @@ function Axbdpth!(v::SubArray{Float64}, kM::Int, IntS::Matrix{Float64},
     #will be non-zero and will therefore play a role 
     #in boundary equations
     # --------- Part 2: boundary rows ---------
-    Lₚₘ = Lₚ + 1
-    Lₚₙ = Lₚ + Mbd * N
+    Lₚₘ = Ni + 1
+    Lₚₙ = Ni + Mbd * N
 
     if s >= 0.5
 
         @inbounds for row in Lₚₘ:Lₚₙ
 
-            k₀ = cld(row - M*Np, N)
+            k₀ = cld(row - Ni, N)
 
-            l, j = d.kd[k₀],  row - M*Np - (k₀ - 1)*N
+            l, j = d.kd[k₀],  row - Ni - (k₀ - 1)*N
 
             if l == kM
 
@@ -149,9 +149,9 @@ function Axbdpth!(v::SubArray{Float64}, kM::Int, IntS::Matrix{Float64},
 
         @inbounds for row in Lₚₘ:Lₚₙ
 
-            k₀ = cld(row - M*Np, N)
+            k₀ = cld(row - Ni, N)
 
-            l, j = d.kd[k₀],  row - M*Np - (k₀ - 1)*N
+            l, j = d.kd[k₀],  row - Ni - (k₀ - 1)*N
 
             if l == kM
                 # ---------- Singular patch ----------

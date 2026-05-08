@@ -1,6 +1,6 @@
-using Revise, Dates, FractionalLaplace2D
+using Revise, Dates, FL2D
 
-using FractionalLaplace2D.FLdata
+using FL2D.FLdata
 
 dobenchmark, docondnum = true, true
 
@@ -16,7 +16,7 @@ open("solve_outputs075.txt", "w") do io
 
     δ, δclsbd = 0.1, 0.01
 
-    dom = FractionalLaplace2D.disc(b=[1, 1, 1, 1, 1], L1=0.8, L2=0.8)
+    dom = FL2D.disc(b=[1, 1, 1, 1, 1], L1=0.8, L2=0.8)
 
     Anₚᵣ = [32, 32, 32, 32, 64, 64, 64, 128, 128]
 
@@ -50,7 +50,7 @@ open("solve_outputs075.txt", "w") do io
     end
 
     # =============================================
-    dom = FractionalLaplace2D.disc(b=[2, 2, 2, 2, 2], L1=0.8, L2=0.8)
+    dom = FL2D.disc(b=[2, 2, 2, 2, 2], L1=0.8, L2=0.8)
 
     Anₚᵣ = [128, 128]
 
@@ -82,7 +82,7 @@ open("solve_outputs075.txt", "w") do io
     end
 
     # =============================================
-    dom = FractionalLaplace2D.disc(b=[3, 3, 3, 3, 3], L1=0.8, L2=0.8)
+    dom = FL2D.disc(b=[3, 3, 3, 3, 3], L1=0.8, L2=0.8)
 
     Anₚᵣ = [128, 128]
 
@@ -114,7 +114,7 @@ open("solve_outputs075.txt", "w") do io
     end
 
     # =============================================
-    dom = FractionalLaplace2D.disc(b=[3, 3, 3, 3, 4], a=[2, 2, 2, 2, 3], L1=0.8, L2=0.8)
+    dom = FL2D.disc(b=[3, 3, 3, 3, 4], a=[2, 2, 2, 2, 3], L1=0.8, L2=0.8)
 
     Anₚᵣ = [128, 256]
 
@@ -162,7 +162,7 @@ open("solve_outputs05.txt", "w") do io
 
     δ, δclsbd = 0.1, 0.01
 
-    dom = FractionalLaplace2D.disc(b=[1, 1, 1, 1, 1], L1=0.8, L2=0.8)
+    dom = FL2D.disc(b=[1, 1, 1, 1, 1], L1=0.8, L2=0.8)
 
     Anₚᵣ = [32, 32, 32, 32, 64, 64, 64, 128, 128]
 
@@ -196,7 +196,7 @@ open("solve_outputs05.txt", "w") do io
     end
 
     # =============================================
-    dom = FractionalLaplace2D.disc(b=[2, 2, 2, 2, 2], L1=0.8, L2=0.8)
+    dom = FL2D.disc(b=[2, 2, 2, 2, 2], L1=0.8, L2=0.8)
 
     Anₚᵣ = [128, 128]
 
@@ -228,7 +228,7 @@ open("solve_outputs05.txt", "w") do io
     end
 
     # =============================================
-    dom = FractionalLaplace2D.disc(b=[3, 3, 3, 3, 3], L1=0.8, L2=0.8)
+    dom = FL2D.disc(b=[3, 3, 3, 3, 3], L1=0.8, L2=0.8)
 
     Anₚᵣ = [128, 128]
 
@@ -260,7 +260,7 @@ open("solve_outputs05.txt", "w") do io
     end
 
     # =============================================
-    dom = FractionalLaplace2D.disc(b=[3, 3, 3, 3, 4], a=[2, 2, 2, 2, 3], L1=0.8, L2=0.8)
+    dom = FL2D.disc(b=[3, 3, 3, 3, 4], a=[2, 2, 2, 2, 3], L1=0.8, L2=0.8)
 
     Anₚᵣ = [128, 256]
 
@@ -308,7 +308,7 @@ open("solve_outputs025.txt", "w") do io
 
     δ, δclsbd = 0.1, 0.01
 
-    dom = FractionalLaplace2D.disc(b=[1, 1, 1, 1, 1], L1=0.8, L2=0.8)
+    dom = FL2D.disc(b=[1, 1, 1, 1, 1], L1=0.8, L2=0.8)
 
     Anₚᵣ = [32, 32, 32, 32, 64, 64, 64, 128, 128]
 
@@ -342,7 +342,7 @@ open("solve_outputs025.txt", "w") do io
     end
 
     # =============================================
-    dom = FractionalLaplace2D.disc(b=[2, 2, 2, 2, 2], L1=0.8, L2=0.8)
+    dom = FL2D.disc(b=[2, 2, 2, 2, 2], L1=0.8, L2=0.8)
 
     Anₚᵣ = [128, 128]
 
@@ -376,7 +376,7 @@ open("solve_outputs025.txt", "w") do io
     end
 
     # =============================================
-    dom = FractionalLaplace2D.disc(b=[3, 3, 3, 3, 3], L1=0.8, L2=0.8)
+    dom = FL2D.disc(b=[3, 3, 3, 3, 3], L1=0.8, L2=0.8)
 
     Anₚᵣ = [128, 128]
 
@@ -410,7 +410,7 @@ open("solve_outputs025.txt", "w") do io
     end
 
     # =============================================
-    dom = FractionalLaplace2D.disc(b=[3, 3, 3, 3, 4], a=[2, 2, 2, 2, 3], L1=0.8, L2=0.8)
+    dom = FL2D.disc(b=[3, 3, 3, 3, 4], a=[2, 2, 2, 2, 3], L1=0.8, L2=0.8)
 
     Anₚᵣ = [128, 256]
 
@@ -462,7 +462,7 @@ open("solve_outputs9999_direct.txt", "w") do io
 
     δ, δclsbd = 0.1, 0.01
 
-    dom = FractionalLaplace2D.disc(b=[1, 1, 1, 1, 1], L1=0.8, L2=0.8)
+    dom = FL2D.disc(b=[1, 1, 1, 1, 1], L1=0.8, L2=0.8)
 
     Anₚᵣ = [128, 128]
 
@@ -488,7 +488,7 @@ open("solve_outputs9999_direct.txt", "w") do io
     end
 
     # =============================================
-    dom = FractionalLaplace2D.disc(b=[2, 2, 2, 2, 2], L1=0.8, L2=0.8)
+    dom = FL2D.disc(b=[2, 2, 2, 2, 2], L1=0.8, L2=0.8)
 
     nₚᵣ, N = 256, 12
 
@@ -504,7 +504,7 @@ open("solve_outputs9999_direct.txt", "w") do io
     flush(io)
 
     # =============================================
-    dom = FractionalLaplace2D.disc(b=[3, 3, 3, 3, 3], L1=0.8, L2=0.8)
+    dom = FL2D.disc(b=[3, 3, 3, 3, 3], L1=0.8, L2=0.8)
 
     nₚᵣ, N = 256, 12
 
@@ -520,7 +520,7 @@ open("solve_outputs9999_direct.txt", "w") do io
     flush(io)
 
     # =============================================
-    dom = FractionalLaplace2D.disc(b=[5, 5, 5, 5, 5], a=[3, 3, 3, 3, 4], L1=0.8, L2=0.8)
+    dom = FL2D.disc(b=[5, 5, 5, 5, 5], a=[3, 3, 3, 3, 4], L1=0.8, L2=0.8)
 
     nₚᵣ, N = 512, 12
 
@@ -536,7 +536,7 @@ open("solve_outputs9999_direct.txt", "w") do io
     flush(io)
 
     # =============================================
-    dom = FractionalLaplace2D.disc(b=[6, 6, 6, 6, 6], a=[3, 3, 3, 3, 5], L1=0.8, L2=0.8)
+    dom = FL2D.disc(b=[6, 6, 6, 6, 6], a=[3, 3, 3, 3, 5], L1=0.8, L2=0.8)
 
     nₚᵣ, N = 512, 12
 
@@ -552,7 +552,7 @@ open("solve_outputs9999_direct.txt", "w") do io
     flush(io)
 
     # =============================================
-    dom = FractionalLaplace2D.disc(b=[5, 5, 5, 5, 5], a=[3, 3, 3, 3, 4], L1=0.8, L2=0.8)
+    dom = FL2D.disc(b=[5, 5, 5, 5, 5], a=[3, 3, 3, 3, 4], L1=0.8, L2=0.8)
 
     nₚᵣ, N = 1024, 12
 
@@ -580,7 +580,7 @@ open("solve_outputs0999_direct.txt", "w") do io
 
     δ, δclsbd = 0.1, 0.01
 
-    dom = FractionalLaplace2D.disc(b=[1, 1, 1, 1, 1], L1=0.8, L2=0.8)
+    dom = FL2D.disc(b=[1, 1, 1, 1, 1], L1=0.8, L2=0.8)
 
     Anₚᵣ = [128, 128]
 
@@ -606,7 +606,7 @@ open("solve_outputs0999_direct.txt", "w") do io
     end
 
     # =============================================
-    dom = FractionalLaplace2D.disc(b=[2, 2, 2, 2, 2], L1=0.8, L2=0.8)
+    dom = FL2D.disc(b=[2, 2, 2, 2, 2], L1=0.8, L2=0.8)
 
     nₚᵣ, N = 256, 12
 
@@ -622,7 +622,7 @@ open("solve_outputs0999_direct.txt", "w") do io
     flush(io)
 
     # =============================================
-    dom = FractionalLaplace2D.disc(b=[3, 3, 3, 3, 3], L1=0.8, L2=0.8)
+    dom = FL2D.disc(b=[3, 3, 3, 3, 3], L1=0.8, L2=0.8)
 
     nₚᵣ, N = 256, 12
 
@@ -638,7 +638,7 @@ open("solve_outputs0999_direct.txt", "w") do io
     flush(io)
 
     # =============================================
-    dom = FractionalLaplace2D.disc(b=[5, 5, 5, 5, 5], a=[3, 3, 3, 3, 4], L1=0.8, L2=0.8)
+    dom = FL2D.disc(b=[5, 5, 5, 5, 5], a=[3, 3, 3, 3, 4], L1=0.8, L2=0.8)
 
     nₚᵣ, N = 512, 12
 
@@ -654,7 +654,7 @@ open("solve_outputs0999_direct.txt", "w") do io
     flush(io)
 
     # =============================================
-    dom = FractionalLaplace2D.disc(b=[6, 6, 6, 6, 6], a=[3, 3, 3, 3, 5], L1=0.8, L2=0.8)
+    dom = FL2D.disc(b=[6, 6, 6, 6, 6], a=[3, 3, 3, 3, 5], L1=0.8, L2=0.8)
 
     nₚᵣ, N = 512, 12
 
@@ -682,7 +682,7 @@ open("solve_outputs0990_direct.txt", "w") do io
 
     δ, δclsbd = 0.1, 0.01
 
-    dom = FractionalLaplace2D.disc(b=[1, 1, 1, 1, 1], L1=0.8, L2=0.8)
+    dom = FL2D.disc(b=[1, 1, 1, 1, 1], L1=0.8, L2=0.8)
 
     Anₚᵣ = [128, 128]
 
@@ -708,7 +708,7 @@ open("solve_outputs0990_direct.txt", "w") do io
     end
 
     # =============================================
-    dom = FractionalLaplace2D.disc(b=[2, 2, 2, 2, 2], L1=0.8, L2=0.8)
+    dom = FL2D.disc(b=[2, 2, 2, 2, 2], L1=0.8, L2=0.8)
 
     nₚᵣ, N = 256, 12
 
@@ -724,7 +724,7 @@ open("solve_outputs0990_direct.txt", "w") do io
     flush(io)
 
     # =============================================
-    dom = FractionalLaplace2D.disc(b=[3, 3, 3, 3, 3], L1=0.8, L2=0.8)
+    dom = FL2D.disc(b=[3, 3, 3, 3, 3], L1=0.8, L2=0.8)
 
     nₚᵣ, N = 256, 12
 
@@ -740,7 +740,7 @@ open("solve_outputs0990_direct.txt", "w") do io
     flush(io)
 
     # =============================================
-    dom = FractionalLaplace2D.disc(b=[5, 5, 5, 5, 5], a=[3, 3, 3, 3, 4], L1=0.8, L2=0.8)
+    dom = FL2D.disc(b=[5, 5, 5, 5, 5], a=[3, 3, 3, 3, 4], L1=0.8, L2=0.8)
 
     nₚᵣ, N = 512, 12
 
@@ -756,7 +756,7 @@ open("solve_outputs0990_direct.txt", "w") do io
     flush(io)
 
     # =============================================
-    dom = FractionalLaplace2D.disc(b=[6, 6, 6, 6, 6], a=[3, 3, 3, 3, 5], L1=0.8, L2=0.8)
+    dom = FL2D.disc(b=[6, 6, 6, 6, 6], a=[3, 3, 3, 3, 5], L1=0.8, L2=0.8)
 
     nₚᵣ, N = 512, 12
 
@@ -784,7 +784,7 @@ open("solve_outputs0900_direct.txt", "w") do io
 
     δ, δclsbd = 0.1, 0.01
 
-    dom = FractionalLaplace2D.disc(b=[1, 1, 1, 1, 1], L1=0.8, L2=0.8)
+    dom = FL2D.disc(b=[1, 1, 1, 1, 1], L1=0.8, L2=0.8)
 
     AN = [10, 12]
 
@@ -808,7 +808,7 @@ open("solve_outputs0900_direct.txt", "w") do io
     end
 
     # =============================================
-    dom = FractionalLaplace2D.disc(b=[2, 2, 2, 2, 2], L1=0.8, L2=0.8)
+    dom = FL2D.disc(b=[2, 2, 2, 2, 2], L1=0.8, L2=0.8)
 
     nₚᵣ, N = 128, 12
 
@@ -824,7 +824,7 @@ open("solve_outputs0900_direct.txt", "w") do io
     flush(io)
 
     # =============================================
-    dom = FractionalLaplace2D.disc(b=[3, 3, 3, 3, 3], L1=0.8, L2=0.8)
+    dom = FL2D.disc(b=[3, 3, 3, 3, 3], L1=0.8, L2=0.8)
 
     nₚᵣ, N = 128, 12
 
@@ -840,7 +840,7 @@ open("solve_outputs0900_direct.txt", "w") do io
     flush(io)
 
     # =============================================
-    dom = FractionalLaplace2D.disc(b=[5, 5, 5, 5, 5], a=[3, 3, 3, 3, 4], L1=0.8, L2=0.8)
+    dom = FL2D.disc(b=[5, 5, 5, 5, 5], a=[3, 3, 3, 3, 4], L1=0.8, L2=0.8)
 
     nₚᵣ, N = 256, 12
 
@@ -856,7 +856,7 @@ open("solve_outputs0900_direct.txt", "w") do io
     flush(io)
 
     # =============================================
-    dom = FractionalLaplace2D.disc(b=[6, 6, 6, 6, 6], a=[3, 3, 3, 3, 5], L1=0.8, L2=0.8)
+    dom = FL2D.disc(b=[6, 6, 6, 6, 6], a=[3, 3, 3, 3, 5], L1=0.8, L2=0.8)
 
     nₚᵣ, N = 512, 12
 
@@ -884,7 +884,7 @@ open("solve_outputs0750_direct.txt", "w") do io
 
     δ, δclsbd = 0.1, 0.01
 
-    dom = FractionalLaplace2D.disc(b=[1, 1, 1, 1, 1], L1=0.8, L2=0.8)
+    dom = FL2D.disc(b=[1, 1, 1, 1, 1], L1=0.8, L2=0.8)
 
     Anₚᵣ = [128, 128]
 
@@ -910,7 +910,7 @@ open("solve_outputs0750_direct.txt", "w") do io
     end
 
     # =============================================
-    dom = FractionalLaplace2D.disc(b=[2, 2, 2, 2, 2], L1=0.8, L2=0.8)
+    dom = FL2D.disc(b=[2, 2, 2, 2, 2], L1=0.8, L2=0.8)
 
     nₚᵣ, N = 128, 12
 
@@ -926,7 +926,7 @@ open("solve_outputs0750_direct.txt", "w") do io
     flush(io)
 
     # =============================================
-    dom = FractionalLaplace2D.disc(b=[3, 3, 3, 3, 3], L1=0.8, L2=0.8)
+    dom = FL2D.disc(b=[3, 3, 3, 3, 3], L1=0.8, L2=0.8)
 
     nₚᵣ, N = 128, 12
 
@@ -942,7 +942,7 @@ open("solve_outputs0750_direct.txt", "w") do io
     flush(io)
 
     # =============================================
-    dom = FractionalLaplace2D.disc(b=[5, 5, 5, 5, 5], a=[3, 3, 3, 3, 4], L1=0.8, L2=0.8)
+    dom = FL2D.disc(b=[5, 5, 5, 5, 5], a=[3, 3, 3, 3, 4], L1=0.8, L2=0.8)
 
     nₚᵣ, N = 256, 12
 
@@ -958,7 +958,7 @@ open("solve_outputs0750_direct.txt", "w") do io
     flush(io)
 
     # =============================================
-    dom = FractionalLaplace2D.disc(b=[6, 6, 6, 6, 6], a=[3, 3, 3, 3, 5], L1=0.8, L2=0.8)
+    dom = FL2D.disc(b=[6, 6, 6, 6, 6], a=[3, 3, 3, 3, 5], L1=0.8, L2=0.8)
 
     nₚᵣ, N = 256, 12
 
@@ -976,7 +976,7 @@ open("solve_outputs0750_direct.txt", "w") do io
     println(io, "==End of Disc==")
 
     # =============================================
-    # dom = FractionalLaplace2D.disc(b=[6, 6, 6, 6, 6], a=[4, 4, 4, 4, 5], L1=0.8, L2=0.8)
+    # dom = FL2D.disc(b=[6, 6, 6, 6, 6], a=[4, 4, 4, 4, 5], L1=0.8, L2=0.8)
     # nₚᵣ, N = 256, 12 ; dₙₕ = 1 :--> this yields 2.30e-12 Max rel error
 
 end
@@ -990,7 +990,7 @@ open("solve_outputs0500_direct.txt", "w") do io
 
     δ, δclsbd = 0.1, 0.01
 
-    dom = FractionalLaplace2D.disc(b=[1, 1, 1, 1, 1], L1=0.8, L2=0.8)
+    dom = FL2D.disc(b=[1, 1, 1, 1, 1], L1=0.8, L2=0.8)
 
     Anₚᵣ = [128, 128]
 
@@ -1016,7 +1016,7 @@ open("solve_outputs0500_direct.txt", "w") do io
     end
 
     # =============================================
-    dom = FractionalLaplace2D.disc(b=[2, 2, 2, 2, 2], L1=0.8, L2=0.8)
+    dom = FL2D.disc(b=[2, 2, 2, 2, 2], L1=0.8, L2=0.8)
 
     nₚᵣ, N = 128, 12
 
@@ -1032,7 +1032,7 @@ open("solve_outputs0500_direct.txt", "w") do io
     flush(io)
 
     # =============================================
-    dom = FractionalLaplace2D.disc(b=[3, 3, 3, 3, 3], L1=0.8, L2=0.8)
+    dom = FL2D.disc(b=[3, 3, 3, 3, 3], L1=0.8, L2=0.8)
 
     nₚᵣ, N = 128, 12
 
@@ -1048,7 +1048,7 @@ open("solve_outputs0500_direct.txt", "w") do io
     flush(io)
 
     # =============================================
-    dom = FractionalLaplace2D.disc(b=[5, 5, 5, 5, 5], a=[3, 3, 3, 3, 4], L1=0.8, L2=0.8)
+    dom = FL2D.disc(b=[5, 5, 5, 5, 5], a=[3, 3, 3, 3, 4], L1=0.8, L2=0.8)
 
     nₚᵣ, N = 256, 12
 
@@ -1064,7 +1064,7 @@ open("solve_outputs0500_direct.txt", "w") do io
     flush(io)
 
     # =============================================
-    dom = FractionalLaplace2D.disc(b=[6, 6, 6, 6, 6], a=[3, 3, 3, 3, 5], L1=0.8, L2=0.8)
+    dom = FL2D.disc(b=[6, 6, 6, 6, 6], a=[3, 3, 3, 3, 5], L1=0.8, L2=0.8)
 
     nₚᵣ, N = 256, 12
 
@@ -1080,7 +1080,7 @@ open("solve_outputs0500_direct.txt", "w") do io
     flush(io)
 
     # =============================================
-    dom = FractionalLaplace2D.disc(b=[6, 6, 6, 6, 6], a=[3, 3, 3, 3, 5], L1=0.8, L2=0.8)
+    dom = FL2D.disc(b=[6, 6, 6, 6, 6], a=[3, 3, 3, 3, 5], L1=0.8, L2=0.8)
 
     nₚᵣ, N = 512, 12
 

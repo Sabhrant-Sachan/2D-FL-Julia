@@ -24,9 +24,9 @@ function Axintpth!(v::SubArray{Float64}, kM::Int, IntS::Matrix{Float64},
     end
 
     # --------- interior rows  ---------
-    Lₚ = M * Np
+    Ni = M * Np
 
-    @inbounds for row in 1:Lₚ
+    @inbounds for row in 1:Ni
 
         x1 = dp.tgtpts[1, row]
         x2 = dp.tgtpts[2, row]
@@ -106,8 +106,9 @@ function Axintpth!(v::SubArray{Float64}, kM::Int, IntS::Matrix{Float64},
     # --------- Part 2: boundary rows (if s < 0.5) ---------
     if s < 0.5
 
-        Lₚₘ = Lₚ + 1
-        Lₚₙ = Lₚ + Mbd * N
+        Nb = Mbd * N
+        Lₚₘ = Ni + 1
+        Lₚₙ = Ni + Nb
 
         @inbounds for row in Lₚₘ:Lₚₙ
 

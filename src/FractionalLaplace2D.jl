@@ -1,4 +1,4 @@
-module FractionalLaplace2D
+module FL2D
 
 # --- Standard libs ---
 using LinearAlgebra

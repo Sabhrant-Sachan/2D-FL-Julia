@@ -511,7 +511,7 @@ struct SolveView
 end
 
 function show(io::IO, ::MIME"text/plain", v::SolveView)
-    println(io, "================ FractionalLaplace2D ================")
+    println(io, "================ FractionalLaplacian2D ================")
 
     # build a postprocessed Result using current opts
     res = solveFL_post(v.prob, v.core; opts=v.opts)

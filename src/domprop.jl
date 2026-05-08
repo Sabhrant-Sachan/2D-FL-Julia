@@ -1,28 +1,29 @@
-"""
-Distance-to-boundary record for each target point `x`
-[d,l,t] such that d = | x - γ_l(t) |
-"""
-struct distrec
-    d::Float64   # distance to boundary of the domain
-    l::Int       # boundary patch index achieving the min distance
-    t::Float64   # local parameter on that boundary curve
-end
-
-@inline packkey(i::Int, j::Int) =(UInt64(i) << 32) | UInt64(j)
+@inline packkey(i::Int, k::Int) = (UInt64(i) << 32) | UInt64(k)
 
 mutable struct domprop
     N::Int
     del::Float64
-    
-    delclsbd::Float64
-    delfarbd::Float64
+    del_bd::Float64
 
-    # lookups: packkey(global target col, integration patch k) -> column in prepts
+    # hmap[packkey(i,k)] = colp
+    # i = global target column in tgtpts
+    # k = actual volume integration patch index
+    # colp = column in prepts
     hmap::Dict{UInt64,Int}
 
-    # grouped data: M = d.Npat, Mbd = |dom.kd|
-    # 2 × (M*N^2 + Mbd*N), representing number of tgt pts
-    # 1st and 2nd row are x and y points in real space of tgt pt resp.
+    # Ni is number of interior targets
+    # hmap_bd[packkey(i,k)] = colpbd
+    # i = interior target column, 1:Ni
+    # k = actual boundary integration patch index, i.e. one of dom.kd
+    # colpbd = column in prepts_bd / projpts
+    hmap_bd::Dict{UInt64,Int}
+
+    # Nb is number of boundary targets
+    # 2 × (Ni + Nb)
+    # First row is x coordinates, second y coordinate
+    # columns 1:Ni are interior targets
+    # columns Ni+1:Ni+Nb are boundary targets
+    tgtpts::Matrix{Float64}
     # The patch in which the point is present is given by 
     # (Let i denote the column index of target point, then)
     # ℓ = ceil(i/Np), if i<=M*Np (interioir target point)
@@ -34,487 +35,389 @@ mutable struct domprop
     #       t = ( cospi((2j₁-1)/(2N)), cospi((2j₂-1)/(2N)) )
     # j = i - M*Np - (k₀ - 1)*N, if i>M*Np
     #                   t = cospi((2j-1)/(2N))
-    #
-    tgtpts::Matrix{Float64}  
 
-    # 2 × (M*N^2 + Mbd*N + Tnsp), representing number of pre pts
-    # 1st and 2nd row are column index of tgt pt and int. patch k resp.
-    prepts::Matrix{Int}   
+    # 2 × (Ni + Nb + Tnsp)
+    # row 1 = global target column i
+    # row 2 = actual integration patch k
+    prepts::Matrix{Int}
 
-    # 2 × Tnsp (inverse images for near-singulars)
-    invpts::Matrix{Float64}  
+    # 2 × Tnsp_bd
+    # row 1 = interior target column i
+    # row 2 = actual boundary integration patch k
+    prepts_bd::Matrix{Int}
 
-    # A Matrix with M*N^2 columns in which 1st row represents which interior 
-    #target pt is close to the boundary. (target-tgt boundary-bd boolean-b matrix-m)
-    # tgtbdbm[1, i] = true implies ith interior tgt point close to bd
-    # tgtbdbm[2, i] = true implies ith interior tgt point far from bd
-    tgtbdbm::Matrix{Bool}    
+    # 2 × Tnsp
+    # inverse local coordinates for near-singular volume interactions
+    invpts::Matrix{Float64}
 
-    # For all points which are close to the bd, store distrec struct. 
-    distpts::Vector{distrec} 
+    # length Tnsp_bd
+    # projected local boundary parameter for near-singular boundary interactions
+    projpts::Vector{Float64}
 
-    # bookkeeping
-    pthgo::Vector{Int}   # length M+1 (starts in pre for each patch; last entry=boundary start)
-    nspsz::Vector{Int}   # length M+1 (near-singular counts per patch; last entry=boundary block)
+    # pthgo[k] = first column in prepts for actual volume patch k
+    # pthgo[M+1] = first column of the regular boundary-target block in prepts
+    pthgo::Vector{Int}
 
-    function domprop(N::Integer, del::Float64, delclsbd::Float64, dom::D) where {D<:abstractdomain}
-        #JNote that Julia is a column major language
+    # nspsz[k] = number of interior targets near volume patch k
+    # nspsz[M+1] = total number of boundary targets near volume patches
+    nspsz::Vector{Int}
 
-        M = dom.Npat            # number of patches
-        Np = N^2                # points per patch (interior)
+    function domprop(N::Integer, del::Float64, del_bd::Float64, dom::D) where {D<:abstractdomain}
+        # ---------------------------------------------------------------------
+        # Notation used inside this constructor only
+        # ---------------------------------------------------------------------
+        # M       number of volume patches
+        # Mbd     number of boundary patches
+        # Np      number of tensor-product nodes per volume patch, N^2
+        # Ni      number of interior targets, M*Np
+        # Nb      number of boundary targets, Mbd*N
+        # Nt      total number of targets, Ni+Nb
+        #
+        # k       actual patch index
+        # kb      boundary-local patch index, 1:Mbd
+        # kt      actual target patch index
+        # ibp     boundary-local patch index containing a boundary target
+        #
+        # i       global target column in tgtpts
+        # ib      boundary-local target index, 1:Nb
+        # ip      local node index inside a patch
+        #
+        # colp    column in prepts
+        # coli    column in invpts
+        # colpbd  column in prepts_bd and projpts
+        #
+        # nsp_i   number of interior targets near each volume patch, length M
+        # nsp_b   number of boundary targets near each volume patch, length M
+        # nsp_bd  number of interior targets near each boundary patch, length Mbd
+        #
+        # Xi      view of interior target coordinates, tgtpts[:, 1:Ni]
+        # Xb      view of boundary target coordinates, tgtpts[:, Ni+1:Nt]
+        # in_i    inside mask for Xi, length Ni
+        # in_b    inside mask for Xb, length Nb
+        # ---------------------------------------------------------------------
 
-        Mbd = length(dom.kd)    # number of patches touching the boundary
+        M = dom.Npat
+        Mbd = length(dom.kd)
+        Np = N^2
+        Ni = M * Np
+        Nb = Mbd * N
+        Nt = Ni + Nb
 
-        nint = M * Np           # Total points in interior
-        nbdy = Mbd * N          # Total points on boundary
+        snap1(x) = abs(x - 1.0) < 1e-14 ? 1.0 : abs(x + 1.0) < 1e-14 ? -1.0 : x
 
-        # --- 1) Build target points (interior first then boundary) ---
-        tgtpts = Matrix{Float64}(undef, 2, nint + nbdy)
+        # ---------------------------------------------------------------------
+        # 1. Chebyshev nodes and target points
+        # ---------------------------------------------------------------------
+        tgtpts = Matrix{Float64}(undef, 2, Nt)
 
-        #A Column vector or just vector in Julia
         z = Vector{Float64}(undef, N)
+        @inbounds for ip in 1:N
+            z[ip] = cospi((2*ip - 1) / (2N))
+        end
 
-        for j in 1:N z[j] = cospi((2*j - 1)/(2N)) end
-
-        #===
-        For row vectors x,y in matlab with length nx and ny
-        [Y,X]=meshgrid(y,x) is equivalent to the following:
-        Y = ones(nx,1) .* y and X = x' .* ones(1,ny).
-        But notice that here z is a column vector.
-        For column vector x and y, in matlab we could also 
-        write Y = repmat(y',nx,1) and X = repmat(x,1,ny)
-        NOTE : Use reshape if data is complex!
-        The line "[zy,zx] = meshgrid(z);" converts to
-        ===#
         zx = repeat(z, 1, N)
         zy = repeat(z', N, 1)
 
-        #Collection of all interioir points
-        @views Xint = tgtpts[:, 1:nint]
-        #Collection of all boundary points
-        @views Xbdy = tgtpts[:, nint+1:nint + nbdy]
+        @views Xi = tgtpts[:, 1:Ni]
+        @views Xb = tgtpts[:, Ni+1:Nt]
 
-        # Preallocate X, Y and x,y
         X = similar(zx)
         Y = similar(zy)
         x = similar(z)
         y = similar(z)
 
-        i, ℓ = 1, 1
-        for k in 1:M
-            mapxy!(X, Y, dom, zx, zy, k)      # X,Y are N×N
-            # fill N^2 targpt records 
-            @inbounds for j in 1:Np
-                Xint[1, i] = X[j]
-                Xint[2, i] = Y[j]
-                i += 1
-            end
-        end
-
-        # boundary Chebyshev nodes on each boundary curve
-        for k in dom.kd
-            gamx!(x, dom, z, k)  # length N
-            gamy!(y, dom, z, k)  # length N
-            @inbounds for j in 1:N
-                Xbdy[1, ℓ] = x[j]
-                Xbdy[2, ℓ] = y[j]
-                i += 1
-                ℓ += 1
-            end
-        end
-
-        #------------ 2. Count near-singulars to preallocate ------------
-        # For each integration patch k, we’ll gather which *target* indices are
-        # near-singular w.r.t. k. 
-        pthgo = zeros(Int, M + 1)
-        nspsz = zeros(Int, M + 1)
-
-        nspsz_int = zeros(Int, M)
-        nspsz_bd  = zeros(Int, M)
-
-        
-        near_off_int = Vector{Int}(undef, M+1)
-        near_off_bd  = Vector{Int}(undef, M+1)
-        writepos_int = Vector{Int}(undef, M+1)
-        writepos_bd  = Vector{Int}(undef, M+1)
-
-        # Extended quad for each k
-        Q = dom.Qpts    # 8×M (each column is [P1...P4]’)
-        Qe = similar(Q)
+        i = 1
         @inbounds for k in 1:M
-            @views V1 = Qe[:, k]
-            @views V2 = Q[:, k]
-            extendqua!(V1, V2, del)
+            mapxy!(X, Y, dom, zx, zy, k)
+
+            for ip in 1:Np
+                Xi[1, i] = X[ip]
+                Xi[2, i] = Y[ip]
+                i += 1
+            end
         end
 
-        insideint = Vector{Bool}(undef, nint)
-        insidebdy = Vector{Bool}(undef, nbdy)
+        col = 1
+        @inbounds for k in dom.kd
+            gamx!(x, dom, z, k)
+            gamy!(y, dom, z, k)
 
+            for ip in 1:N
+                Xb[1, col] = x[ip]
+                Xb[2, col] = y[ip]
+                col += 1
+            end
+        end
+
+        # ---------------------------------------------------------------------
+        # 2. Extended quadrilaterals and near-singular counts
+        # ---------------------------------------------------------------------
+        Q = dom.Qpts
+        Qe = similar(Q)
+
+        @inbounds for k in 1:M
+            @views extendqua!(Qe[:, k], Q[:, k], del)
+        end
+
+        Qbd = dom.Qptsbd
+        Qebd = similar(Qbd)
+
+        @inbounds for kb in 1:Mbd
+            @views extendqua!(Qebd[:, kb], Qbd[:, kb], del_bd)
+        end
+
+        in_i = Vector{Bool}(undef, Ni)
+        in_b = Vector{Bool}(undef, Nb)
+
+        nsp_i = zeros(Int, M)
+        nsp_b = zeros(Int, M)
+        nsp_bd = zeros(Int, Mbd)
+
+        # Count interior and boundary targets near each volume patch.
         @inbounds for k in 1:M
             P1x, P1y = Qe[1, k], Qe[2, k]
             P2x, P2y = Qe[3, k], Qe[4, k]
             P3x, P3y = Qe[5, k], Qe[6, k]
             P4x, P4y = Qe[7, k], Qe[8, k]
 
-            ptinqua!(insideint, Xint, P1x, P1y, P2x, P2y, P3x, P3y, P4x, P4y)
-            ptinqua!(insidebdy, Xbdy, P1x, P1y, P2x, P2y, P3x, P3y, P4x, P4y)
+            ptinqua!(in_i, Xi, P1x, P1y, P2x, P2y, P3x, P3y, P4x, P4y)
+            ptinqua!(in_b, Xb, P1x, P1y, P2x, P2y, P3x, P3y, P4x, P4y)
 
             cnt = 0
-            @inbounds for i in 1:nint
-                if insideint[i] && cld(i, Np) != k
+            for i in 1:Ni
+                kt = cld(i, Np)
+                if in_i[i] && kt != k
                     if isnsp(dom, tgtpts[1, i], tgtpts[2, i], k, del)
                         cnt += 1
                     end
                 end
             end
-
-            nspsz_int[k] = cnt
+            nsp_i[k] = cnt
 
             cnt = 0
-            @inbounds for i in 1:nbdy
-                ti = nint + i
-                kₒ = cld(i, N)
-                if insidebdy[i] && dom.kd[kₒ] != k
-                    if isnsp(dom, tgtpts[1, ti], tgtpts[2, ti], k, del)
-                         cnt += 1
+            for ib in 1:Nb
+                i = Ni + ib
+                ibp = cld(ib, N)
+                kt = dom.kd[ibp]
+
+                if in_b[ib] && kt != k
+                    if isnsp(dom, tgtpts[1, i], tgtpts[2, i], k, del)
+                        cnt += 1
                     end
                 end
             end
-            nspsz_bd[k] = cnt
-
+            nsp_b[k] = cnt
         end
 
-        near_off_int[1] = 1
-        near_off_bd[1] = 1
+        # Count interior targets near each boundary patch.
+        @inbounds for kb in 1:Mbd
+            k = dom.kd[kb]
+
+            P1x, P1y = Qebd[1, kb], Qebd[2, kb]
+            P2x, P2y = Qebd[3, kb], Qebd[4, kb]
+            P3x, P3y = Qebd[5, kb], Qebd[6, kb]
+            P4x, P4y = Qebd[7, kb], Qebd[8, kb]
+
+            ptinqua!(in_i, Xi, P1x, P1y, P2x, P2y, P3x, P3y, P4x, P4y)
+
+            cnt = 0
+            for i in 1:Ni
+                if in_i[i]
+                    if isnspbd(dom, tgtpts[1, i], tgtpts[2, i], k, del_bd)
+                        cnt += 1
+                    end
+                end
+            end
+            nsp_bd[kb] = cnt
+        end
+
+        Tnsp_i = sum(nsp_i)
+        Tnsp_b = sum(nsp_b)
+        Tnsp = Tnsp_i + Tnsp_b
+        Tnsp_bd = sum(nsp_bd)
+
+        # ---------------------------------------------------------------------
+        # 3. Layout arrays and output allocation
+        # ---------------------------------------------------------------------
+        pthgo = zeros(Int, M + 1)
+        nspsz = zeros(Int, M + 1)
+
+        colp = 1
+        @inbounds for k in 1:M
+            pthgo[k] = colp
+            nspsz[k] = nsp_i[k]
+            colp += Np + nsp_i[k]
+        end
+        pthgo[M+1] = colp
+        nspsz[M+1] = Tnsp_b
+
+        hmap = Dict{UInt64,Int}()
+        sizehint!(hmap, Tnsp)
+
+        hmap_bd = Dict{UInt64,Int}()
+        sizehint!(hmap_bd, Tnsp_bd)
+
+        prepts = Matrix{Int}(undef, 2, Ni + Nb + Tnsp)
+        invpts = Matrix{Float64}(undef, 2, Tnsp)
+
+        prepts_bd = Matrix{Int}(undef, 2, Tnsp_bd)
+        projpts = Vector{Float64}(undef, Tnsp_bd)
+
+        # ---------------------------------------------------------------------
+        # 4. Inversion tables
+        # ---------------------------------------------------------------------
+        Nr = dom.pths[M].reg
+        ftbs = Vector{FTable}(undef, Nr)
+
+        @inbounds for r in 1:Nr
+            ftbs[r] = inFTable(10_001)
+            fill_FTable!(ftbs[r], dom, r)
+        end
+
+        # ---------------------------------------------------------------------
+        # 5. Fill prepts and invpts for volume integrations
+        # ---------------------------------------------------------------------
+        coli = 1
 
         @inbounds for k in 1:M
-            near_off_int[k+1] = near_off_int[k] + nspsz_int[k]
-            near_off_bd[k+1]  = near_off_bd[k]  +  nspsz_bd[k]
+            colp = pthgo[k]
+
+            # Regular self-patch interior targets.
+            for ip in 1:Np
+                i = (k - 1) * Np + ip
+
+                prepts[1, colp] = i
+                prepts[2, colp] = k
+
+                colp += 1
+            end
+
+            # Near-singular interior targets for volume patch k.
+            P1x, P1y = Qe[1, k], Qe[2, k]
+            P2x, P2y = Qe[3, k], Qe[4, k]
+            P3x, P3y = Qe[5, k], Qe[6, k]
+            P4x, P4y = Qe[7, k], Qe[8, k]
+
+            ptinqua!(in_i, Xi, P1x, P1y, P2x, P2y, P3x, P3y, P4x, P4y)
+
+            for i in 1:Ni
+                kt = cld(i, Np)
+
+                if in_i[i] && kt != k
+                    if isnsp(dom, tgtpts[1, i], tgtpts[2, i], k, del)
+                        prepts[1, colp] = i
+                        prepts[2, colp] = k
+                        hmap[packkey(i, k)] = colp
+
+                        src_reg = dom.pths[k].reg
+
+                        if src_reg == dom.pths[kt].reg
+                            ip = i - (kt - 1) * Np
+                            q, r = divrem(ip - 1, N)
+                            Zx, Zy = mapinv2(dom, z[r+1], z[q+1], kt, k)
+                        else
+                            ftb = ftbs[src_reg]
+                            Zx, Zy = mapinv(ftb, dom, tgtpts[1, i], tgtpts[2, i], k)
+                        end
+
+                        invpts[1, coli] = snap1(Zx)
+                        invpts[2, coli] = snap1(Zy)
+
+                        colp += 1
+                        coli += 1
+                    end
+                end
+            end
         end
 
-        Tnsp_int = near_off_int[M+1] - 1
-        Tnsp_bd = near_off_bd[M+1] - 1
+        # Regular boundary targets.
+        colp = pthgo[M+1]
 
-        near_int_all = Vector{Int}(undef, Tnsp_int)
-        near_bd_all = Vector{Int}(undef, Tnsp_bd)
+        @inbounds for ib in 1:Nb
+            i = Ni + ib
+            ibp = cld(ib, N)
+            kt = dom.kd[ibp]
 
-        Tnsp = Tnsp_int + Tnsp_bd
+            prepts[1, colp] = i
+            prepts[2, colp] = kt
 
-        copy!(writepos_int, near_off_int)
-        copy!( writepos_bd, near_off_bd )
+            colp += 1
+        end
 
+        # Near-singular boundary targets for volume patch k.
         @inbounds for k in 1:M
             P1x, P1y = Qe[1, k], Qe[2, k]
             P2x, P2y = Qe[3, k], Qe[4, k]
             P3x, P3y = Qe[5, k], Qe[6, k]
             P4x, P4y = Qe[7, k], Qe[8, k]
 
-            ptinqua!(insideint, Xint, P1x, P1y, P2x, P2y, P3x, P3y, P4x, P4y)
-            ptinqua!(insidebdy, Xbdy, P1x, P1y, P2x, P2y, P3x, P3y, P4x, P4y)
+            ptinqua!(in_b, Xb, P1x, P1y, P2x, P2y, P3x, P3y, P4x, P4y)
 
-            @inbounds for i in 1:nint
-                if insideint[i] && cld(i, Np) != k
+            for ib in 1:Nb
+                i = Ni + ib
+                ibp = cld(ib, N)
+                kt = dom.kd[ibp]
+
+                if in_b[ib] && kt != k
                     if isnsp(dom, tgtpts[1, i], tgtpts[2, i], k, del)
-                        pos = writepos_int[k]
-                        near_int_all[pos] = i
-                        writepos_int[k] = pos + 1
+                        prepts[1, colp] = i
+                        prepts[2, colp] = k
+                        hmap[packkey(i, k)] = colp
+
+                        src_reg = dom.pths[k].reg
+
+                        if src_reg == dom.pths[kt].reg
+                            ip = ib - (ibp - 1) * N
+                            Zx, Zy = mapinv2(dom, 1.0, z[ip], kt, k)
+                        else
+                            ftb = ftbs[src_reg]
+                            Zx, Zy = mapinv(ftb, dom, tgtpts[1, i], tgtpts[2, i], k)
+                        end
+
+                        invpts[1, coli] = snap1(Zx)
+                        invpts[2, coli] = snap1(Zy)
+
+                        colp += 1
+                        coli += 1
                     end
                 end
             end
+        end
 
-            @inbounds for i in 1:nbdy
-                ti = nint + i
-                kₒ = cld(i, N)
-                if insidebdy[i] && dom.kd[kₒ] != k
-                    if isnsp(dom, tgtpts[1, ti], tgtpts[2, ti], k, del)
-                        pos = writepos_bd[k]
-                        near_bd_all[pos] = ti
-                        writepos_bd[k] = pos + 1
+        # ---------------------------------------------------------------------
+        # 6. Fill prepts_bd and projpts for boundary integrations
+        # ---------------------------------------------------------------------
+        colpbd = 1
+
+        @inbounds for kb in 1:Mbd
+            k = dom.kd[kb]
+
+            P1x, P1y = Qebd[1, kb], Qebd[2, kb]
+            P2x, P2y = Qebd[3, kb], Qebd[4, kb]
+            P3x, P3y = Qebd[5, kb], Qebd[6, kb]
+            P4x, P4y = Qebd[7, kb], Qebd[8, kb]
+
+            ptinqua!(in_i, Xi, P1x, P1y, P2x, P2y, P3x, P3y, P4x, P4y)
+
+            for i in 1:Ni
+                if in_i[i]
+                    if isnspbd(dom, tgtpts[1, i], tgtpts[2, i], k, del_bd)
+                        prepts_bd[1, colpbd] = i
+                        prepts_bd[2, colpbd] = k
+                        hmap_bd[packkey(i, k)] = colpbd
+
+                        τ = projbd(dom, tgtpts[1, i], tgtpts[2, i], k)
+                        projpts[colpbd] = snap1(τ)
+
+                        colpbd += 1
                     end
                 end
             end
-
         end
 
-        #Now updating pthgo and nspsz
-        @inbounds for k in 1:M
-            nspsz[k] = nspsz_int[k]
-        end
-
-        nspsz[M+1] = sum(nspsz_bd)
-
-        startpth = 1
-        @inbounds for k in 1:M
-            pthgo[k] = startpth
-            startpth += Np + nspsz_int[k]   # Np interior + near-singulars for patch k
-        end
-        pthgo[M+1] = startpth
-
-        #-------------------- 3) Preallocate prepts / invpts  --------------------
-        # Layout of prepts:
-        # For each k = 1..M, a block of Np interior points (with integration k),
-        # followed by nspsz[k] near-singulars (with integration k).
-        # Then one big block of boundary targets (nbd) with integration l=tgt.l,
-        # followed by all boundary near-singulars (distributed over k).
-        hmap = Dict{UInt64,Int}()
-        sizehint!(hmap, Tnsp)  # number of pairs I expect to insert
-
-        prepts = Matrix{Int}(undef, 2, nint + nbdy + Tnsp)
-        invpts = Matrix{Float64}(undef, 2, Tnsp) 
-        # # ------------- 4) Fill prepts/ invpts and hash maps -------------
-
-        Nr = dom.pths[M].reg #Total number of regions in domain, 5 for disc 
-
-        #Adding interioir pts + near singular
-        ℓ, ℓi = 1, 1
-
-        ftbs = Vector{FTable}(undef, Nr)
-
-        for r in 1:Nr
-            ftbs[r] = inFTable(10_001)     
-            fill_FTable!(ftbs[r], dom, r)  # prefill for this region
-        end
-
-        for j in 1:M
-
-            for i in 1:Np
-
-                prepts[1, ℓ] = (j - 1) * Np + i
-                prepts[2, ℓ] = j 
-
-                ℓ += 1
-
-            end
-
-            for t in near_off_int[j]:(near_off_int[j+1]-1)
-
-                i = near_int_all[t]
-
-                tpl = cld(i, Np)
-
-                prepts[1, ℓ] = i
-                prepts[2, ℓ] = j
-
-                hmap[packkey(i, j)] = ℓ
-            
-                #region of the jth patch 
-                ξ = dom.pths[j].reg
-
-                #We now compute the inverse of the near singular 
-                #points with respect to patch j, if ith target point
-                #is in the same "region" as the jth patch, then use
-                #mapinv2, otherwise use mapinv
-                if ξ == dom.pths[tpl].reg
-
-                    tpj = i - (tpl - 1)*Np
-
-                    q, r = divrem(tpj - 1, N)
-
-                    #j1, j2 = r + 1, q + 1 
-
-                    #t1 = cospi((2*r+1)/(2*N)); t2 = cospi((2*q+1)/(2*N));
-
-                    Zx, Zy = mapinv2(dom, z[r+1], z[q+1], tpl, j)
-
-                else
-                    tpx = tgtpts[1, i]
-                    tpy = tgtpts[2, i]
-                    ftb = ftbs[ξ]
-
-                    Zx, Zy = mapinv(ftb, dom, tpx, tpy, j)
-                end
-
-                Zx = abs(Zx - 1) < 1e-14 ? 1 :
-                     abs(Zx + 1) < 1e-14 ? -1 : Zx
-
-                Zy = abs(Zy - 1) < 1e-14 ? 1 :
-                     abs(Zy + 1) < 1e-14 ? -1 : Zy
-
-                invpts[1, ℓi] = Zx
-                invpts[2, ℓi] = Zy
-
-                ℓ, ℓi = ℓ + 1, ℓi + 1
-
-            end
-
-        end
-
-        #adding boundary points + near singular    
-        for i in 1:N*Mbd
-
-            prepts[1, ℓ] = M*Np+i
-            prepts[2, ℓ] = cld(i, N)
-
-            ℓ += 1
-
-        end
-
-        for j = 1:M
-
-            for t in near_off_bd[j]:(near_off_bd[j+1]-1)
-
-                i = near_bd_all[t]
-
-                k₀ = cld(i - M*Np, N) 
-
-                tpl = dom.kd[k₀]
-
-                prepts[1, ℓ] = i
-                prepts[2, ℓ] = j 
-
-                hmap[packkey(i, j)] = ℓ
-
-                #region of the jth patch 
-                ξ = dom.pths[j].reg
-
-                if ξ == dom.pths[tpl].reg
-
-                    tpj = i - M*Np - (k₀ - 1)*N
-
-                    Zx, Zy = mapinv2(dom, 1.0, z[tpj], tpl, j)
-
-                else
-                    tpx = tgtpts[1, i]
-                    tpy = tgtpts[2, i]
-                    ftb = ftbs[ξ]
-
-                    Zx, Zy = mapinv(ftb, dom, tpx, tpy, j)
-
-                end
-
-                Zx = abs(Zx - 1) < 1e-14 ? 1 :
-                     abs(Zx + 1) < 1e-14 ? -1 : Zx
-
-                Zy = abs(Zy - 1) < 1e-14 ? 1 :
-                     abs(Zy + 1) < 1e-14 ? -1 : Zy
-
-                invpts[1, ℓi] = Zx
-                invpts[2, ℓi] = Zy
-
-                ℓ, ℓi = ℓ + 1, ℓi + 1
-            end
-
-        end
-
-        # ------------ 5) Distance-to-boundary for *interior* targets ------------
-        delfarbd = 0.4          # Default. 
-
-        # tgtbdbm has length M*Np, assume no point is close to bd 
-        # and all points are far from the bd
-        tgtbdbm = Matrix{Bool}(undef, 2, M * Np)
-
-        #row 1: True = close to boundary
-        #row 2: True = far from boundary
-        @inbounds for j in 1:M*Np
-            tgtbdbm[1, j] = false   # all pts are not close
-            tgtbdbm[2, j] = true    # all pts are far
-        end
-
-        Qbd = dom.Qptsbd
-        PE = similar(Qbd)
-        W = Vector{Float64}(undef, 8)
-
-        @inbounds for i in 1:Mbd
-            @views V = PE[:, i]
-            @views U = Qbd[:, i]
-            extendqua!(V, U, delclsbd)
-            extendqua!(W, U, delfarbd)
-
-            ptinqua!(insideint, Xint, V[1], V[2], V[3], V[4], V[5], V[6], V[7], V[8])
-            @inbounds for j in 1:nint
-                if insideint[j]
-                    tgtbdbm[1, j] = true
-                end
-            end
-
-            ptinqua!(insideint, Xint, W[1], W[2], W[3], W[4], W[5], W[6], W[7], W[8])
-            @inbounds for j in 1:nint
-                if insideint[j]
-                    tgtbdbm[2, j] = false
-                end
-            end
-        end
-
-        nclose = sum(@view tgtbdbm[1, :])
-        distpts = Vector{distrec}(undef, nclose)
-        bdx = Vector{Int}(undef, Mbd)
-
-        ℓbd = 0
-        #fill distpts
-        for i in 1:nint
-
-            # Point in inside δclsbd quadrilateral,
-            # but not actually be close to bd
-            if tgtbdbm[1, i]
-
-                ℓbdx = 0
-
-                x1 = tgtpts[1, i]
-                x2 = tgtpts[2, i]
-
-                for k in 1:Mbd
-
-                    P1x, P1y = PE[1, k], PE[2, k]
-                    P2x, P2y = PE[3, k], PE[4, k]
-                    P3x, P3y = PE[5, k], PE[6, k]
-                    P4x, P4y = PE[7, k], PE[8, k]
-
-                    @views PQ = PE[:, k]
-                    if ptinqua(x1, x2, P1x, P1y, P2x, P2y, P3x, P3y, P4x, P4y)
-                        ℓbdx += 1
-                        bdx[ℓbdx] = dom.kd[k]
-                    end
-
-                end
-
-                # choose l with smallest distance by a quick 1D search
-                ℓ = bdx[1]
-
-                dmin, _ = GSS(dist_gam, -1.0, 1.0, 1e-8, dom, x1, x2, ℓ)
-
-                for ℓℓ in 1:ℓbdx
-
-                    k = bdx[ℓℓ]
-
-                    dmin2, _ = GSS(dist_gam, -1.0, 1.0, 1e-8, dom, x1, x2, k)
-
-                    if dmin2 < dmin
-                        dmin = dmin2
-                        ℓ = k
-                    end
-
-                end
-
-                if dmin < delclsbd
-
-                    ℓbd += 1
-
-                    # refine location using your GSS+Bis
-                    _, t0 = GSS(dist_gam, -1.0, 1.0, 1e-15, dom, x1, x2, ℓ)
-
-                    tloc = Bis(dist_gamBis, -1.0, 1.0, t0, 64, dom, x1, x2, ℓ)
-
-                    distpts[ℓbd] = distrec(dmin, ℓ, tloc)
-
-                else
-
-                    tgtbdbm[1, i] =  false
-
-                    nclose = nclose - 1
-
-                    resize!(distpts, nclose)
-
-                end
-                
-           end
-
-        end
-
-        new(N, del, delclsbd, delfarbd, hmap, tgtpts, prepts,
-            invpts, tgtbdbm, distpts, pthgo, nspsz)
-
+        return new(N, del, del_bd, hmap, hmap_bd, tgtpts,
+                   prepts, prepts_bd, invpts, projpts, pthgo, nspsz)
     end
-
 end
 
 function plotdp(dp::domprop, d::abstractdomain; label=:none)
@@ -635,7 +538,7 @@ function plotbm(dp::domprop, d::abstractdomain)
         @views P = d.Qptsbd[:, k] 
         # 8-vector: [x1,y1,x2,y2,x3,y3,x4,y4] 
         # -- draw δcls-extended quadrilateral --
-        extendqua!(Pext, P, dp.delclsbd) 
+        extendqua!(Pext, P, dp.del_bd) 
         lines!(ax, Pext[ix], Pext[iy], color=:black, linewidth=2) 
         # -- draw δfar-extended quadrilateral -- 
         #extendqua!(Pext, P, dp.delfarbd) 
@@ -1386,8 +1289,7 @@ function Base.show(io::IO, ::MIME"text/plain", d::domprop)
     println(io, "domain properties:")
     println(io, "  N:        ", d.N)
     println(io, "  del:      ", d.del)
-    println(io, "  delclsbd: ", d.delclsbd)
-    println(io, "  delfarbd: ", d.delfarbd)
+    println(io, "  del_bd: ", d.del_bd)
 
     # quick counts
     Nint   = length(d.distpts)                  # interior targets
