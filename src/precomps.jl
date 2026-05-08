@@ -3267,4 +3267,3 @@ function precompsL(d::abstractdomain, dp::domprop, s::Float64, p::Int
   
     return IntS
 end
-

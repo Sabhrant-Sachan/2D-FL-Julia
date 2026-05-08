@@ -222,6 +222,8 @@ mutable struct dompropbd
     end
 end
 
+# These are preocmputations within the boundary, not for interioir points.
+# They will be used for solving the densities βⱼ, 1 <= j <= nh on the boundary.  
 function SLPprecomps(d::D, dpbd::dompropbd, p::Int; 
     n::Int = 128)::Matrix{Float64} where {D<:abstractdomain}
 

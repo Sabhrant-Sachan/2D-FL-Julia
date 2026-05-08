@@ -83,7 +83,7 @@ mutable struct domprop
         # ibp     boundary-local patch index containing a boundary target
         #
         # i       global target column in tgtpts
-        # ib      boundary target index, 1:Nb
+        # ib      boundary target index, 1:Nb (index boundary)
         # ip      local node index inside a patch
         #
         # colp    column in prepts
