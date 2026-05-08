@@ -24,17 +24,21 @@ mutable struct domprop
     # columns 1:Ni are interior targets
     # columns Ni+1:Ni+Nb are boundary targets
     tgtpts::Matrix{Float64}
-    # The patch in which the point is present is given by 
-    # (Let i denote the column index of target point, then)
-    # ℓ = ceil(i/Np), if i<=M*Np (interioir target point)
-    # k₀ = ceil((i-M*Np)/N), ℓ = d.kd(k₀), if i>M*Np (bd tgt point)
+    # For an interior target i <= Ni:
+    #     kt = cld(i, Np)
+    #     ip = i - (kt - 1)*Np
+    #     q, r = divrem(ip - 1, N)
+    #     local coordinates are:
+    #         t1 = cospi((2*(r+1)-1)/(2N))
+    #         t2 = cospi((2*(q+1)-1)/(2N))
     #
-    # local linear index is given by 
-    #
-    # j = i - (ℓ - 1)*Np, if i<=M*Np (j₂, j₁ = divrem(j-1, N) .+ 1)
-    #       t = ( cospi((2j₁-1)/(2N)), cospi((2j₂-1)/(2N)) )
-    # j = i - M*Np - (k₀ - 1)*N, if i>M*Np
-    #                   t = cospi((2j-1)/(2N))
+    # For a boundary target i > Ni:
+    #     ib  = i - Ni
+    #     ibp = cld(ib, N)
+    #     kt  = dom.kd[ibp]
+    #     ip  = ib - (ibp - 1)*N
+    #     local boundary coordinate is:
+    #         t = cospi((2*ip - 1)/(2N))
 
     # 2 × (Ni + Nb + Tnsp)
     # row 1 = global target column i
@@ -79,7 +83,7 @@ mutable struct domprop
         # ibp     boundary-local patch index containing a boundary target
         #
         # i       global target column in tgtpts
-        # ib      boundary-local target index, 1:Nb
+        # ib      boundary target index, 1:Nb
         # ip      local node index inside a patch
         #
         # colp    column in prepts
@@ -474,81 +478,6 @@ function plotdp(dp::domprop, d::abstractdomain; label=:none)
 end
 
 """
-Plot the target boundary boolean matrix on top of the domain drawing.
-That is, plots points which are close to the (black) and far from the bd (blue)
-Also draws the (black) quadrilateral for patch `k` and its δcls–extended quad.
-and  draws the (blue) quadrilateral for patch `k` and its δfar–extended quad.
-"""
-function plotbm(dp::domprop, d::abstractdomain)
-    fig, ax = draw(d)
-
-    nint = d.Npat * dp.N^2
-    ms = 9
-
-    # Preallocate index buffers (max size nint)
-    iblk = Vector{Int}(undef, nint)
-    iblu = Vector{Int}(undef, nint)
-    nblk = 0
-    nblu = 0
-
-    # Build index lists
-    @inbounds for i in 1:nint
-        if dp.tgtbdbm[1, i]
-            nblk += 1
-            iblk[nblk] = i
-        end
-        if dp.tgtbdbm[2, i]
-            nblu += 1
-            iblu[nblu] = i
-        end
-    end
-
-    # Scatter black points in ONE call
-    if nblk > 0
-        xs = Vector{Float64}(undef, nblk)
-        ys = Vector{Float64}(undef, nblk)
-        @inbounds for j in 1:nblk
-            i = iblk[j]
-            xs[j] = dp.tgtpts[1, i]
-            ys[j] = dp.tgtpts[2, i]
-        end
-        scatter!(ax, xs, ys; marker=:circle, markersize=ms, strokewidth=0, color=:black)
-    end
-
-    # Scatter blue points in ONE call
-    if nblu > 0
-        xs = Vector{Float64}(undef, nblu)
-        ys = Vector{Float64}(undef, nblu)
-        @inbounds for j in 1:nblu
-            i = iblu[j]
-            xs[j] = dp.tgtpts[1, i]
-            ys[j] = dp.tgtpts[2, i]
-        end
-        scatter!(ax, xs, ys; marker=:circle, markersize=ms, strokewidth=0, color=:blue)
-    end
-
-    Mbd = length(d.kd)
-    Pext = Vector{Float64}(undef, 8)
-
-    ix = [1, 3, 5, 7, 1] 
-    iy = [2, 4, 6, 8, 2]
-
-    for k in 1:Mbd 
-        # -- draw quadrilateral for patch k -- 
-        @views P = d.Qptsbd[:, k] 
-        # 8-vector: [x1,y1,x2,y2,x3,y3,x4,y4] 
-        # -- draw δcls-extended quadrilateral --
-        extendqua!(Pext, P, dp.del_bd) 
-        lines!(ax, Pext[ix], Pext[iy], color=:black, linewidth=2) 
-        # -- draw δfar-extended quadrilateral -- 
-        #extendqua!(Pext, P, dp.delfarbd) 
-        #lines!(ax, Pext[ix], Pext[iy], color=:blue, linewidth=2) 
-    end
-
-    return (fig, ax)
-end
-
-"""
 Plot the near–singular target points to patch `k` on top of the domain drawing.
 - Interior near–singulars to `k` are shown in black.
 - Boundary near–singulars to `k` are shown in blue.
@@ -559,11 +488,12 @@ function plotns(dp::domprop, d::abstractdomain, k::Integer)
     fig, ax = draw(d)
 
     # -- draw quadrilateral for patch k --
-    @views P  = d.Qpts[:, k]      # 8-vector: [x1,y1,x2,y2,x3,y3,x4,y4]
+    @views P = d.Qpts[:, k]      # 8-vector: [x1,y1,x2,y2,x3,y3,x4,y4]
 
     Pext = Vector{Float64}(undef, 8)
 
-    ix = [1, 3, 5, 7, 1];  iy = [2, 4, 6, 8, 2]
+    ix = [1, 3, 5, 7, 1]
+    iy = [2, 4, 6, 8, 2]
     #plot!(plt, P[ix], P[iy], color=:black, lw=2, label="")
 
     # -- draw δ-extended quadrilateral --
@@ -574,7 +504,6 @@ function plotns(dp::domprop, d::abstractdomain, k::Integer)
     M   = d.Npat
     Np  = dp.N^2
     Mbd = length(d.kd)
-    nbd = Mbd * dp.N
 
     # ---------------- Interior near–singulars to k ----------------
     # In prepts layout: for each patch k, block = Np interior pts (k=l),
@@ -594,9 +523,9 @@ function plotns(dp::domprop, d::abstractdomain, k::Integer)
 
     # ---------------- Boundary near–singulars to k ----------------
     # After dp.pthgo[M+1] we have:
-    #   - a block of all boundary targets (length nbd)
+    #   - a block of all boundary targets (length Nb)
     #   - then all boundary near–singulars (various k).
-    start_bd_block = dp.pthgo[M+1] + nbd
+    start_bd_block = dp.pthgo[M+1] + Mbd * dp.N
 
     xb = Float64[]
     yb = Float64[]
@@ -612,6 +541,120 @@ function plotns(dp::domprop, d::abstractdomain, k::Integer)
     !isempty(xb) && scatter!(ax, xb, yb;  markersize=9, color=:black, strokewidth=0)
 
     return (fig,ax)
+end
+
+"""
+Plot the near-singular interior target points to boundary patch `k`
+on top of the domain drawing. Here `k` is the actual boundary patch index, 
+i.e. `k ∈ d.kd`.
+- Near-singular interior targets to boundary patch `k` are shown in blue.
+- Also draws the δ_bd-extended quadrilateral for boundary patch `k`.
+"""
+function plotnsbd(dp::domprop, d::abstractdomain, k::Integer)
+
+    fig, ax = draw(d, 1)
+
+    # k is the actual boundary patch index.
+    # kb is the boundary-local index such that d.kd[kb] == k.
+    kb = findfirst(==(k), d.kd)
+
+    kb === nothing && error("Patch k = $k is not a boundary patch. It must belong to d.kd.")
+
+    # -- draw δ_bd-extended boundary quadrilateral --
+    @views Pbd = d.Qptsbd[:, kb]
+
+    Pext = Vector{Float64}(undef, 8)
+
+    ix = [1, 3, 5, 7, 1]
+    iy = [2, 4, 6, 8, 2]
+
+    extendqua!(Pext, Pbd, dp.del_bd)
+    lines!(ax, Pext[ix], Pext[iy], color=:black, linewidth=2)
+
+    # -- collect near-singular interior targets to boundary patch k --
+    xbd = Float64[]
+    ybd = Float64[]
+
+    @inbounds for colpbd in 1:size(dp.prepts_bd, 2)
+        if dp.prepts_bd[2, colpbd] == k
+            i = dp.prepts_bd[1, colpbd]
+
+            push!(xbd, dp.tgtpts[1, i])
+            push!(ybd, dp.tgtpts[2, i])
+        end
+    end
+
+    !isempty(xbd) && scatter!(ax, xbd, ybd; markersize=9, color=:blue, strokewidth=0)
+
+    return (fig, ax)
+end
+
+
+"""
+Plot the projection of near-singular interior targets onto boundary patch `k`.
+Here `k` is the actual boundary patch index, i.e. `k ∈ d.kd`.
+For every interior target point near-singular to boundary patch `k`:
+- the original target point is shown in black,
+- the projected boundary point is shown in blue,
+- an arrow is drawn from the target point to its projection.
+"""
+function plotprojbd(dp::domprop, d::abstractdomain, k::Integer)
+
+    fig, ax = draw(d, 1)
+
+    # k is the actual boundary patch index.
+    # kb is the boundary-local index such that d.kd[kb] == k.
+    kb = findfirst(==(k), d.kd)
+    kb === nothing && error("Patch k = $k is not a boundary patch. It must belong to d.kd.")
+
+    # -- draw δ_bd-extended boundary quadrilateral --
+    @views Pbd = d.Qptsbd[:, kb]
+
+    Pext = Vector{Float64}(undef, 8)
+
+    ix = [1, 3, 5, 7, 1]
+    iy = [2, 4, 6, 8, 2]
+
+    extendqua!(Pext, Pbd, dp.del_bd)
+    lines!(ax, Pext[ix], Pext[iy], color=:black, linewidth=2)
+
+    # -- collect target points and projected points --
+    xt = Float64[]
+    yt = Float64[]
+    xp = Float64[]
+    yp = Float64[]
+
+    @inbounds for colpbd in 1:size(dp.prepts_bd, 2)
+
+        if dp.prepts_bd[2, colpbd] == k
+
+            i = dp.prepts_bd[1, colpbd]
+            τ = dp.projpts[colpbd]
+
+            # original near-singular target
+            x0 = dp.tgtpts[1, i]
+            y0 = dp.tgtpts[2, i]
+
+            # projected point on boundary patch k
+            x1 = gamx(d, τ, k)
+            y1 = gamy(d, τ, k)
+
+            push!(xt, x0)
+            push!(yt, y0)
+            push!(xp, x1)
+            push!(yp, y1)
+
+        end
+    end
+
+    if !isempty(xt)
+        arrows2d!(ax, xt, yt, xp .- xt, yp .- yt;
+            tipwidth=8, tiplength=12, shaftwidth=1.5, color=:gray)
+        scatter!(ax, xt, yt; markersize=9, color=:black,strokewidth=0)
+        scatter!(ax, xp, yp; markersize=9, color=:blue, strokewidth=0)
+    end
+
+    return fig, ax
 end
 
 """
@@ -1287,22 +1330,22 @@ end
 function Base.show(io::IO, ::MIME"text/plain", d::domprop)
     # headline
     println(io, "domain properties:")
-    println(io, "  N:        ", d.N)
-    println(io, "  del:      ", d.del)
-    println(io, "  del_bd: ", d.del_bd)
+    println(io, "  N:       ", d.N)
+    println(io, "  del:     ", d.del)
+    println(io, "  del_bd:  ", d.del_bd)
 
     # quick counts
-    Nint   = length(d.distpts)                  # interior targets
     maplen = length(d.hmap)
+    maplenbd = length(d.hmap_bd)
 
     println(io)
-    println(io, "  hmap:     Dict  (", maplen,  " entries)")
-    println(io, "  tgtpts:   Matrix{Float64}  (", size(d.tgtpts,1), "×", size(d.tgtpts,2), ")")
-    println(io, "  prepts:   Matrix{Int}      (", size(d.prepts,1), "×", size(d.prepts,2), ")")
-    println(io, "  invpts:   Matrix{Float64}  (", size(d.invpts,1), "×", size(d.invpts,2), ")")
-    println(io, "  tgtbdbm:  Matrix{bool}     (", size(d.tgtbdbm,1), "×", size(d.tgtbdbm,2), ")")
-
-    println(io, "  distpts:  Vector{distrec}  (length ", Nint , ")")
+    println(io, "  hmap     :  Dict  (", maplen,  " entries)")
+    println(io, "  hmap_bd  :  Dict  (", maplenbd,  " entries)")
+    println(io, "  tgtpts   :  Matrix{Float64} (", size(d.tgtpts,1), "×", size(d.tgtpts,2), ")")
+    println(io, "  prepts   :  Matrix{Int}     (", size(d.prepts,1), "×", size(d.prepts,2), ")")
+    println(io, "  prepts_bd:  Matrix{Int}     (", size(d.prepts_bd,1), "×", size(d.prepts_bd,2), ")")
+    println(io, "  invpts   :  Matrix{Float64} (", size(d.invpts,1), "×", size(d.invpts,2), ")")
+    println(io, "  projpts  :  Vector{Float64} (", length(d.projpts), " projections)")
 
     # bookkeeping vectors (show size + a short preview)
     println(io)

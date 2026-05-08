@@ -9,7 +9,21 @@ import FL2D.FLdata as FLdata
 
 #----------------------------
 
-d = FL2D.kite(b = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1])
+d = FL2D.disc(b=[2, 2, 2, 2, 2])
+
+dp = FL2D.domprop(8, 0.1, 0.1, d)
+
+FL2D.plotns(dp, d, 1)
+
+FL2D.plotnsbd(dp, d, 4)
+
+FL2D.plotprojbd(dp, d, 4)
+
+d = FL2D.annulus(b = [4, 5, 4, 5, 4, 5, 4, 5])
+
+dp = FL2D.domprop(12, 0.1, 0.1, d)
+
+FL2D.plotnsbd(dp, d, 62)
 
 d = FL2D.kite(b=[4, 5, 9, 9, 5, 4, 5, 5, 5, 5, 4, 4],
 a=[4, 3, 7, 7, 3, 4, 3, 6, 6, 3, 3, 3])
