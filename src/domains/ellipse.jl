@@ -446,82 +446,17 @@ function mapxy!(Zx::StridedArray{Float64}, Zy::StridedArray{Float64},
 
 end
 
-function draw(d::ellipse, flag=nothing)
-  # number of samples for the patch boundary
-  L = 33
+function draw(d::ellipse, flag = nothing; L::Int = 33, show::Bool = true)
 
-  #This is treated as a column vector
-  t = collect(range(-1, 1, L))
+    colors = (
+        RGBf(1, 0, 0),         # red
+        RGBf(1, 0.5, 0.25),    # orange
+        RGBf(0.58, 0, 0.82),   # purple
+        RGBf(0, 1, 0),         # green
+        RGBf(0, 0, 1),         # blue
+    )
 
-  # vertical edges (left and right)
-  #Fill column vector [-1, 1] 1*L times
-  T1x = repeat([-1.0, 1.0], 1, L)   # 2 × L
-  T1y = repeat(t', 2, 1)        # 2 × L
-
-  # horizontal edges (top and bottom)
-  T2x = repeat(t, 1, 2)         # L × 2
-  T2y = repeat([-1.0, 1.0]', L, 1)  # L × 2
-
-  # define 5 colors
-  colors = (
-    RGBf(1, 0, 0),         # red
-    RGBf(1, 0.5, 0.25),    # orange
-    RGBf(0.58, 0, 0.82),   # purple
-    RGBf(0, 1, 0),         # green
-    RGBf(0, 0, 1),         # blue
-  )
-
-  fig = Figure(size=(650, 650))
-  ax = Axis(fig[1, 1];
-    aspect=DataAspect(),
-    xlabel=latexstring("\$x\$"),
-    ylabel=latexstring("\$y\$"),
-    xlabelsize=22,      # label font sizes
-    ylabelsize=22,
-    xticklabelsize=18,  # tick label sizes
-    yticklabelsize=18,
-  )
-
-  flag = isnothing(flag) ? 0 : 1
-
-  Zx1 = similar(T1x)
-  Zy1 = similar(T1y)
-  Zx2 = similar(T2x)
-  Zy2 = similar(T2y)
-
-  for p in 1:d.Npat
-
-    k = d.pths[p].reg   # region index
-
-    # left/right boundaries
-    # Zx1, Zy1 = mapxy(d, T1x, T1y, p)
-    mapxy!(Zx1, Zy1, d, T1x, T1y, p)
-    lines!(ax, vec(Zx1[1, :]), vec(Zy1[1, :]), color=colors[k], linewidth=2)
-    lines!(ax, vec(Zx1[2, :]), vec(Zy1[2, :]), color=colors[k], linewidth=2)
-
-    # top/bottom boundaries
-    # Zx2, Zy2 = mapxy(d, T2x, T2y, p)
-    mapxy!(Zx2, Zy2, d, T2x, T2y, p)
-    lines!(ax, vec(Zx2[:, 1]), vec(Zy2[:, 1]), color=colors[k], linewidth=2)
-    lines!(ax, vec(Zx2[:, 2]), vec(Zy2[:, 2]), color=colors[k], linewidth=2)
-
-    if flag == 1
-      # write patch number at its center
-      cx, cy = mapxy(d, 0.0, 0.0, p)
-      lab = latexstring("\$" * string(p) * "\$")
-      text!(ax, cx, cy;
-        text=lab, align=(:center, :center),
-        fontsize=16, color=:black)
-    end
-
-  end
-
-  #xlims!(ax, d.A - d.R1 - 0.1, d.A + d.R1 + 0.1)
-  #ylims!(ax, d.B - d.R2 - 0.1, d.B + d.R2 + 0.1)
-
-  display(GLMakie.Screen(),fig)
-  return (fig, ax)
-  #savefig(plt, "myplot.svg")
+    return draw_geom(d, colors; flag=flag, L=L, show=show)
 end
 
 #-----------------------
@@ -664,59 +599,17 @@ function gam!(out::Matrix{Float64}, d::ellipse, t::Vector{Float64}, k::Int)
   return nothing
 end
 
-function drawbd(d::ellipse)
-  # Number of sampling points
-  L = 33
-  t = collect(range(-1, 1, L))
+function drawbd(d::ellipse, flag = true; L::Int = 33, show::Bool = true)
 
-  # define 5 colors
-  clr = (
-    RGBf(1, 0, 0),         # red
-    RGBf(1, 0.5, 0.25),    # orange
-    RGBf(0.58, 0, 0.82),   # purple
-    RGBf(0, 1, 0),         # green
-    RGBf(0, 0, 1),         # blue
-  )
+    colors = (
+        RGBf(1, 0, 0),         # red
+        RGBf(1, 0.5, 0.25),    # orange
+        RGBf(0.58, 0, 0.82),   # purple
+        RGBf(0, 1, 0),         # green
+        RGBf(0, 0, 1),         # blue
+    )
 
-  fig = Figure(size=(650, 650))
-
-  ax = Axis(fig[1, 1];
-    aspect=DataAspect(),
-    xlabel=latexstring("\$x\$"),
-    ylabel=latexstring("\$y\$"),
-    xlabelsize=22,      # label font sizes
-    ylabelsize=22,
-    xticklabelsize=18,  # tick label sizes
-    yticklabelsize=18,
-  )
-
-  ll = 1
-
-  Tx = similar(t)
-  Ty = similar(t)
-
-  for p in d.kd
-    k = d.pths[p].reg  # region index
-
-    # right boundaries of patch
-    #Tx = gamx(d, t, p)
-    #Ty = gamy(d, t, p)
-    gamx!(Tx, d, t, p)
-    gamy!(Ty, d, t, p)
-    # Plot boundary curve in colour of region
-    lines!(ax, Tx, Ty; color=clr[k], linewidth=2)
-
-    cx, cy = mapxy(d, 0.0, 0.0, p)
-    lab = latexstring("\$" * string(p) * "\$")
-    text!(ax, cx, cy; text=lab, align=(:center, :center),
-      fontsize=16, color=:black)
-
-    ll += 1
-  end
-
-  display(GLMakie.Screen(),fig)
-  return (fig, ax)
-  #savefig(plt, "myplot.svg")
+    return drawbd_geom(d, colors; flag = flag, L = L, show = show)
 end
 
 """
@@ -1208,55 +1101,13 @@ function mapxy_Dmap!(Zx::StridedArray{Float64}, Zy::StridedArray{Float64},
   return nothing
 end
 
-function chk_map(d::ellipse)
-  # --- Test function f(x,y) ---
+function chk_map(d::ellipse; n::Int = 32, tol::Float64 = 5e-14)
   #f!(F, x, y) = fill!(F, 1.0)
   #Iex =  π * d.R1 * d.R2 
-
-  n = 32
-
-  f!(F, x, y) = @. F = x^2 + y^2
-  Iex = π * d.R1 * d.R2 * ( (d.R1^2 + d.R2^2) / 4 + d.A^2 + d.B^2 )
-
-  # Chebyshev nodes/weights (once)
-  z = cospi.((2 .* (1:n) .- 1) ./ (2n))
-  fw = Subroutines.getF1W(n)
-
-  # meshgrid (once)
-  zx = repeat(z', n, 1)   # n×n
-  zy = repeat(z, 1, n)    # n×n
-
-  # --- preallocate buffers reused across patches ---
-  Zx = similar(zx)        # mapped x
-  Zy = similar(zy)        # mapped y
-  DJ = similar(zx)        # |det J|
-  F  = similar(zx)        # integrand buffer f(Zx,Zy)
-
-  I = 0.0
-  @inbounds for k in 1:d.Npat
-    # map & jacobian in-place
-    mapxy_Dmap!(Zx, Zy, DJ, d, zx, zy, k)
-
-    # no temporaries
-    f!(F, Zx, Zy)
-
-    # elementwise multiply into F to avoid extra array
-    @. F = F * DJ
-
-    I += dot(fw, F, fw)      # accumulate scalar
-  end
-
-  # --- report (unchanged) ---
-  if abs(Iex - I) < 5e-14
-    println("Okay!")
-  else
-    println("Bug!")
-  end
-  println("Integral approx: \n", I)
-  println("Integral exact : \n", Iex)
-  println("Difference     : \n", abs(Iex - I))
-  return nothing
+  Iex = π * d.R1 * d.R2 * ((d.R1^2 + d.R2^2) / 4 + d.A^2 + d.B^2)
+  return chkmap_geom(d, Iex; n=n, tol=tol)
 end
+
 
 """
     jinvmap!(d::ellipse, u::Float64, v::Float64, r::Int) -> tuple

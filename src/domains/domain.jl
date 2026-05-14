@@ -19,6 +19,8 @@ mutable struct FTable
     reg::Int    
 end
 
+abstract type abstractdomain end
+
 function inFTable(N::Int=100_001)
     vmin = -30.0
     vmax =  30.0
@@ -635,4 +637,404 @@ function drawboundquadbd(d::abstractdomain)
   display(fig)
   return (fig, ax)
   #savefig(plt, "myplot.svg")
+end
+
+function draw_geom(d::abstractdomain, colors; flag=nothing, L::Int=33, show::Bool=true)
+
+    t = collect(range(-1.0, 1.0, length=L))
+
+    tx = similar(t)
+    ty = similar(t)
+    xedge = similar(t)
+    yedge = similar(t)
+
+    fig = Figure(size=(650, 650))
+    ax = Axis(fig[1, 1];
+        aspect=DataAspect(),
+        xlabel=latexstring("\$x\$"),
+        ylabel=latexstring("\$y\$"),
+        xlabelsize=22,
+        ylabelsize=22,
+        xticklabelsize=18,
+        yticklabelsize=18)
+
+    label_patches = !isnothing(flag)
+
+    xs = Float64[]
+    ys = Float64[]
+
+    nreg = length(colors)
+
+    @inbounds for reg in 1:nreg
+
+        empty!(xs)
+        empty!(ys)
+
+        npreg = 0
+        for p in 1:d.Npat
+            npreg += d.pths[p].reg == reg
+        end
+
+        needed = npreg * 4 * (L + 1)
+        sizehint!(xs, needed)
+        sizehint!(ys, needed)
+
+        for p in 1:d.Npat
+
+            d.pths[p].reg == reg || continue
+
+            # left edge
+            fill!(tx, -1.0)
+            copyto!(ty, t)
+            mapxy!(xedge, yedge, d, tx, ty, p)
+            append!(xs, xedge); append!(ys, yedge)
+            push!(xs, NaN); push!(ys, NaN)
+
+            # right edge
+            fill!(tx, 1.0)
+            copyto!(ty, t)
+            mapxy!(xedge, yedge, d, tx, ty, p)
+            append!(xs, xedge); append!(ys, yedge)
+            push!(xs, NaN); push!(ys, NaN)
+
+            # bottom edge
+            copyto!(tx, t)
+            fill!(ty, -1.0)
+            mapxy!(xedge, yedge, d, tx, ty, p)
+            append!(xs, xedge); append!(ys, yedge)
+            push!(xs, NaN); push!(ys, NaN)
+
+            # top edge
+            copyto!(tx, t)
+            fill!(ty, 1.0)
+            mapxy!(xedge, yedge, d, tx, ty, p)
+            append!(xs, xedge); append!(ys, yedge)
+            push!(xs, NaN); push!(ys, NaN)
+
+            if label_patches
+                cx, cy = mapxy(d, 0.0, 0.0, p)
+                text!(ax, cx, cy;
+                    text=latexstring("\$$(p)\$"),
+                    align=(:center, :center),
+                    fontsize=16,
+                    color=:black)
+            end
+        end
+
+        if !isempty(xs)
+            lines!(ax, xs, ys; color=colors[reg], linewidth=2)
+        end
+    end
+
+    show && display(GLMakie.Screen(), fig)
+
+    return fig, ax
+end
+
+function drawbd_geom(d::abstractdomain, colors; flag = true, L::Int = 33, show::Bool = true)
+
+    t = collect(range(-1.0, 1.0, length = L))
+
+    Tx = similar(t)
+    Ty = similar(t)
+
+    fig = Figure(size = (650, 650))
+
+    ax = Axis(fig[1, 1];
+        aspect = DataAspect(),
+        xlabel = latexstring("\$x\$"),
+        ylabel = latexstring("\$y\$"),
+        xlabelsize = 22,
+        ylabelsize = 22,
+        xticklabelsize = 18,
+        yticklabelsize = 18)
+
+    label_patches = !isnothing(flag) && flag != 0
+
+    # Group boundary curves by region/color.
+    nreg = length(colors)
+
+    xs = Float64[]
+    ys = Float64[]
+
+    @inbounds for reg in 1:nreg
+
+        empty!(xs)
+        empty!(ys)
+
+        # Count boundary patches in this region for sizehint.
+        npreg = 0
+        for p in d.kd
+            npreg += d.pths[p].reg == reg
+        end
+
+        needed = npreg * (L + 1)
+        sizehint!(xs, needed)
+        sizehint!(ys, needed)
+
+        for p in d.kd
+            d.pths[p].reg == reg || continue
+
+            gamx!(Tx, d, t, p)
+            gamy!(Ty, d, t, p)
+
+            append!(xs, Tx)
+            append!(ys, Ty)
+
+            # Prevent Makie from connecting distinct boundary panels.
+            push!(xs, NaN)
+            push!(ys, NaN)
+
+            if label_patches
+                cx, cy = mapxy(d, 0.0, 0.0, p)
+                text!(ax, cx, cy;
+                    text = latexstring("\$$(p)\$"),
+                    align = (:center, :center),
+                    fontsize = 16,
+                    color = :black)
+            end
+        end
+
+        if !isempty(xs)
+            lines!(ax, xs, ys;
+                color = colors[reg],
+                linewidth = 2)
+        end
+    end
+
+    show && display(GLMakie.Screen(), fig)
+
+    return fig, ax
+end
+
+function chkmap_geom(d::D, Iex::Float64; n::Int = 32, tol::Float64 = 5e-14) where {D<:abstractdomain}
+
+    # Test function f(x,y) = x^2 + y^2
+    f!(Fv, x, y) = @. Fv = x^2 + y^2
+
+    # Chebyshev nodes and Fejér weights
+    z = Vector{Float64}(undef, n)
+    @inbounds for i in 1:n
+        z[i] = cospi((2*i - 1) / (2n))
+    end
+
+    fw = Subroutines.getF1W(n)
+
+    # Tensor grid
+    zx = repeat(z', n, 1)   # n × n
+    zy = repeat(z, 1, n)    # n × n
+
+    # Reusable buffers
+    Zx = similar(zx)
+    Zy = similar(zy)
+    DJ = similar(zx)
+    Fv = similar(zx)
+
+    I = 0.0
+
+    @inbounds for k in 1:d.Npat
+        mapxy_Dmap!(Zx, Zy, DJ, d, zx, zy, k)
+
+        f!(Fv, Zx, Zy)
+
+        @. Fv = Fv * DJ
+
+        I += dot(fw, Fv, fw)
+    end
+
+    err = abs(Iex - I)
+
+    if err < tol
+        println("Okay!")
+    else
+        println("Bug!")
+    end
+
+    println("Integral approx: \n", I)
+    println("Integral exact : \n", Iex)
+    println("Difference     : \n", err)
+
+    return err
+end
+
+"""
+    GSS(f, a, b, tol) -> fmin, x
+
+Golden Section Search to **minimize** a unimodal function `f` on `[a,b]`.
+
+Returns:
+- `fmin` — minimum value (≈ `f(x)`)
+- `x`    — argmin in `[a,b]` (accuracy ~ `tol`)
+- `iter` — iterations taken
+
+Notes:
+- To maximize `g`, call `GSS(x -> -g(x), a, b, tol=...)`.
+- Assumes a single interior minimum on `[a,b]`.
+- args... means “Collect all remaining positional arguments 
+into a tuple named args"". 
+Example:
+
+function foo(a, b, args...)
+    @show a b args
+end
+foo(1, 2, 3, 4, 5)
+
+Output: 
+
+a = 1
+b = 2
+args = (3, 4, 5)
+"""
+function GSS(f::F, a::Float64, b::Float64, tol::Float64, 
+    d::D, u::Float64, v::Float64, k::Int)::Tuple{Float64,Float64} where {F,D<:abstractdomain}
+
+    τ = (sqrt(5) - 1) / 2
+    ρ = 1 - τ
+    h = b - a
+
+    x1 = a + ρ * h
+    x2 = a + τ * h
+    f1 = f(x1, d, u, v, k)
+    f2 = f(x2, d, u, v, k)
+
+    L = τ
+    iter = 0
+    while (b - a) > tol && iter < 128
+        if f1 > f2
+            a = x1
+            x1 = x2
+            f1 = f2
+            x2 = a + τ * L * h
+            f2 = f(x2, d, u, v, k)
+        else
+            b = x2
+            x2 = x1
+            f2 = f1
+            x1 = a + ρ * L * h
+            f1 = f(x1, d, u, v, k)
+        end
+        L *= τ
+        iter += 1
+    end
+
+    return (f1 <= f2) ? (f1, x1) : (f2, x2)
+end
+
+
+"""
+    Bis(f, a, b, maxi; tol=1e-15) -> Float64
+
+Bisection method on interval `[a,b]` starting from midpoint 
+
+Arguments:
+- `f`     :: Function   — scalar function
+- `a,b`   :: Float64       — bracketing interval
+- `maxi`  :: Int    — maximum iterations
+- `tol`   :: Float64       — tolerance on `abs(f(c))` (default `1e-15`)
+
+Returns: approximation of a root in `[a,b]`.
+"""
+function Bis(f::F, a::Float64, b::Float64, maxi::Int, 
+    d::D, u::Float64, v::Float64, r::Int; tol::Float64 = 1e-15) where {F,D<:abstractdomain}
+
+    left  = a
+    right = b
+    fL    = f(a, d, u, v, r)
+    fR    = f(b, d, u, v, r)
+
+    for _ in 1:maxi
+        mid = (left + right) / 2
+        fM  = f(mid, d, u, v, r)
+
+        if abs(fM) < tol
+            return mid
+        end
+
+        if fL * fM < 0
+            right = mid
+            fR    = fM
+        else
+            left = mid
+            fL   = fM
+        end
+    end
+
+    return (left + right) / 2
+end
+
+function Bis(f::F,a::Float64, b::Float64, c::Float64, maxi::Int,
+    d::D,u::Float64,v::Float64,k::Int;tol::Float64 = 1e-15) where {F,D<:abstractdomain}
+
+    iter = 0
+    fc = f(c, d, u, v, k)
+
+    while abs(fc) > tol && iter < maxi
+
+        fa = f(a, d, u, v, k)
+
+        if fc * fa < 0
+            b = c
+        else
+            a = c
+        end
+
+        c  = (a + b) / 2
+        fc = f(c, d, u, v, k)
+
+        iter += 1
+    end
+
+    return c
+end
+
+"""
+    NewtonR2D(f1, f2, Jfinv, x0, y0; maxi, tol=1e-14)
+
+Solve the 2D nonlinear system `f(x,y) = (0,0)` by Newton's method,
+where `f(x,y) = (f1(x,y), f2(x,y))` and `Jfinv(x,y)` returns the **inverse**
+Jacobian at `(x,y)` as a 2×2 matrix.
+
+Returns a tuple `(x, y)` if converged within `maxi` iterations.
+If the maximum iteration count is reached, returns `(:max, :max)`.
+
+# Arguments
+- `f1, f2  :: Function` — scalar-valued functions of two Float64s
+- `Jfinv   :: Function` — returns a 4 tuple evaluated at `(x,y)`
+- `t0, s0  :: Float64`     — initial guess
+- `maxi    :: Int`      — max iterations
+- `tol     :: Float64`     — convergence tolerance on component residuals 
+                          (default 1e-14)
+
+# Notes: Convergence test : it checks `|f1(x,y)|`and `|f2(x,y)|` are less
+than the given tolerance.
+"""
+function newtonR2D(f1::F1, f2::F2, Jinv::FJ, t0::Float64, s0::Float64, maxi::Int,
+                   d::D, u::Float64, v::Float64, r::Int; tol=1e-14) where {F1,F2,FJ,D<:abstractdomain}
+    t = t0
+    s = s0
+    iter = 0
+    while iter < maxi
+        F1val = f1(t, s, d, u, v, r)
+        F2val = f2(t, s, d, u, v, r)
+        J11, J12, J21, J22 = Jinv(t, s, d, u, v, r) 
+
+        # solve J * Δ = -F
+        detJ = J11*J22 - J12*J21
+        Δt   = (-F1val*J22 + F2val*J12) / detJ
+        Δs   = (-F2val*J11 + F1val*J21) / detJ
+
+        if abs(detJ) < 1e-15 
+            return :max, :max  
+        end
+        
+        t += Δt
+        s += Δs
+
+        if max(abs(Δt), abs(Δs)) < tol
+            return t, s
+        end
+        iter += 1
+    end
+
+    return :max, :max  
 end

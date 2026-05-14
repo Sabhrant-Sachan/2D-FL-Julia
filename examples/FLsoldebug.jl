@@ -2,43 +2,30 @@ using Revise, FL2D
 
 import FL2D.FLdata as FLdata
 
-#----------------------------
-
 d = FL2D.disc(b=[6, 6, 6, 6, 6], a=[3, 3, 3, 3, 5])
 
-dp = FL2D.domprop(24, 0.1, 0.1, d)
+dp = FL2D.domprop(12, 0.1, 0.15, 5e-3, d)
 
 FL2D.plotns(dp, d, 1)
 
-FL2D.plotnsbd(dp, d, 14)
+FL2D.plotnsbd(dp, d, 15)
 
-FL2D.plotprojbd(dp, d, 18)
+FL2D.memory_report(dp)
+
+FL2D.plotprojbd(dp, d, 15)
+
+FL2D.chk_map(d);
 
 d = FL2D.annulus(b = [4, 5, 4, 5, 4, 5, 4, 5])
 
-dp = FL2D.domprop(12, 0.1, 0.1, d)
+FL2D.drawbd(d, false)
 
 f!, uex, fv = FLdata.makediscfuex(5, 0.1);
 
 FL2D.plotu(dp, d, uex)
 
 FL2D.plotfunc(dp, d, f!)
-
-IntSbdex = FL2D.precompsDLP(d, dp, 2; n=2048);
-
-for n in (64, 128, 256, 512, 1024)
-    IntSbd = FL2D.precompsDLP(d, dp, 2; n=n);
-    Err = maximum(abs.(IntSbd .- IntSbdex))
-    FL2D.@printf("Err = %.2e\n", Err)
-end
-
-
-IntSbd = FL2D.precompsDLP(d, dp, 2; n=256);
-
-FL2D.testDLPint(d, dp, IntSbd; nreg=64, plot_err = true)
-
 #----------------------------
-
 d = FL2D.kite(b=[4, 5, 9, 9, 5, 4, 5, 5, 5, 5, 4, 4],
 a=[4, 3, 7, 7, 3, 4, 3, 6, 6, 3, 3, 3])
 
@@ -174,12 +161,12 @@ end
 IntS = (s >= 0.5) ? FL2D.precompsH(d, dp, s, p) :
                     FL2D.precompsL(d, dp, s, p)
 
-@inline function f!(F, x, y)
-        fill!(F,1.0)
-        return nothing
+function g!(F, x, y)
+    fill!(F, 1.0)
+    return nothing
 end
 
-b = FL2D.bvec(d, dp, s, f!)
+b = FL2D.bvec(d, dp, s, g!)
 
 FL2D.plotfunc(dp,d,b)
 
@@ -227,13 +214,13 @@ s, p = 0.75, 4;
 
 N, dₙₕ = 10, 2;
 
-f!, uex, fv = FLdata.makediscfuex(2, s);
+g!, uex, fv = FLdata.makediscfuex(2, s);
 
-dp, d, Uapp, ch, A, b, IntS = FLsoldebug(N, δ, δclsbd, dₙₕ, s, p, f!, FLdata.domainbuild);
+dp, d, Uapp, ch, A, b, IntS = FLsoldebug(N, δ, δclsbd, dₙₕ, s, p, g!, FLdata.domainbuild);
 
 #Uapp = A\b;
 
-#@benchmark  FLsol($N, $δ, $δclsbd, $s, $p, $f!, $domainbuild) evals=1 samples=10 seconds=1000
+#@benchmark  FLsol($N, $δ, $δclsbd, $s, $p, $g!, $domainbuild) evals=1 samples=10 seconds=1000
 
 Np = N^2;
 M = d.Npat;

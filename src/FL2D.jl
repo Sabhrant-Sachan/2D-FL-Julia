@@ -11,8 +11,6 @@ using IterativeSolvers
 using Subroutines
 using ApproxFun
 
-import Subroutines: abstractdomain
-
 # --- Special functions used internally ---
 using SpecialFunctions: gamma
 using HypergeometricFunctions: pFq

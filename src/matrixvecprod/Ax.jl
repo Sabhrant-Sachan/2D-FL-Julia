@@ -510,13 +510,13 @@ function Ax!(v::AbstractVector{Float64}, u::AbstractVector{Float64}, IntS::Matri
 
         for row in Lₚₘ : Lₚₙ
 
-            k₀ = cld(row - M*Np, N)
+            k₀ = cld(row - Ni, N)
             
             #Boundary patch number
             ptl = d.kd[k₀]
 
             #Linear index of point on the boundary patch
-            ptj = row - M*Np - (k₀ - 1) * N
+            ptj = row - Ni - (k₀ - 1) * N
 
             # ---- boundary base term ----
             for ll = 1:Mbd

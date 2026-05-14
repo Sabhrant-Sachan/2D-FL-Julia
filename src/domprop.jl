@@ -3,7 +3,17 @@
 mutable struct domprop
     N::Int
     del::Float64
-    del_bd::Float64
+
+    # Boundary DLP classification cutoffs.
+    # del_near:
+    #     if dist(xᵢ, ∂Ωₖ) <= del_near for some boundary panel k,
+    #     then xᵢ is considered boundary-near.
+    # del_intp:
+    #     if dist(xᵢ, ∂Ωₖ) < del_intp for some boundary panel k,
+    #     then xᵢ is considered very-near and will be evaluated by
+    #     full-boundary normal interpolation.
+    del_near::Float64
+    del_intp::Float64
 
     # hmap[packkey(i,k)] = colp
     # i = global target column in tgtpts
@@ -11,52 +21,83 @@ mutable struct domprop
     # colp = column in prepts
     hmap::Dict{UInt64,Int}
 
-    # Ni is number of interior targets
-    # hmap_bd[packkey(i,k)] = colpbd
-    # i = interior target column, 1:Ni
-    # k = actual boundary integration patch index, i.e. one of dom.kd
-    # colpbd = column in prepts_bd / projpts
-    hmap_bd::Dict{UInt64,Int}
-
     # Nb is number of boundary targets
     # 2 × (Ni + Nb)
     # First row is x coordinates, second y coordinate
     # columns 1:Ni are interior targets
     # columns Ni+1:Ni+Nb are boundary targets
     tgtpts::Matrix{Float64}
-    # For an interior target i <= Ni:
-    #     kt = cld(i, Np)
-    #     ip = i - (kt - 1)*Np
-    #     q, r = divrem(ip - 1, N)
-    #     local coordinates are:
-    #         t1 = cospi((2*(r+1)-1)/(2N))
-    #         t2 = cospi((2*(q+1)-1)/(2N))
-    #
-    # For a boundary target i > Ni:
-    #     ib  = i - Ni
-    #     ibp = cld(ib, N)
-    #     kt  = dom.kd[ibp]
-    #     ip  = ib - (ibp - 1)*N
-    #     local boundary coordinate is:
-    #         t = cospi((2*ip - 1)/(2N))
+    #===
+    For an interior target i <= Ni:
+        kt = cld(i, Np)
+        ip = i - (kt - 1)*Np
+        q, r = divrem(ip - 1, N)
+        local coordinates are:
+            t1 = cospi((2*(r+1)-1)/(2N))
+            t2 = cospi((2*(q+1)-1)/(2N))
+    
+    For a boundary target i > Ni:
+        ib  = i - Ni
+        ibp = cld(ib, N)
+        kt  = dom.kd[ibp]
+        ip  = ib - (ibp - 1)*N
+        local boundary coordinate is:
+            t = cospi((2*ip - 1)/(2N))
+    ===#
 
     # 2 × (Ni + Nb + Tnsp)
     # row 1 = global target column i
     # row 2 = actual integration patch k
     prepts::Matrix{Int}
 
-    # 2 × Tnsp_bd
-    # row 1 = interior target column i
-    # row 2 = actual boundary integration patch k
-    prepts_bd::Matrix{Int}
-
-    # 2 × Tnsp
-    # inverse local coordinates for near-singular volume interactions
+    # 2 × Tnsp, inverse local coordinates
+    # for near-singular volume interactions
     invpts::Matrix{Float64}
 
-    # length Tnsp_bd
-    # projected local boundary parameter for near-singular boundary interactions
-    projpts::Vector{Float64}
+    #========== Boundary-DLP target classification ==========
+    bdmode[i], i = 1:Ni:
+    0 = target i is far from every boundary panel:
+    dist(xᵢ, ∂Ωₖ) > del_near for all k
+    
+    1 = target i is moderately near the boundary:
+    del_intp <= dist(xᵢ, ∂Ωₖ) <= del_near for at least one k,
+    and dist(xᵢ, ∂Ωₖ) >= del_intp for all k
+    
+    2 = target i is very near the boundary:
+    dist(xᵢ, ∂Ωₖ) < del_intp for at least one k
+    
+    Boundary DLP evaluation logic:
+    bdmode == 0:
+        direct full-boundary quadrature
+    bdmode == 1:
+        direct quadrature on far panels,
+        smoothed quadrature on panels listed in bdneark/bdneart
+    bdmode == 2:
+        full-boundary normal interpolation using bdclosest/bdt/bddist
+    ===#
+    bdmode::Vector{UInt8}
+
+    #====
+    For targets with bdmode == 1, stored in encounter order.
+    If jnear is the running index over mode 1 targets, then
+      q1 = bdnearptr[jnear]
+      q2 = bdnearptr[jnear + 1] - 1
+    and for q = q1:q2
+      bdneark[q] = actual boundary patch index
+      bdneart[q] = projected local parameter on that boundary patch 
+    ===#
+    bdnearptr::Vector{Int}
+    bdneark::Vector{Int}
+    bdneart::Vector{Float64}
+
+    # For targets with bdmode == 2, stored in encounter order.
+    # If jintp is the running index over mode 2 targets, then
+    #   bdclosest[jintp] = closest actual boundary patch index
+    #   bdt[jintp]       = closest projected local boundary parameter
+    #   bddist[jintp]    = closest distance to the boundary
+    bdclosest::Vector{Int}
+    bdt::Vector{Float64}
+    bddist::Vector{Float64}
 
     # pthgo[k] = first column in prepts for actual volume patch k
     # pthgo[M+1] = first column of the regular boundary-target block in prepts
@@ -66,7 +107,8 @@ mutable struct domprop
     # nspsz[M+1] = total number of boundary targets near volume patches
     nspsz::Vector{Int}
 
-    function domprop(N::Integer, del::Float64, del_bd::Float64, dom::D) where {D<:abstractdomain}
+    function domprop(N::Integer, del::Float64, del_near::Float64, del_intp::Float64, dom::D) where {D<:abstractdomain}
+
         # ---------------------------------------------------------------------
         # Notation used inside this constructor only
         # ---------------------------------------------------------------------
@@ -83,23 +125,20 @@ mutable struct domprop
         # ibp     boundary-local patch index containing a boundary target
         #
         # i       global target column in tgtpts
-        # ib      boundary target index, 1:Nb (index boundary)
+        # ib      boundary target index, 1:Nb
         # ip      local node index inside a patch
         #
         # colp    column in prepts
         # coli    column in invpts
-        # colpbd  column in prepts_bd and projpts
         #
         # nsp_i   number of interior targets near each volume patch, length M
         # nsp_b   number of boundary targets near each volume patch, length M
-        # nsp_bd  number of interior targets near each boundary patch, length Mbd
         #
         # Xi      view of interior target coordinates, tgtpts[:, 1:Ni]
         # Xb      view of boundary target coordinates, tgtpts[:, Ni+1:Nt]
         # in_i    inside mask for Xi, length Ni
         # in_b    inside mask for Xb, length Nb
         # ---------------------------------------------------------------------
-
         M = dom.Npat
         Mbd = length(dom.kd)
         Np = N^2
@@ -163,19 +202,11 @@ mutable struct domprop
             @views extendqua!(Qe[:, k], Q[:, k], del)
         end
 
-        Qbd = dom.Qptsbd
-        Qebd = similar(Qbd)
-
-        @inbounds for kb in 1:Mbd
-            @views extendqua!(Qebd[:, kb], Qbd[:, kb], del_bd)
-        end
-
         in_i = Vector{Bool}(undef, Ni)
         in_b = Vector{Bool}(undef, Nb)
 
         nsp_i = zeros(Int, M)
         nsp_b = zeros(Int, M)
-        nsp_bd = zeros(Int, Mbd)
 
         # Count interior and boundary targets near each volume patch.
         @inbounds for k in 1:M
@@ -213,32 +244,9 @@ mutable struct domprop
             nsp_b[k] = cnt
         end
 
-        # Count interior targets near each boundary patch.
-        @inbounds for kb in 1:Mbd
-            k = dom.kd[kb]
-
-            P1x, P1y = Qebd[1, kb], Qebd[2, kb]
-            P2x, P2y = Qebd[3, kb], Qebd[4, kb]
-            P3x, P3y = Qebd[5, kb], Qebd[6, kb]
-            P4x, P4y = Qebd[7, kb], Qebd[8, kb]
-
-            ptinqua!(in_i, Xi, P1x, P1y, P2x, P2y, P3x, P3y, P4x, P4y)
-
-            cnt = 0
-            for i in 1:Ni
-                if in_i[i]
-                    if isnspbd(dom, tgtpts[1, i], tgtpts[2, i], k, del_bd)
-                        cnt += 1
-                    end
-                end
-            end
-            nsp_bd[kb] = cnt
-        end
-
         Tnsp_i = sum(nsp_i)
         Tnsp_b = sum(nsp_b)
         Tnsp = Tnsp_i + Tnsp_b
-        Tnsp_bd = sum(nsp_bd)
 
         # ---------------------------------------------------------------------
         # 3. Layout arrays and output allocation
@@ -252,20 +260,15 @@ mutable struct domprop
             nspsz[k] = nsp_i[k]
             colp += Np + nsp_i[k]
         end
+
         pthgo[M+1] = colp
         nspsz[M+1] = Tnsp_b
 
         hmap = Dict{UInt64,Int}()
         sizehint!(hmap, Tnsp)
 
-        hmap_bd = Dict{UInt64,Int}()
-        sizehint!(hmap_bd, Tnsp_bd)
-
         prepts = Matrix{Int}(undef, 2, Ni + Nb + Tnsp)
         invpts = Matrix{Float64}(undef, 2, Tnsp)
-
-        prepts_bd = Matrix{Int}(undef, 2, Tnsp_bd)
-        projpts = Vector{Float64}(undef, Tnsp_bd)
 
         # ---------------------------------------------------------------------
         # 4. Inversion tables
@@ -389,38 +392,161 @@ mutable struct domprop
         end
 
         # ---------------------------------------------------------------------
-        # 6. Fill prepts_bd and projpts for boundary integrations
+        # 6. Boundary-DLP target classification
         # ---------------------------------------------------------------------
-        colpbd = 1
+        # Output:
+        #   bdmode[i], i = 1:Ni
+        # Mode 1 storage:
+        #   bdnearptr, bdneark, bdneart
+        # Mode 2 storage:
+        #   bdclosest, bdt, bddist
+        # ---------------------------------------------------------------------
+        BD_FAR = UInt8(0)
+        BD_NEAR = UInt8(1)
+        BD_INTP = UInt8(2)
+
+        bdmode = fill(BD_FAR, Ni)
+
+        # Boundary-patch extended quads for the two DLP thresholds.
+        Qbd = dom.Qptsbd
+
+        Qebd_near = similar(Qbd)
+        Qebd_intp = similar(Qbd)
 
         @inbounds for kb in 1:Mbd
-            k = dom.kd[kb]
+            @views extendqua!(Qebd_near[:, kb], Qbd[:, kb], del_near)
+            @views extendqua!(Qebd_intp[:, kb], Qbd[:, kb], del_intp)
+        end
 
-            P1x, P1y = Qebd[1, kb], Qebd[2, kb]
-            P2x, P2y = Qebd[3, kb], Qebd[4, kb]
-            P3x, P3y = Qebd[5, kb], Qebd[6, kb]
-            P4x, P4y = Qebd[7, kb], Qebd[8, kb]
+        # Flattened storage for mode-1 targets.
+        # bdnearptr starts with 1. Whenever we encounter a mode-1 target,
+        # we append its nearby panels to bdneark/bdneart and then push the
+        # next starting position into bdnearptr.
+        bdnearptr = Int[1]
+        bdneark = Int[]
+        bdneart = Float64[]
 
-            ptinqua!(in_i, Xi, P1x, P1y, P2x, P2y, P3x, P3y, P4x, P4y)
+        # Storage for mode-2 targets.
+        bdclosest = Int[]
+        bdt = Float64[]
+        bddist = Float64[]
 
-            for i in 1:Ni
-                if in_i[i]
-                    if isnspbd(dom, tgtpts[1, i], tgtpts[2, i], k, del_bd)
-                        prepts_bd[1, colpbd] = i
-                        prepts_bd[2, colpbd] = k
-                        hmap_bd[packkey(i, k)] = colpbd
+        # Small local work arrays for one target only.
+        near_k = Int[]
+        near_t = Float64[]
 
-                        τ = projbd(dom, tgtpts[1, i], tgtpts[2, i], k)
-                        projpts[colpbd] = snap1(τ)
+        @inbounds for i in 1:Ni
 
-                        colpbd += 1
+            x1 = tgtpts[1, i]
+            x2 = tgtpts[2, i]
+
+            # -------------------------------------------------------------
+            # First look for very-near panels: dist < del_intp.
+            # If this happens for any panel, this target is mode 2.
+            # We only store the closest one.
+            # -------------------------------------------------------------
+            bestdist = Inf
+            bestk = 0
+
+            for kb in 1:Mbd
+                k = dom.kd[kb]
+
+                P1x, P1y = Qebd_intp[1, kb], Qebd_intp[2, kb]
+                P2x, P2y = Qebd_intp[3, kb], Qebd_intp[4, kb]
+                P3x, P3y = Qebd_intp[5, kb], Qebd_intp[6, kb]
+                P4x, P4y = Qebd_intp[7, kb], Qebd_intp[8, kb]
+
+                if ptinqua(x1, x2, P1x, P1y, P2x, P2y, P3x, P3y, P4x, P4y)
+
+                    if isnspbd(dom, x1, x2, k, del_intp)
+
+                        τ = projbd(dom, x1, x2, k)
+                        γx, γy = gam(dom, τ, k)
+
+                        dx = γx - x1
+                        dy = γy - x2
+                        dist = hypot(dx, dy)
+
+                        if dist < del_intp && dist < bestdist
+                            bestdist = dist
+                            bestk = k
+                        end
                     end
                 end
             end
+
+            if bestdist < del_intp
+
+                # Very close to the boundary: full-boundary interpolation.
+                bdmode[i] = BD_INTP
+
+                # Refine closest projection to high precision.
+                ε, t0 = GSS(dist_gam, -1.0, 1.0, 1e-15, dom, x1, x2, bestk)
+                t₀ = Bis(dist_gamBis, -1.0, 1.0, t0, 64, dom, x1, x2, bestk)
+
+                push!(bdclosest, bestk)
+                push!(bdt, snap1(t₀))
+                push!(bddist, ε)
+
+                continue
+            end
+
+            # -------------------------------------------------------------
+            # Otherwise, look for moderate-near panels:
+            #     del_intp <= dist <= del_near.
+            # These are the panels that get smoothed quadrature.
+            # -------------------------------------------------------------
+            empty!(near_k)
+            empty!(near_t)
+
+            for kb in 1:Mbd
+                k = dom.kd[kb]
+
+                P1x, P1y = Qebd_near[1, kb], Qebd_near[2, kb]
+                P2x, P2y = Qebd_near[3, kb], Qebd_near[4, kb]
+                P3x, P3y = Qebd_near[5, kb], Qebd_near[6, kb]
+                P4x, P4y = Qebd_near[7, kb], Qebd_near[8, kb]
+
+                if ptinqua(x1, x2, P1x, P1y, P2x, P2y, P3x, P3y, P4x, P4y)
+
+                    if isnspbd(dom, x1, x2, k, del_near)
+
+                        τ = projbd(dom, x1, x2, k)
+                        γx, γy = gam(dom, τ, k)
+
+                        dx = γx - x1
+                        dy = γy - x2
+                        dist = hypot(dx, dy)
+
+                        if del_intp <= dist <= del_near
+                            push!(near_k, k)
+                            push!(near_t, snap1(τ))
+                        end
+                    end
+                end
+            end
+
+            if !isempty(near_k)
+
+                # Moderately close: panel-wise smoothing on listed panels.
+                bdmode[i] = BD_NEAR
+
+                for q in eachindex(near_k)
+                    push!(bdneark, near_k[q])
+                    push!(bdneart, near_t[q])
+                end
+
+                push!(bdnearptr, length(bdneark) + 1)
+
+            else
+                # Far from all boundary panels.
+                bdmode[i] = BD_FAR
+            end
         end
 
-        return new(N, del, del_bd, hmap, hmap_bd, tgtpts,
-                   prepts, prepts_bd, invpts, projpts, pthgo, nspsz)
+        return new(N, del, del_near, del_intp, hmap, tgtpts, prepts, invpts,
+            bdmode, bdnearptr, bdneark, bdneart, bdclosest, bdt, bddist,
+            pthgo, nspsz)
     end
 end
 
@@ -543,12 +669,174 @@ function plotns(dp::domprop, d::abstractdomain, k::Integer)
     return (fig,ax)
 end
 
+
 """
-Plot the near-singular interior target points to boundary patch `k`
-on top of the domain drawing. Here `k` is the actual boundary patch index, 
-i.e. `k ∈ d.kd`.
-- Near-singular interior targets to boundary patch `k` are shown in blue.
-- Also draws the δ_bd-extended quadrilateral for boundary patch `k`.
+Plot boundary-DLP projections associated with boundary patch `k`.
+Here `k` is the actual boundary patch index, i.e. `k ∈ d.kd`.
+Mode-1 targets:
+1) target point shown in black,
+2) projected point shown in black,
+3) arrow shown in black.
+For Mode-2 targets same but in blue.
+
+Also draws the del_near extended boundary quadrilateral in black,
+and the del_intp extended boundary quadrilateral in blue.
+"""
+function plotprojbd(dp::domprop, d::abstractdomain, k::Integer)
+
+    fig, ax = draw(d, 1; L=1024)
+
+    # k is the actual boundary patch index.
+    kb = findfirst(==(k), d.kd)
+    kb === nothing && error("Patch k = $k is not a boundary patch.")
+
+    # -------------------------------------------------------------------------
+    # Draw extended boundary quadrilaterals.
+    # -------------------------------------------------------------------------
+    @views Pbd = d.Qptsbd[:, kb]
+
+    Pext_near = Vector{Float64}(undef, 8)
+    Pext_intp = Vector{Float64}(undef, 8)
+
+    ix = [1, 3, 5, 7, 1]
+    iy = [2, 4, 6, 8, 2]
+
+    extendqua!(Pext_near, Pbd, dp.del_near)
+    extendqua!(Pext_intp, Pbd, dp.del_intp)
+
+    lines!(ax, Pext_near[ix], Pext_near[iy];
+        color=:black, linewidth=2)
+
+    lines!(ax, Pext_intp[ix], Pext_intp[iy];
+        color=:blue, linewidth=2)
+
+    # -------------------------------------------------------------------------
+    # Collect mode-1 projections for patch k.
+    # -------------------------------------------------------------------------
+    xt1 = Float64[]
+    yt1 = Float64[]
+    xp1 = Float64[]
+    yp1 = Float64[]
+
+    xt2 = Float64[]
+    yt2 = Float64[]
+    xp2 = Float64[]
+    yp2 = Float64[]
+
+    jnear = 0
+    jintp = 0
+
+    Ni = length(dp.bdmode)
+
+    @inbounds for i in 1:Ni
+
+        mode = dp.bdmode[i]
+
+        if mode == UInt8(1)
+            jnear += 1
+
+            q1 = dp.bdnearptr[jnear]
+            q2 = dp.bdnearptr[jnear+1] - 1
+
+            @inbounds for q in q1:q2
+                if dp.bdneark[q] == k
+                    τ = dp.bdneart[q]
+
+                    x0 = dp.tgtpts[1, i]
+                    y0 = dp.tgtpts[2, i]
+
+                    x1 = gamx(d, τ, k)
+                    y1 = gamy(d, τ, k)
+
+                    push!(xt1, x0)
+                    push!(yt1, y0)
+                    push!(xp1, x1)
+                    push!(yp1, y1)
+                end
+            end
+
+        elseif mode == UInt8(2)
+            jintp += 1
+
+            if dp.bdclosest[jintp] == k
+                τ = dp.bdt[jintp]
+
+                x0 = dp.tgtpts[1, i]
+                y0 = dp.tgtpts[2, i]
+
+                x1 = gamx(d, τ, k)
+                y1 = gamy(d, τ, k)
+
+                push!(xt2, x0)
+                push!(yt2, y0)
+                push!(xp2, x1)
+                push!(yp2, y1)
+            end
+        end
+    end
+
+    # -------------------------------------------------------------------------
+    # Plot mode-1 arrows/projections.
+    # -------------------------------------------------------------------------
+    if !isempty(xt1)
+        dmin1 = minimum(hypot.(xp1 .- xt1, yp1 .- yt1))
+        @printf("Smallest mode-1 distance: %.2e\n", dmin1)
+
+        arrows2d!(ax, xt1, yt1, xp1 .- xt1, yp1 .- yt1;
+            tipwidth=8,
+            tiplength=12,
+            shaftwidth=1.5,
+            color=:black)
+
+        scatter!(ax, xt1, yt1;
+            markersize=9,
+            color=:black,
+            strokewidth=0)
+
+        scatter!(ax, xp1, yp1;
+            markersize=9,
+            color=:black,
+            strokewidth=0)
+    end
+
+    # -------------------------------------------------------------------------
+    # Plot mode-2 arrows/projections.
+    # -------------------------------------------------------------------------
+    if !isempty(xt2)
+        dmin2 = minimum(hypot.(xp2 .- xt2, yp2 .- yt2))
+        @printf("Smallest mode-2 distance: %.2e\n", dmin2)
+
+        arrows2d!(ax, xt2, yt2, xp2 .- xt2, yp2 .- yt2;
+            tipwidth=8,
+            tiplength=12,
+            shaftwidth=1.5,
+            color=:blue)
+
+        scatter!(ax, xt2, yt2;
+            markersize=9,
+            color=:blue,
+            strokewidth=0)
+
+        scatter!(ax, xp2, yp2;
+            markersize=9,
+            color=:blue,
+            strokewidth=0)
+    end
+
+    return fig, ax
+end
+
+"""
+Plot boundary-near interior target points associated with boundary patch `k`.
+Here `k` is the actual boundary patch index, i.e. `k ∈ d.kd`.
+
+i) Mode-1 targets are shown in black:
+  del_intp <= dist(x, ∂Ω_k) <= del_near for this patch `k`.
+ii) Mode-2 targets are shown in blue:
+  dist(x, ∂Ω) < del_intp and the closest boundary patch is `k`.
+
+Also draws the del_near-extended boundary quadrilateral in black,
+and the del_intp-extended boundary quadrilateral in blue.
 """
 function plotnsbd(dp::domprop, d::abstractdomain, k::Integer)
 
@@ -557,103 +845,89 @@ function plotnsbd(dp::domprop, d::abstractdomain, k::Integer)
     # k is the actual boundary patch index.
     # kb is the boundary-local index such that d.kd[kb] == k.
     kb = findfirst(==(k), d.kd)
-
     kb === nothing && error("Patch k = $k is not a boundary patch. It must belong to d.kd.")
 
-    # -- draw δ_bd-extended boundary quadrilateral --
+    # -------------------------------------------------------------------------
+    # Draw extended boundary quadrilaterals.
+    # -------------------------------------------------------------------------
     @views Pbd = d.Qptsbd[:, kb]
 
-    Pext = Vector{Float64}(undef, 8)
+    Pext_near = Vector{Float64}(undef, 8)
+    Pext_intp = Vector{Float64}(undef, 8)
 
     ix = [1, 3, 5, 7, 1]
     iy = [2, 4, 6, 8, 2]
 
-    extendqua!(Pext, Pbd, dp.del_bd)
-    lines!(ax, Pext[ix], Pext[iy], color=:black, linewidth=2)
+    extendqua!(Pext_near, Pbd, dp.del_near)
+    extendqua!(Pext_intp, Pbd, dp.del_intp)
 
-    # -- collect near-singular interior targets to boundary patch k --
-    xbd = Float64[]
-    ybd = Float64[]
+    lines!(ax, Pext_near[ix], Pext_near[iy];
+        color = :black, linewidth = 2)
 
-    @inbounds for colpbd in 1:size(dp.prepts_bd, 2)
-        if dp.prepts_bd[2, colpbd] == k
-            i = dp.prepts_bd[1, colpbd]
+    lines!(ax, Pext_intp[ix], Pext_intp[iy];
+        color = :blue, linewidth = 2)
 
-            push!(xbd, dp.tgtpts[1, i])
-            push!(ybd, dp.tgtpts[2, i])
+    # -------------------------------------------------------------------------
+    # Collect mode-1 and mode-2 target points associated with patch k.
+    # -------------------------------------------------------------------------
+    x_mode1 = Float64[]
+    y_mode1 = Float64[]
+
+    x_mode2 = Float64[]
+    y_mode2 = Float64[]
+
+    jnear = 0
+    jintp = 0
+
+    Ni = length(dp.bdmode)
+
+    @inbounds for i in 1:Ni
+
+        mode = dp.bdmode[i]
+
+        if mode == UInt8(1)
+            # Mode 1: moderately near.
+            # This target may be near several boundary panels.
+            jnear += 1
+
+            q1 = dp.bdnearptr[jnear]
+            q2 = dp.bdnearptr[jnear + 1] - 1
+
+            for q in q1:q2
+                if dp.bdneark[q] == k
+                    push!(x_mode1, dp.tgtpts[1, i])
+                    push!(y_mode1, dp.tgtpts[2, i])
+                    break
+                end
+            end
+
+        elseif mode == UInt8(2)
+            # Mode 2: very near.
+            # Stored only by closest boundary patch.
+            jintp += 1
+
+            if dp.bdclosest[jintp] == k
+                push!(x_mode2, dp.tgtpts[1, i])
+                push!(y_mode2, dp.tgtpts[2, i])
+            end
         end
     end
 
-    !isempty(xbd) && scatter!(ax, xbd, ybd; markersize=9, color=:blue, strokewidth=0)
-
-    return (fig, ax)
-end
-
-
-"""
-Plot the projection of near-singular interior targets onto boundary patch `k`.
-Here `k` is the actual boundary patch index, i.e. `k ∈ d.kd`.
-For every interior target point near-singular to boundary patch `k`:
-- the original target point is shown in black,
-- the projected boundary point is shown in blue,
-- an arrow is drawn from the target point to its projection.
-"""
-function plotprojbd(dp::domprop, d::abstractdomain, k::Integer)
-
-    fig, ax = draw(d, 1)
-
-    # k is the actual boundary patch index.
-    # kb is the boundary-local index such that d.kd[kb] == k.
-    kb = findfirst(==(k), d.kd)
-    kb === nothing && error("Patch k = $k is not a boundary patch. It must belong to d.kd.")
-
-    # -- draw δ_bd-extended boundary quadrilateral --
-    @views Pbd = d.Qptsbd[:, kb]
-
-    Pext = Vector{Float64}(undef, 8)
-
-    ix = [1, 3, 5, 7, 1]
-    iy = [2, 4, 6, 8, 2]
-
-    extendqua!(Pext, Pbd, dp.del_bd)
-    lines!(ax, Pext[ix], Pext[iy], color=:black, linewidth=2)
-
-    # -- collect target points and projected points --
-    xt = Float64[]
-    yt = Float64[]
-    xp = Float64[]
-    yp = Float64[]
-
-    @inbounds for colpbd in 1:size(dp.prepts_bd, 2)
-
-        if dp.prepts_bd[2, colpbd] == k
-
-            i = dp.prepts_bd[1, colpbd]
-            τ = dp.projpts[colpbd]
-
-            # original near-singular target
-            x0 = dp.tgtpts[1, i]
-            y0 = dp.tgtpts[2, i]
-
-            # projected point on boundary patch k
-            x1 = gamx(d, τ, k)
-            y1 = gamy(d, τ, k)
-
-            push!(xt, x0)
-            push!(yt, y0)
-            push!(xp, x1)
-            push!(yp, y1)
-
-        end
+    # -------------------------------------------------------------------------
+    # Plot target points.
+    # -------------------------------------------------------------------------
+    if !isempty(x_mode1)
+        scatter!(ax, x_mode1, y_mode1;
+            markersize = 9,
+            color = :black,
+            strokewidth = 0)
     end
 
-    if !isempty(xt)
-        smallest_arrow_length= minimum(sqrt.((xp .- xt).^2 + (yp .- yt).^2))
-        @printf("Smallest distance : %.2e\n", smallest_arrow_length)
-        arrows2d!(ax, xt, yt, xp .- xt, yp .- yt;
-            tipwidth=8, tiplength=12, shaftwidth=1.5, color=:gray)
-        scatter!(ax, xt, yt; markersize=9, color=:black,strokewidth=0)
-        scatter!(ax, xp, yp; markersize=9, color=:blue, strokewidth=0)
+    if !isempty(x_mode2)
+        scatter!(ax, x_mode2, y_mode2;
+            markersize = 9,
+            color = :blue,
+            strokewidth = 0)
     end
 
     return fig, ax
@@ -1399,30 +1673,111 @@ function _preview(v::Vector{Int}; n::Int=3)
     end
 end
 
+function _preview(v::Vector{Float64}; n::Int=3,
+    digits::Int=2, scale::Union{Nothing,Float64}=nothing,
+    suffix::String="")
+
+    L = length(v)
+
+    if L == 0
+        return "$(Float64)[ ]"
+    end
+
+    vals = scale === nothing ? v : v ./ scale
+
+    fmt(x) = string(round(x; digits=digits))
+
+    if L <= 2n
+        body = join((fmt(vals[i]) for i in 1:L), ' ')
+    else
+        head = join((fmt(vals[i]) for i in 1:n), ' ')
+        tail = join((fmt(vals[i]) for i in L-n+1:L), ' ')
+        body = "$head … $tail"
+    end
+
+    return "$Float64[$body]" * suffix
+end
+
 function Base.show(io::IO, ::MIME"text/plain", d::domprop)
-    # headline
+
+    Ni = length(d.bdmode)
+
+    nfar  = count(==(UInt8(0)), d.bdmode)
+    nnear = count(==(UInt8(1)), d.bdmode)
+    nintp = count(==(UInt8(2)), d.bdmode)
+
+    total_near_pairs = length(d.bdneark)
+
     println(io, "domain properties:")
-    println(io, "  N:       ", d.N)
-    println(io, "  del:     ", d.del)
-    println(io, "  del_bd:  ", d.del_bd)
-
-    # quick counts
-    maplen = length(d.hmap)
-    maplenbd = length(d.hmap_bd)
+    println(io, "  N:          ", d.N)
+    println(io, "  del:        ", d.del)
+    println(io, "  del_near:   ", d.del_near)
+    println(io, "  del_intp:   ", d.del_intp)
 
     println(io)
-    println(io, "  hmap     :  Dict  (", maplen,  " entries)")
-    println(io, "  hmap_bd  :  Dict  (", maplenbd,  " entries)")
-    println(io, "  tgtpts   :  Matrix{Float64} (", size(d.tgtpts,1), "×", size(d.tgtpts,2), ")")
-    println(io, "  prepts   :  Matrix{Int}     (", size(d.prepts,1), "×", size(d.prepts,2), ")")
-    println(io, "  prepts_bd:  Matrix{Int}     (", size(d.prepts_bd,1), "×", size(d.prepts_bd,2), ")")
-    println(io, "  invpts   :  Matrix{Float64} (", size(d.invpts,1), "×", size(d.invpts,2), ")")
-    println(io, "  projpts  :  Vector{Float64} (", length(d.projpts), " projections)")
+    println(io, "  hmap       :  Dict  (", length(d.hmap), " entries)")
+    println(io, "  tgtpts     :  Matrix{Float64} (", size(d.tgtpts, 1), "×", size(d.tgtpts, 2), ")")
+    println(io, "  prepts     :  Matrix{Int}     (", size(d.prepts, 1), "×", size(d.prepts, 2), ")")
+    println(io, "  invpts     :  Matrix{Float64} (", size(d.invpts, 1), "×", size(d.invpts, 2), ")")
 
-    # bookkeeping vectors (show size + a short preview)
     println(io)
-    println(io, "  pthgo:    ", _preview(d.pthgo))
-    println(io, "  nspsz:    ", _preview(d.nspsz))
+    println(io, "  Boundary-DLP target classification:")
+    println(io, "    bdmode   :  Vector{UInt8} (", Ni, " interior targets)")
+    println(io, "      mode 0 far/direct        : ", nfar)
+    println(io, "      mode 1 near/smoothed     : ", nnear)
+    println(io, "      mode 2 interp/full-DLP   : ", nintp)
 
-    return
+    println(io)
+    println(io, "  Mode-1 near-panel storage:")
+    println(io, "    bdnearptr :  Vector{Int}     (", length(d.bdnearptr), ")")
+    println(io, "    bdneark   :  Vector{Int}     (", length(d.bdneark), " panel entries)")
+    println(io, "    bdneart   :  Vector{Float64} (", length(d.bdneart), " projections)")
+    println(io, "    total near pairs: ", total_near_pairs)
+
+    println(io)
+    println(io, "  Mode-2 interpolation storage:")
+    println(io, "    bdclosest :  Vector{Int}     (", length(d.bdclosest), ")")
+    println(io, "    bdt       :  Vector{Float64} (", length(d.bdt), " projections)")
+    println(io, "    bddist    :  Vector{Float64} (", length(d.bddist), " distances)")
+
+    println(io)
+    println(io, "  Bookkeeping:")
+    println(io, "    pthgo:    ", _preview(d.pthgo))
+    println(io, "    nspsz:    ", _preview(d.nspsz))
+
+    if !isempty(d.bdclosest)
+        println(io)
+        println(io, "  Boundary interpolation preview:")
+        println(io, "    bdclosest: ", _preview(d.bdclosest))
+        println(io, "    bdt:       ", _preview(d.bdt))
+        println(io, "    bddist:    ", _preview(d.bddist; scale=1e-3, suffix=" × 10^{-3}"))
+    end
+
+    return nothing
+end
+
+function memory_report(dp::domprop)
+    fields = fieldnames(typeof(dp))
+
+    rows = [(name, Base.summarysize(getfield(dp, name))) for name in fields]
+    total = Base.summarysize(dp)
+
+    @printf("domprop memory report\n")
+    @printf("---------------------\n")
+    @printf("%-16s %12s %12s\n", "field", "MiB", "percent")
+
+    for (name, bytes) in sort(rows; by = x -> x[2], rev = true)
+        @printf("%-16s %12.4f %11.2f%%\n",
+            String(name),
+            bytes / 1024^2,
+            100 * bytes / total)
+    end
+
+    @printf("---------------------\n")
+    @printf("%-16s %12.4f %11.2f%%\n",
+        "TOTAL",
+        total / 1024^2,
+        100.0)
+
+    return nothing
 end
