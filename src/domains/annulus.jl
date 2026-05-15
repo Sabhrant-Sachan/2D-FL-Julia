@@ -2454,6 +2454,111 @@ function dgam!(out::Matrix{Float64}, d::annulus, t::Vector{Float64}, k::Int)
   return nothing
 end
 
+function gamp(d::annulus, t::Float64, k::Int)::Tuple{Float64,Float64}
+  @inbounds begin
+    p = d.pths[k]
+
+    ht = p.tk1 - p.tk0
+    αv = 0.5 * ht
+    βv = 0.5 * (p.tk0 + p.tk1)
+
+    τ = muladd(αv, t, βv)
+    reg = p.reg
+
+    if reg == 1
+      th0, Δth = d.T1[1], d.T1[2] - d.T1[1]
+      fac = Δth * αv
+      th = muladd(Δth, τ, th0)
+      st, ct = sincos(th)
+
+      gp1 = fac * muladd(-st, d.R11 * d.RP.Sθ₁, ct * d.R12 * d.RP.Cθ₁)
+      gp2 = fac * muladd(st, d.R11 * d.RP.Cθ₁, ct * d.R12 * d.RP.Sθ₁)
+
+      return gp1, gp2
+
+    elseif reg == 2
+      th0, Δth = d.T1[2], d.T1[3] - d.T1[2]
+      fac = Δth * αv
+      th = muladd(Δth, τ, th0)
+      st, ct = sincos(th)
+
+      gp1 = fac * muladd(-st, d.R11 * d.RP.Sθ₁, ct * d.R12 * d.RP.Cθ₁)
+      gp2 = fac * muladd(st, d.R11 * d.RP.Cθ₁, ct * d.R12 * d.RP.Sθ₁)
+
+      return gp1, gp2
+
+    elseif reg == 3
+      th0, Δth = d.T1[3], d.T1[4] - d.T1[3]
+      fac = Δth * αv
+      th = muladd(Δth, τ, th0)
+      st, ct = sincos(th)
+
+      gp1 = fac * muladd(-st, d.R11 * d.RP.Sθ₁, ct * d.R12 * d.RP.Cθ₁)
+      gp2 = fac * muladd(st, d.R11 * d.RP.Cθ₁, ct * d.R12 * d.RP.Sθ₁)
+
+      return gp1, gp2
+
+    elseif reg == 4
+      th0, Δth = d.T1[4], d.T1[1] - d.T1[4] + 2.0π
+      fac = Δth * αv
+      th = muladd(Δth, τ, th0)
+      st, ct = sincos(th)
+
+      gp1 = fac * muladd(-st, d.R11 * d.RP.Sθ₁, ct * d.R12 * d.RP.Cθ₁)
+      gp2 = fac * muladd(st, d.R11 * d.RP.Cθ₁, ct * d.R12 * d.RP.Sθ₁)
+
+      return gp1, gp2
+
+    elseif reg == 5
+      th0, Δth = d.T2[1], d.T2[2] - d.T2[1]
+      fac = Δth * αv
+      th = muladd(Δth, τ, th0)
+      st, ct = sincos(th)
+
+      gp1 = -fac * muladd(-st, d.R21 * d.RP.Sθ₂, ct * d.R22 * d.RP.Cθ₂)
+      gp2 = -fac * muladd(st, d.R21 * d.RP.Cθ₂, ct * d.R22 * d.RP.Sθ₂)
+
+      return gp1, gp2
+
+    elseif reg == 6
+      th0, Δth = d.T2[2], d.T2[3] - d.T2[2]
+      fac = Δth * αv
+      th = muladd(Δth, τ, th0)
+      st, ct = sincos(th)
+
+      gp1 = -fac * muladd(-st, d.R21 * d.RP.Sθ₂, ct * d.R22 * d.RP.Cθ₂)
+      gp2 = -fac * muladd(st, d.R21 * d.RP.Cθ₂, ct * d.R22 * d.RP.Sθ₂)
+
+      return gp1, gp2
+
+    elseif reg == 7
+      th0, Δth = d.T2[3], d.T2[4] - d.T2[3]
+      fac = Δth * αv
+      th = muladd(Δth, τ, th0)
+      st, ct = sincos(th)
+
+      gp1 = -fac * muladd(-st, d.R21 * d.RP.Sθ₂, ct * d.R22 * d.RP.Cθ₂)
+      gp2 = -fac * muladd(st, d.R21 * d.RP.Cθ₂, ct * d.R22 * d.RP.Sθ₂)
+
+      return gp1, gp2
+
+    elseif reg == 8
+      th0, Δth = d.T2[4], d.T2[1] - d.T2[4] + 2.0π
+      fac = Δth * αv
+      th = muladd(Δth, τ, th0)
+      st, ct = sincos(th)
+
+      gp1 = -fac * muladd(-st, d.R21 * d.RP.Sθ₂, ct * d.R22 * d.RP.Cθ₂)
+      gp2 = -fac * muladd(st, d.R21 * d.RP.Cθ₂, ct * d.R22 * d.RP.Sθ₂)
+
+      return gp1, gp2
+
+    else
+      throw(ArgumentError("gamp is defined only for regions 1–8; got reg=$(reg)"))
+    end
+  end
+end
+
 function gamp!(out::Matrix{Float64}, d::annulus, t::Vector{Float64}, k::Int)
   # out[1,:] = dy, out[2,:] = -dx
   @inbounds begin
@@ -2496,8 +2601,8 @@ function gamp!(out::Matrix{Float64}, d::annulus, t::Vector{Float64}, k::Int)
         τ = muladd(αv, t[I], βv)
         th = muladd(Δth, τ, th0)
         st, ct = sincos(th)
-        out[1, I] = fac * muladd(-st, R21s2, ct * R22c2)
-        out[2, I] = fac * muladd(st, R21c2, ct * R22s2)
+        out[1, I] = -fac * muladd(-st, R21s2, ct * R22c2)
+        out[2, I] = -fac * muladd(st, R21c2, ct * R22s2)
       end
 
     elseif p.reg == 2
@@ -2518,8 +2623,8 @@ function gamp!(out::Matrix{Float64}, d::annulus, t::Vector{Float64}, k::Int)
         τ = muladd(αv, t[I], βv)
         th = muladd(Δth, τ, th0)
         st, ct = sincos(th)
-        out[1, I] = fac * muladd(-st, R21s2, ct * R22c2)
-        out[2, I] = fac * muladd(st, R21c2, ct * R22s2)
+        out[1, I] = -fac * muladd(-st, R21s2, ct * R22c2)
+        out[2, I] = -fac * muladd(st, R21c2, ct * R22s2)
       end
 
     elseif p.reg == 3
@@ -2540,8 +2645,8 @@ function gamp!(out::Matrix{Float64}, d::annulus, t::Vector{Float64}, k::Int)
         τ = muladd(αv, t[I], βv)
         th = muladd(Δth, τ, th0)
         st, ct = sincos(th)
-        out[1, I] = fac * muladd(-st, R21s2, ct * R22c2)
-        out[2, I] = fac * muladd(st, R21c2, ct * R22s2)
+        out[1, I] = -fac * muladd(-st, R21s2, ct * R22c2)
+        out[2, I] = -fac * muladd(st, R21c2, ct * R22s2)
       end
 
     elseif p.reg == 4
@@ -2562,121 +2667,13 @@ function gamp!(out::Matrix{Float64}, d::annulus, t::Vector{Float64}, k::Int)
         τ = muladd(αv, t[I], βv)
         th = muladd(Δth, τ, th0)
         st, ct = sincos(th)
-        out[1, I] = fac * muladd(-st, R21s2, ct * R22c2)
-        out[2, I] = fac * muladd(st, R21c2, ct * R22s2)
+        out[1, I] = -fac * muladd(-st, R21s2, ct * R22c2)
+        out[2, I] = -fac * muladd(st, R21c2, ct * R22s2)
       end
 
     else
       throw(ArgumentError("gamp! is defined only for regions 1–8; got reg=$(p.reg)"))
     end
-  end
-  return nothing
-end
-
-function nu!(out::Vector{Float64}, d::annulus, t::Float64, k::Int)
-  @inbounds begin
-    p = d.pths[k]
-
-    ht = p.tk1 - p.tk0
-    αv = 0.5 * ht
-    βv = 0.5 * (p.tk0 + p.tk1)
-
-    c₁ = d.RP.Cθ₁
-    s₁ = d.RP.Sθ₁
-    c₂ = d.RP.Cθ₂
-    s₂ = d.RP.Sθ₂
-
-    R11c1 = d.R11 * c₁
-    R12s1 = d.R12 * s₁
-    R11s1 = d.R11 * s₁
-    R12c1 = d.R12 * c₁
-
-    R21c2 = d.R21 * c₂
-    R22s2 = d.R22 * s₂
-    R21s2 = d.R21 * s₂
-    R22c2 = d.R22 * c₂
-
-    τ = muladd(αv, t, βv)
-
-    if p.reg == 1
-      th0, Δth = d.T1[1], d.T1[2] - d.T1[1]
-      fac = Δth * αv
-      th = muladd(Δth, τ, th0)
-      st, ct = sincos(th)
-
-      dy = fac * muladd(-st, R11s1, ct * R12c1)
-      dx = fac * muladd(-st, R11c1, ct * R12s1)
-
-    elseif p.reg == 5
-      th0, Δth = d.T2[1], d.T2[2] - d.T2[1]
-      fac = Δth * αv
-      th = muladd(Δth, τ, th0)
-      st, ct = sincos(th)
-
-      dy = fac * muladd(-st, R21s2, ct * R22c2)
-      dx = fac * muladd(-st, R21c2, ct * R22s2)
-
-    elseif p.reg == 2
-      th0, Δth = d.T1[2], d.T1[3] - d.T1[2]
-      fac = Δth * αv
-      th = muladd(Δth, τ, th0)
-      st, ct = sincos(th)
-
-      dy = fac * muladd(-st, R11s1, ct * R12c1)
-      dx = fac * muladd(-st, R11c1, ct * R12s1)
-
-    elseif p.reg == 6
-      th0, Δth = d.T2[2], d.T2[3] - d.T2[2]
-      fac = Δth * αv
-      th = muladd(Δth, τ, th0)
-      st, ct = sincos(th)
-
-      dy = fac * muladd(-st, R21s2, ct * R22c2)
-      dx = fac * muladd(-st, R21c2, ct * R22s2)
-
-    elseif p.reg == 3
-      th0, Δth = d.T1[3], d.T1[4] - d.T1[3]
-      fac = Δth * αv
-      th = muladd(Δth, τ, th0)
-      st, ct = sincos(th)
-
-      dy = fac * muladd(-st, R11s1, ct * R12c1)
-      dx = fac * muladd(-st, R11c1, ct * R12s1)
-
-    elseif p.reg == 7
-      th0, Δth = d.T2[3], d.T2[4] - d.T2[3]
-      fac = Δth * αv
-      th = muladd(Δth, τ, th0)
-      st, ct = sincos(th)
-
-      dy = fac * muladd(-st, R21s2, ct * R22c2)
-      dx = fac * muladd(-st, R21c2, ct * R22s2)
-
-    elseif p.reg == 4
-      th0, Δth = d.T1[4], d.T1[1] - d.T1[4] + 2π
-      fac = Δth * αv
-      th = muladd(Δth, τ, th0)
-      st, ct = sincos(th)
-
-      dy = fac * muladd(-st, R11s1, ct * R12c1)
-      dx = fac * muladd(-st, R11c1, ct * R12s1)
-
-    elseif p.reg == 8
-      th0, Δth = d.T2[4], d.T2[1] - d.T2[4] + 2π
-      fac = Δth * αv
-      th = muladd(Δth, τ, th0)
-      st, ct = sincos(th)
-
-      dy = fac * muladd(-st, R21s2, ct * R22c2)
-      dx = fac * muladd(-st, R21c2, ct * R22s2)
-
-    else
-      throw(ArgumentError("nu! is defined only for regions 1–8; got reg=$(p.reg)"))
-    end
-
-    S = hypot(dx, dy)
-    out[1] = dy / S
-    out[2] = dx / S
   end
   return nothing
 end
@@ -2689,151 +2686,154 @@ function nu!(out::Matrix{Float64}, d::annulus, t::Vector{Float64}, k::Int)
     αv = 0.5 * ht
     βv = 0.5 * (p.tk0 + p.tk1)
 
-    c₁ = d.RP.Cθ₁
-    s₁ = d.RP.Sθ₁
-    c₂ = d.RP.Cθ₂
-    s₂ = d.RP.Sθ₂
+    reg = p.reg
 
-    R11c1 = d.R11 * c₁
-    R12s1 = d.R12 * s₁
-    R11s1 = d.R11 * s₁
-    R12c1 = d.R12 * c₁
-
-    R21c2 = d.R21 * c₂
-    R22s2 = d.R22 * s₂
-    R21s2 = d.R21 * s₂
-    R22c2 = d.R22 * c₂
-
-    if p.reg == 1
+    if reg == 1
       th0, Δth = d.T1[1], d.T1[2] - d.T1[1]
       fac = Δth * αv
+
       for I in eachindex(t)
         τ = muladd(αv, t[I], βv)
         th = muladd(Δth, τ, th0)
         st, ct = sincos(th)
 
-        dy = fac * muladd(-st, R11s1, ct * R12c1)
-        dx = fac * muladd(-st, R11c1, ct * R12s1)
+        gp1 = fac * muladd(-st, d.R11 * d.RP.Sθ₁, ct * d.R12 * d.RP.Cθ₁)
+        gp2 = fac * muladd(st, d.R11 * d.RP.Cθ₁, ct * d.R12 * d.RP.Sθ₁)
 
-        S = hypot(dx, dy)
-        out[1, I] = dy / S
-        out[2, I] = dx / S
+        S = hypot(gp1, gp2)
+
+        out[1, I] = gp1 / S
+        out[2, I] = gp2 / S
       end
 
-    elseif p.reg == 5
-      th0, Δth = d.T2[1], d.T2[2] - d.T2[1]
-      fac = Δth * αv
-      for I in eachindex(t)
-        τ = muladd(αv, t[I], βv)
-        th = muladd(Δth, τ, th0)
-        st, ct = sincos(th)
-
-        dy = fac * muladd(-st, R21s2, ct * R22c2)
-        dx = fac * muladd(-st, R21c2, ct * R22s2)
-
-        S = hypot(dx, dy)
-        out[1, I] = dy / S
-        out[2, I] = dx / S
-      end
-
-    elseif p.reg == 2
+    elseif reg == 2
       th0, Δth = d.T1[2], d.T1[3] - d.T1[2]
       fac = Δth * αv
+
       for I in eachindex(t)
         τ = muladd(αv, t[I], βv)
         th = muladd(Δth, τ, th0)
         st, ct = sincos(th)
 
-        dy = fac * muladd(-st, R11s1, ct * R12c1)
-        dx = fac * muladd(-st, R11c1, ct * R12s1)
+        gp1 = fac * muladd(-st, d.R11 * d.RP.Sθ₁, ct * d.R12 * d.RP.Cθ₁)
+        gp2 = fac * muladd(st, d.R11 * d.RP.Cθ₁, ct * d.R12 * d.RP.Sθ₁)
 
-        S = hypot(dx, dy)
-        out[1, I] = dy / S
-        out[2, I] = dx / S
+        S = hypot(gp1, gp2)
+
+        out[1, I] = gp1 / S
+        out[2, I] = gp2 / S
       end
 
-    elseif p.reg == 6
-      th0, Δth = d.T2[2], d.T2[3] - d.T2[2]
-      fac = Δth * αv
-      for I in eachindex(t)
-        τ = muladd(αv, t[I], βv)
-        th = muladd(Δth, τ, th0)
-        st, ct = sincos(th)
-
-        dy = fac * muladd(-st, R21s2, ct * R22c2)
-        dx = fac * muladd(-st, R21c2, ct * R22s2)
-
-        S = hypot(dx, dy)
-        out[1, I] = dy / S
-        out[2, I] = dx / S
-      end
-
-    elseif p.reg == 3
+    elseif reg == 3
       th0, Δth = d.T1[3], d.T1[4] - d.T1[3]
       fac = Δth * αv
+
       for I in eachindex(t)
         τ = muladd(αv, t[I], βv)
         th = muladd(Δth, τ, th0)
         st, ct = sincos(th)
 
-        dy = fac * muladd(-st, R11s1, ct * R12c1)
-        dx = fac * muladd(-st, R11c1, ct * R12s1)
+        gp1 = fac * muladd(-st, d.R11 * d.RP.Sθ₁, ct * d.R12 * d.RP.Cθ₁)
+        gp2 = fac * muladd(st, d.R11 * d.RP.Cθ₁, ct * d.R12 * d.RP.Sθ₁)
 
-        S = hypot(dx, dy)
-        out[1, I] = dy / S
-        out[2, I] = dx / S
+        S = hypot(gp1, gp2)
+
+        out[1, I] = gp1 / S
+        out[2, I] = gp2 / S
       end
 
-    elseif p.reg == 7
+    elseif reg == 4
+      th0, Δth = d.T1[4], d.T1[1] - d.T1[4] + 2.0π
+      fac = Δth * αv
+
+      for I in eachindex(t)
+        τ = muladd(αv, t[I], βv)
+        th = muladd(Δth, τ, th0)
+        st, ct = sincos(th)
+
+        gp1 = fac * muladd(-st, d.R11 * d.RP.Sθ₁, ct * d.R12 * d.RP.Cθ₁)
+        gp2 = fac * muladd(st, d.R11 * d.RP.Cθ₁, ct * d.R12 * d.RP.Sθ₁)
+
+        S = hypot(gp1, gp2)
+
+        out[1, I] = gp1 / S
+        out[2, I] = gp2 / S
+      end
+
+    elseif reg == 5
+      th0, Δth = d.T2[1], d.T2[2] - d.T2[1]
+      fac = Δth * αv
+
+      for I in eachindex(t)
+        τ = muladd(αv, t[I], βv)
+        th = muladd(Δth, τ, th0)
+        st, ct = sincos(th)
+
+        gp1 = -fac * muladd(-st, d.R21 * d.RP.Sθ₂, ct * d.R22 * d.RP.Cθ₂)
+        gp2 = -fac * muladd(st, d.R21 * d.RP.Cθ₂, ct * d.R22 * d.RP.Sθ₂)
+
+        S = hypot(gp1, gp2)
+
+        out[1, I] = gp1 / S
+        out[2, I] = gp2 / S
+      end
+
+    elseif reg == 6
+      th0, Δth = d.T2[2], d.T2[3] - d.T2[2]
+      fac = Δth * αv
+
+      for I in eachindex(t)
+        τ = muladd(αv, t[I], βv)
+        th = muladd(Δth, τ, th0)
+        st, ct = sincos(th)
+
+        gp1 = -fac * muladd(-st, d.R21 * d.RP.Sθ₂, ct * d.R22 * d.RP.Cθ₂)
+        gp2 = -fac * muladd(st, d.R21 * d.RP.Cθ₂, ct * d.R22 * d.RP.Sθ₂)
+
+        S = hypot(gp1, gp2)
+
+        out[1, I] = gp1 / S
+        out[2, I] = gp2 / S
+      end
+
+    elseif reg == 7
       th0, Δth = d.T2[3], d.T2[4] - d.T2[3]
       fac = Δth * αv
+
       for I in eachindex(t)
         τ = muladd(αv, t[I], βv)
         th = muladd(Δth, τ, th0)
         st, ct = sincos(th)
 
-        dy = fac * muladd(-st, R21s2, ct * R22c2)
-        dx = fac * muladd(-st, R21c2, ct * R22s2)
+        gp1 = -fac * muladd(-st, d.R21 * d.RP.Sθ₂, ct * d.R22 * d.RP.Cθ₂)
+        gp2 = -fac * muladd(st, d.R21 * d.RP.Cθ₂, ct * d.R22 * d.RP.Sθ₂)
 
-        S = hypot(dx, dy)
-        out[1, I] = dy / S
-        out[2, I] = dx / S
+        S = hypot(gp1, gp2)
+
+        out[1, I] = gp1 / S
+        out[2, I] = gp2 / S
       end
 
-    elseif p.reg == 4
-      th0, Δth = d.T1[4], d.T1[1] - d.T1[4] + 2π
+    elseif reg == 8
+      th0, Δth = d.T2[4], d.T2[1] - d.T2[4] + 2.0π
       fac = Δth * αv
+
       for I in eachindex(t)
         τ = muladd(αv, t[I], βv)
         th = muladd(Δth, τ, th0)
         st, ct = sincos(th)
 
-        dy = fac * muladd(-st, R11s1, ct * R12c1)
-        dx = fac * muladd(-st, R11c1, ct * R12s1)
+        gp1 = -fac * muladd(-st, d.R21 * d.RP.Sθ₂, ct * d.R22 * d.RP.Cθ₂)
+        gp2 = -fac * muladd(st, d.R21 * d.RP.Cθ₂, ct * d.R22 * d.RP.Sθ₂)
 
-        S = hypot(dx, dy)
-        out[1, I] = dy / S
-        out[2, I] = dx / S
-      end
+        S = hypot(gp1, gp2)
 
-    elseif p.reg == 8
-      th0, Δth = d.T2[4], d.T2[1] - d.T2[4] + 2π
-      fac = Δth * αv
-      for I in eachindex(t)
-        τ = muladd(αv, t[I], βv)
-        th = muladd(Δth, τ, th0)
-        st, ct = sincos(th)
-
-        dy = fac * muladd(-st, R21s2, ct * R22c2)
-        dx = fac * muladd(-st, R21c2, ct * R22s2)
-
-        S = hypot(dx, dy)
-        out[1, I] = dy / S
-        out[2, I] = dx / S
+        out[1, I] = gp1 / S
+        out[2, I] = gp2 / S
       end
 
     else
-      throw(ArgumentError("nu! is defined only for regions 1–8; got reg=$(p.reg)"))
+      throw(ArgumentError("nu! is defined only for regions 1–8; got reg=$(reg)"))
     end
   end
 
@@ -2850,7 +2850,7 @@ end
     DLP(d::annulus, t::Float64, l::Int, tau::StridedArray{Float64}, k::Int)
 
 Double-layer kernel on the boundary:
-K(t, τ) = ((γ_k(τ) - γ_l(t)) ⋅ γ'_k(τ)) / ‖γ_k(τ) - γ_l(t)‖² for k ≠ l,
+K(t, τ) = ((γ_k(τ) - γ_l(t)) ⋅ γᵖᵉʳᵖ_k(t)) / ‖γ_k(τ) - γ_l(t)‖² for k ≠ l,
 and for k == l the limiting value is taken for patch k.
 The array method returns an array with the same size as `tau`.
 """

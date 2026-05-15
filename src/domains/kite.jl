@@ -1733,6 +1733,10 @@ function dgam!(out::Matrix{Float64}, d::kite, t::Vector{Float64}, k::Int)
   return nothing
 end
 
+function gamp(d::kite, t::Float64, k::Int)::Tuple{Float64,Float64}
+    return dgamy(d, t, k), -dgamx(d, t, k)
+end
+
 function gamp!(out::Matrix{Float64}, d::kite, t::Vector{Float64}, k::Int)
   #Outputs dy, -dx, the sign is changed in dgamx coeffs!
   p = d.pths[k]
@@ -1799,79 +1803,6 @@ function gamp!(out::Matrix{Float64}, d::kite, t::Vector{Float64}, k::Int)
   end
 
   return nothing
-end
-
-function nu!(out::Vector{Float64}, d::kite, t::Float64, k::Int)
-  p = d.pths[k]
-
-  ht = p.tk1 - p.tk0
-  αt = 0.5 * ht
-  βt = p.tk0 + αt
-
-  if p.reg == 1
-    Δth = d.tht4 - d.tht3
-    th0 = -d.tht4
-
-  elseif p.reg == 2
-    Δth = d.tht3 - d.tht1
-    th0 = -d.tht3
-
-  elseif p.reg == 3
-    Δth = d.tht1
-    th0 = -d.tht1
-
-  elseif p.reg == 4
-    Δth = d.tht1
-    th0 = 0.0
-
-  elseif p.reg == 5
-    Δth = d.tht3 - d.tht1
-    th0 = d.tht1
-
-  elseif p.reg == 6
-    Δth = d.tht4 - d.tht3
-    th0 = d.tht3
-
-  elseif p.reg == 7
-    Δth = π - d.tht2 - d.tht4
-    th0 = d.tht4
-
-  elseif p.reg == 8
-    Δth = d.tht2
-    th0 = π - d.tht2
-
-  elseif p.reg == 9
-    Δth = d.tht2
-    th0 = π
-
-  elseif p.reg == 10
-    Δth = π - d.tht2 - d.tht4
-    th0 = π + d.tht2
-
-  else
-    throw(ArgumentError("nu! is defined only for regions 1–10; got reg=$(p.reg)"))
-
-  end
-
-  xi2 = muladd(αt, t, βt)
-  θ = muladd(xi2, Δth, th0)
-
-  s, c = sincos(θ)
-
-  scale = 0.5 * ht * Δth
-
-  # dx/dθ = -R1*sinθ - P*sin(2θ) = -R1*s - 2P*s*c
-  dx = scale * (-d.R1 * s - 2.0 * d.P * s * c)
-  dy = scale * (d.R2 * c)
-  S  = sqrt(dx^2+dy^2)
-
-  out[1] = dy/S
-
-  # dy/dθ = R2*cosθ
-  out[2] = -dx/S
-
-  return nothing
-
 end
 
 function nu!(out::Matrix{Float64}, d::kite, t::Vector{Float64}, k::Int)
@@ -1951,7 +1882,7 @@ end
     DLP(d::kite, t::Float64, l::Int, tau::StridedArray{Float64}, k::Int)
 
 Double-layer kernel on the boundary:
-K(t, τ) = ((γ_k(τ) - γ_l(t)) ⋅ γ'_k(τ)) / ‖γ_k(τ) - γ_l(t)‖² for k ≠ l,
+K(t, τ) = ((γ_k(τ) - γ_l(t))⋅  γᵖᵉʳᵖ_k(τ)) / ‖γ_k(τ) - γ_l(t)‖² for k ≠ l,
 and for k == l the limiting value is taken for patch k.
 The array method returns an array with the ***same shape*** as `tau`.
 """
@@ -2029,37 +1960,36 @@ function DLP!(out::StridedArray{Float64}, d::kite, t::Float64, l::Int,
 
     end
 
-    # t mapped to [tk0, tk1], overwriting t
-    t = muladd(αt, t, βt)
+    R1 = d.R1
+    R2 = d.R2
+    P = d.P
 
-    pref = (ht * ak * d.R2) / 4.0
+    # t mapped to [tk0, tk1]
+    tm = muladd(αt, t, βt)
+    pref = 0.25 * ht * ak * R2
+    halfak = 0.5 * ak
 
     @inbounds for i in eachindex(tau, out)
-      τ = muladd(αt, tau[i], βt)
+      τm = muladd(αt, tau[i], βt)
 
-      # thet_tau = ak*τ + bk
-      thet_tau = muladd(ak, τ, bk)
-
-      # tt = ak*(t + τ)/2 + bk
-      tt = muladd(0.5 * ak, (t + τ), bk)
-
-      # Δ = ak*(τ - t)/2
-      Δ = 0.5 * ak * (τ - t)
+      tt = muladd(halfak, tm + τm, bk)
+      Δ = halfak * (τm - tm)
 
       st, ct = sincos(tt)
-      s2t = 2.0 * st * ct          
-      c_Δ   = cos(Δ)
+      sΔ, cΔ = sincos(Δ)
 
-      vv1 = muladd(d.R1, st, d.P * s2t * c_Δ)
-      vv2 = d.R2 * ct
+      ct2 = ct * ct
+      s2t = 2.0 * st * ct
+
+      c_thet_tau = muladd(ct, cΔ, -st * sΔ)
+
+      vv1 = muladd(P * s2t, cΔ, R1 * st)
+      vv2 = R2 * ct
 
       den = muladd(vv1, vv1, vv2 * vv2)
+      num = muladd(2.0 * P * c_thet_tau, ct2, R1)
 
-      c_thet_tau = cos(thet_tau)
-      # d.R1 + 2P*cos(thet_tau)*cos(tt)^2
-      num = muladd(2.0 * d.P * c_thet_tau, ct * ct, d.R1)
-
-      out[i] = pref * (num / den)
+      out[i] = pref * num / den
     end
 
   end

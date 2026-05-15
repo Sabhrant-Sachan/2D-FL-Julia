@@ -99,6 +99,52 @@ mutable struct domprop
     bdt::Vector{Float64}
     bddist::Vector{Float64}
 
+    #========== Mode-2 full-DLP interpolation data ========== 
+    Lᵢₙ is the number of normal interpolation nodes used for very-near
+    boundary targets. The first node is the boundary point itself: bdxvals[1] = 0
+    and the remaining nodes are safe interior offset distances, for example
+    
+        bdxvals[j] = del_intp * j / 2,   j = 2:Lᵢₙ.
+    
+    For a mode-2 target with closest boundary projection γ(t₀), we evaluate
+    the full DLP at auxiliary points x_j = γ(t₀) - bdxvals[j] * ν(t₀),
+    then interpolate these full-DLP values back to the actual distance bddist[jintp].
+    
+    We only need near-panel classification for the auxiliary interior points
+    j = 2:Lᵢₙ. The boundary node j = 1 is handled separately by the boundary
+    limiting value plus the jump term.
+    ==========#
+    Lᵢₙ::Int
+    bdxvals::Vector{Float64}
+
+    #==========
+    For every mode-2 target and every auxiliary interior interpolation point,
+    store the boundary panels that are within del_near of that auxiliary point.
+
+    The storage is flattened. Let Naux = Lᵢₙ - 1 and let jintp be the running 
+    index over mode-2 targets. For interpolation node j = 2:Lᵢₙ, define
+    
+        a = (jintp - 1) * Naux + (j - 1).
+    
+    Then the near-panel data for that auxiliary point is stored in
+    
+        q1 = bdintpptr[a]
+        q2 = bdintpptr[a + 1] - 1
+    
+    and for q = q1:q2:
+    
+        bdintpk[q] = actual boundary patch index near this auxiliary point
+        bdintpt[q] = projected local parameter of the auxiliary point
+                     onto that boundary patch.
+    
+    These projections are stored for each auxiliary point separately because
+    on curved geometries, such as the kite, the projected parameter can change
+    noticeably as the auxiliary point moves along the normal line.
+    ==========#
+    bdintpptr::Vector{Int}       # length NP2 * (Lᵢₙ - 1) + 1
+    bdintpk::Vector{Int}         # flattened near panel indices
+    bdintpt::Vector{Float64}     # corresponding projection parameters
+
     # pthgo[k] = first column in prepts for actual volume patch k
     # pthgo[M+1] = first column of the regular boundary-target block in prepts
     pthgo::Vector{Int}
@@ -107,7 +153,8 @@ mutable struct domprop
     # nspsz[M+1] = total number of boundary targets near volume patches
     nspsz::Vector{Int}
 
-    function domprop(N::Integer, del::Float64, del_near::Float64, del_intp::Float64, dom::D) where {D<:abstractdomain}
+    function domprop(N::Integer, del::Float64, del_near::Float64, 
+        del_intp::Float64, dom::D; Lᵢₙ = 5) where {D<:abstractdomain}
 
         # ---------------------------------------------------------------------
         # Notation used inside this constructor only
@@ -544,9 +591,105 @@ mutable struct domprop
             end
         end
 
+        # ---------------------------------------------------------------------
+        # 7. Mode-2 auxiliary-point near-panel classification
+        # ---------------------------------------------------------------------
+        # For bdmode == 2 targets, the original target is closer than del_intp
+        # to the boundary. We avoid evaluating the DLP there directly.
+        # Instead, for each such target, we use normal interpolation. If the
+        # closest boundary projection is γ_l(t₀), and ν_l(t₀) is the outward
+        # unit normal, then the auxiliary interpolation points are
+        #
+        #     z_j = γ_l(t₀) - bdxvals[j] * ν_l(t₀),     j = 1:Lᵢₙ.
+        #
+        # The first interpolation node is the boundary point bdxvals[1] = 0.
+        # For every mode-2 target and every auxiliary interior point, we store
+        # the boundary panels lying within del_near, along with the projected
+        # parameter of that auxiliary point onto each such panel.
+
+        # The storage is flattened. Let Naux = Lᵢₙ - 1. For mode-2 target index 
+        # jintp and interpolation node j = 2:Lᵢₙ, define
+        #
+        #     a = (jintp - 1) * Naux + (j - 1).
+        #
+        # Then the near panels for this auxiliary point are stored in
+        #
+        #     q1 = bdintpptr[a]
+        #     q2 = bdintpptr[a + 1] - 1
+        #
+        # and for q = q1:q2:
+        #
+        #     bdintpk[q]  = actual boundary patch index
+        #     bdintpt[q] = projected local parameter onto that patch.
+        # ---------------------------------------------------------------------
+
+        @assert Lᵢₙ >= 2 "Lᵢₙ must be at least 2."
+
+        bdxvals = zeros(Float64, Lᵢₙ)
+
+        @inbounds for j in 2:Lᵢₙ
+            bdxvals[j] = del_intp * j / 2
+        end
+
+        bdintpptr = Int[1]
+        bdintpk = Int[]
+        bdintpt = Float64[]
+
+        γbd = Vector{Float64}(undef, 2)
+        ν = Vector{Float64}(undef, 2)
+
+        @inbounds for jintp in eachindex(bdclosest)
+
+            l = bdclosest[jintp]
+            t0 = bdt[jintp]
+
+            # Boundary projection and outward unit normal.
+            gam!(γbd, dom, t0, l)
+            nu!(ν, dom, t0, l)
+
+            # Only classify auxiliary interior points.
+            # The boundary point j = 1 is handled by the boundary limiting value.
+            for m in 2:Lᵢₙ
+
+                δ = bdxvals[m]
+
+                zδ1 = γbd[1] - δ * ν[1]
+                zδ2 = γbd[2] - δ * ν[2]
+
+                # Find all boundary panels within del_near of this auxiliary point.
+                for kb in 1:Mbd
+                    k = dom.kd[kb]
+
+                    P1x, P1y = Qebd_near[1, kb], Qebd_near[2, kb]
+                    P2x, P2y = Qebd_near[3, kb], Qebd_near[4, kb]
+                    P3x, P3y = Qebd_near[5, kb], Qebd_near[6, kb]
+                    P4x, P4y = Qebd_near[7, kb], Qebd_near[8, kb]
+
+                    if ptinqua(zδ1, zδ2, P1x, P1y, P2x, P2y, P3x, P3y, P4x, P4y)
+
+                        if isnspbd(dom, zδ1, zδ2, k, del_near)
+
+                            τ = projbd(dom, zδ1, zδ2, k)
+
+                            γx, γy = gam(dom, τ, k)
+                            dist = hypot(γx - zδ1, γy - zδ2)
+
+                            if dist <= del_near
+                                push!(bdintpk, k)
+                                push!(bdintpt, snap1(τ))
+                            end
+                        end
+                    end
+                end
+
+                # End of one auxiliary-point near-panel list.
+                push!(bdintpptr, length(bdintpk) + 1)
+            end
+        end
+
         return new(N, del, del_near, del_intp, hmap, tgtpts, prepts, invpts,
             bdmode, bdnearptr, bdneark, bdneart, bdclosest, bdt, bddist,
-            pthgo, nspsz)
+            Lᵢₙ, bdxvals, bdintpptr, bdintpk, bdintpt, pthgo, nspsz)
     end
 end
 
@@ -929,6 +1072,163 @@ function plotnsbd(dp::domprop, d::abstractdomain, k::Integer)
             color = :blue,
             strokewidth = 0)
     end
+
+    return fig, ax
+end
+
+"""
+Plot the mode-2 auxiliary interpolation geometry for a given jintp.
+
+For the mode-2 target indexed by `jintp`, this plots:
+- the original target point in red,
+- the closest boundary projection in black,
+- auxiliary interpolation points in blue,
+- projections of each auxiliary point onto its nearby boundary panels in green,
+- arrows from each auxiliary point to those projections,
+- del_near-extended boundary quadrilaterals for the involved panels.
+"""
+function plotbdintp(dp::domprop, d::abstractdomain, jintp::Integer)
+
+    NP2 = length(dp.bdclosest)
+    1 <= jintp <= NP2 || error("jintp = $jintp is outside 1:$NP2")
+
+    fig, ax = draw(d, 1; show=false)
+
+    l  = dp.bdclosest[jintp]
+    t0 = dp.bdt[jintp]
+    ε  = dp.bddist[jintp]
+
+    γbd = Vector{Float64}(undef, 2)
+    ν   = Vector{Float64}(undef, 2)
+
+    gam!(γbd, d, t0, l)
+    nu!(ν, d, t0, l)
+
+    # Original very-near target.
+    xt = γbd[1] - ε * ν[1]
+    yt = γbd[2] - ε * ν[2]
+
+    # Plot original target and boundary projection.
+    scatter!(ax, [xt], [yt];
+        markersize=12,
+        color=:red,
+        strokewidth=0)
+
+    scatter!(ax, [γbd[1]], [γbd[2]];
+        markersize=12,
+        color=:black,
+        strokewidth=0)
+
+    arrows2d!(ax, [xt], [yt], [γbd[1] - xt], [γbd[2] - yt];
+        tipwidth=8,
+        tiplength=12,
+        shaftwidth=1.5,
+        color=:red)
+
+    # Draw del_near boxes only for panels appearing in bdintpk for this jintp.
+    involved = Set{Int}()
+
+    Naux = dp.Lᵢₙ - 1
+
+    for m in 2:dp.Lᵢₙ
+        a = (jintp - 1) * Naux + (m - 1)
+
+        q1 = dp.bdintpptr[a]
+        q2 = dp.bdintpptr[a + 1] - 1
+
+        for q in q1:q2
+            push!(involved, dp.bdintpk[q])
+        end
+    end
+
+    ix = [1, 3, 5, 7, 1]
+    iy = [2, 4, 6, 8, 2]
+    Pext = Vector{Float64}(undef, 8)
+
+    for k in involved
+        kb = findfirst(==(k), d.kd)
+        kb === nothing && continue
+
+        @views Pbd = d.Qptsbd[:, kb]
+        extendqua!(Pext, Pbd, dp.del_near)
+
+        lines!(ax, Pext[ix], Pext[iy];
+            color=:gray,
+            linewidth=2)
+    end
+
+    # Plot auxiliary points and their projections.
+    xaux = Float64[]
+    yaux = Float64[]
+
+    xproj = Float64[]
+    yproj = Float64[]
+
+    xarr = Float64[]
+    yarr = Float64[]
+    uarr = Float64[]
+    varr = Float64[]
+
+    @inbounds for m in 2:dp.Lᵢₙ
+
+        δ = dp.bdxvals[m]
+
+        zδ1 = γbd[1] - δ * ν[1]
+        zδ2 = γbd[2] - δ * ν[2]
+
+        push!(xaux, zδ1)
+        push!(yaux, zδ2)
+
+        a = (jintp - 1) * Naux + (m - 1)
+
+        q1 = dp.bdintpptr[a]
+        q2 = dp.bdintpptr[a + 1] - 1
+
+        for q in q1:q2
+            k = dp.bdintpk[q]
+            τ = dp.bdintpt[q]
+
+            xp = gamx(d, τ, k)
+            yp = gamy(d, τ, k)
+
+            push!(xproj, xp)
+            push!(yproj, yp)
+
+            push!(xarr, zδ1)
+            push!(yarr, zδ2)
+            push!(uarr, xp - zδ1)
+            push!(varr, yp - zδ2)
+        end
+    end
+
+    if !isempty(xaux)
+        scatter!(ax, xaux, yaux;
+            markersize=10,
+            color=:blue,
+            strokewidth=0)
+    end
+
+    if !isempty(xproj)
+        arrows2d!(ax, xarr, yarr, uarr, varr;
+            tipwidth=7,
+            tiplength=10,
+            shaftwidth=1.2,
+            color=:green)
+
+        scatter!(ax, xproj, yproj;
+            markersize=8,
+            color=:green,
+            strokewidth=0)
+    end
+
+    @printf("jintp = %d\n", jintp)
+    @printf("closest patch l = %d\n", l)
+    @printf("t0 = %.16e\n", t0)
+    @printf("epsilon = %.16e\n", ε)
+    @printf("number of involved panels = %d\n", length(involved))
+    @printf("involved panels = %s\n", collect(involved))
+
+    display(GLMakie.Screen(), fig)
 
     return fig, ax
 end
@@ -1707,6 +2007,10 @@ function Base.show(io::IO, ::MIME"text/plain", d::domprop)
     nintp = count(==(UInt8(2)), d.bdmode)
 
     total_near_pairs = length(d.bdneark)
+    total_intp_pairs = length(d.bdintpk)
+
+    Naux = d.Lᵢₙ - 1
+    expected_intp_ptr_len = length(d.bdclosest) * Naux + 1
 
     println(io, "domain properties:")
     println(io, "  N:          ", d.N)
@@ -1719,6 +2023,11 @@ function Base.show(io::IO, ::MIME"text/plain", d::domprop)
     println(io, "  tgtpts     :  Matrix{Float64} (", size(d.tgtpts, 1), "×", size(d.tgtpts, 2), ")")
     println(io, "  prepts     :  Matrix{Int}     (", size(d.prepts, 1), "×", size(d.prepts, 2), ")")
     println(io, "  invpts     :  Matrix{Float64} (", size(d.invpts, 1), "×", size(d.invpts, 2), ")")
+
+    println(io)
+    println(io, "  Bookkeeping:")
+    println(io, "    pthgo:    ", _preview(d.pthgo))
+    println(io, "    nspsz:    ", _preview(d.nspsz))
 
     println(io)
     println(io, "  Boundary-DLP target classification:")
@@ -1735,22 +2044,40 @@ function Base.show(io::IO, ::MIME"text/plain", d::domprop)
     println(io, "    total near pairs: ", total_near_pairs)
 
     println(io)
-    println(io, "  Mode-2 interpolation storage:")
+    println(io, "  Mode-2 interpolation target storage:")
     println(io, "    bdclosest :  Vector{Int}     (", length(d.bdclosest), ")")
     println(io, "    bdt       :  Vector{Float64} (", length(d.bdt), " projections)")
     println(io, "    bddist    :  Vector{Float64} (", length(d.bddist), " distances)")
 
     println(io)
-    println(io, "  Bookkeeping:")
-    println(io, "    pthgo:    ", _preview(d.pthgo))
-    println(io, "    nspsz:    ", _preview(d.nspsz))
+    println(io, "  Mode-2 auxiliary interpolation storage:")
+    println(io, "    Lᵢₙ       :  ", d.Lᵢₙ)
+    println(io, "    bdxvals   :  Vector{Float64} (", length(d.bdxvals), " interpolation distances)")
+    println(io, "    bdintpptr :  Vector{Int}     (", length(d.bdintpptr), ")")
+    println(io, "    bdintpk   :  Vector{Int}     (", length(d.bdintpk), " panel entries)")
+    println(io, "    bdintpt   :  Vector{Float64} (", length(d.bdintpt), " projections)")
+    println(io, "    total auxiliary near pairs: ", total_intp_pairs)
+    println(io, "    expected bdintpptr length: ", expected_intp_ptr_len)
 
     if !isempty(d.bdclosest)
         println(io)
         println(io, "  Boundary interpolation preview:")
         println(io, "    bdclosest: ", _preview(d.bdclosest))
         println(io, "    bdt:       ", _preview(d.bdt))
-        println(io, "    bddist:    ", _preview(d.bddist; scale=1e-3, suffix=" × 10^{-3}"))
+        println(io, "    bddist:    ", _preview(d.bddist; scale = 1e-3, suffix = " × 10^{-3}"))
+    end
+
+    if !isempty(d.bdxvals)
+        println(io)
+        println(io, "  Auxiliary interpolation preview:")
+        println(io, "    bdxvals:   ", _preview(d.bdxvals; scale = 1e-3, suffix = " × 10^{-3}"))
+    end
+
+    if !isempty(d.bdintpk)
+        println(io)
+        println(io, "  Auxiliary near-panel preview:")
+        println(io, "    bdintpk:   ", _preview(d.bdintpk))
+        println(io, "    bdintpt:   ", _preview(d.bdintpt))
     end
 
     return nothing
@@ -1764,20 +2091,18 @@ function memory_report(dp::domprop)
 
     @printf("domprop memory report\n")
     @printf("---------------------\n")
-    @printf("%-16s %12s %12s\n", "field", "MiB", "percent")
+    @printf("%-20s %12s %12s\n", "field", "MiB", "percent")
 
     for (name, bytes) in sort(rows; by = x -> x[2], rev = true)
-        @printf("%-16s %12.4f %11.2f%%\n",
+        @printf("%-20s %12.4f %11.2f%%\n",
             String(name),
             bytes / 1024^2,
             100 * bytes / total)
     end
 
     @printf("---------------------\n")
-    @printf("%-16s %12.4f %11.2f%%\n",
-        "TOTAL",
-        total / 1024^2,
-        100.0)
+    @printf("%-20s %12.4f %11.2f%%\n",
+        "TOTAL", total / 1024^2, 100.0)
 
     return nothing
 end

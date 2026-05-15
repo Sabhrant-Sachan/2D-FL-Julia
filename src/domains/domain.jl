@@ -155,11 +155,6 @@ function dgam(d::abstractdomain, t::Vector{Float64}, k::Int)
 end
 
 # --- gamp: a perpendicular to γ′(t) (swap + negate x) ---
-
-function gamp(d::abstractdomain, t::Float64, k::Int)::Tuple{Float64,Float64}
-    return dgamy(d, t, k), -dgamx(d, t, k)
-end
-
 function gamp(d::abstractdomain, t::Vector{Float64}, k::Int)
   Z = Matrix{Float64}(undef, 2, length(t))
   gamp!(Z, d, t, k)
@@ -167,12 +162,12 @@ function gamp(d::abstractdomain, t::Vector{Float64}, k::Int)
 end
 
 function gamp!(out::Vector{Float64}, d::abstractdomain, t::Float64, k::Int)
+  @inbounds begin
+    gp1, gp2 = gamp(d, t, k)
 
-  dgam!(out, d, t, k)
-
-  out1 = out[1]
-  out[1] = out[2]
-  out[2] = -out1
+    out[1] = gp1
+    out[2] = gp2
+  end
 
   return nothing
 end
@@ -188,6 +183,19 @@ function nu(d::abstractdomain, t::Vector{Float64}, k::Int)
   Z = Matrix{Float64}(undef,2,length(t))
   nu!(Z, d, t, k)
   return Z
+end
+
+function nu!(out::Vector{Float64}, d::abstractdomain, t::Float64, k::Int)
+    @inbounds begin
+        gp1, gp2 = gamp(d, t, k)
+
+        S = hypot(gp1, gp2)
+
+        out[1] = gp1 / S
+        out[2] = gp2 / S
+    end
+
+    return nothing
 end
 
 function DLP(d::abstractdomain, t::Float64, l::Int, tau::AbstractArray, k::Int)

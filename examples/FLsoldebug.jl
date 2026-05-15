@@ -4,7 +4,7 @@ import FL2D.FLdata as FLdata
 
 d = FL2D.disc(b=[6, 6, 6, 6, 6], a=[3, 3, 3, 3, 5])
 
-dp = FL2D.domprop(12, 0.1, 0.15, 5e-3, d)
+dp = FL2D.domprop(12, 0.1, 0.15, 5e-3, d; Lᵢₙ = 5)
 
 FL2D.plotns(dp, d, 1)
 
@@ -14,7 +14,11 @@ FL2D.memory_report(dp)
 
 FL2D.plotprojbd(dp, d, 15)
 
+FL2D.plotbdintp(dp, d, length(dp.bdclosest))
+
 FL2D.chk_map(d);
+
+FL2D.testDLP(d, dp; nr=64)
 
 d = FL2D.annulus(b = [4, 5, 4, 5, 4, 5, 4, 5])
 

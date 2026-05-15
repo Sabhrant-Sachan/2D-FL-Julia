@@ -599,6 +599,10 @@ function dgam!(out::Matrix{Float64}, d::disc, t::Vector{Float64}, k::Int)
   return nothing
 end
 
+function gamp(d::disc, t::Float64, k::Int)::Tuple{Float64,Float64}
+    return dgamy(d, t, k), -dgamx(d, t, k)
+end
+
 function gamp!(out::Matrix{Float64}, d::disc, t::Vector{Float64}, k::Int)
 
   p = d.pths[k]
@@ -614,20 +618,6 @@ function gamp!(out::Matrix{Float64}, d::disc, t::Vector{Float64}, k::Int)
     out[2I]   = c₂ * s
   end
 
-  return nothing
-end
-
-function nu!(out::Vector{Float64}, d::disc, t::Float64, k::Int) 
-  p = d.pths[k]
-  αt = (p.tk1 - p.tk0) / 2
-  βt = p.tk0 + αt
-  c₁ = π * (2 * p.reg - 3) / 4
-  τ = pi * muladd(αt, t, βt) / 2 + c₁
-  s, c = sincos(τ)
-  #Divided by c2, so that norm is 1.
-  #But for other domains, divide by norm
-  out[1] = c
-  out[2] = s
   return nothing
 end
 

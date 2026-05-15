@@ -773,6 +773,10 @@ function dgam!(out::Matrix{Float64}, d::ellipse, t::Vector{Float64}, k::Int)
   return nothing
 end
 
+function gamp(d::ellipse, t::Float64, k::Int)::Tuple{Float64,Float64}
+    return dgamy(d, t, k), -dgamx(d, t, k)
+end
+
 function gamp!(out::Matrix{Float64}, d::ellipse, t::Vector{Float64}, k::Int)
   #Outputs dy, -dx, the sign is changed in dgamx coeffs!
   p = d.pths[k]
@@ -797,36 +801,6 @@ function gamp!(out::Matrix{Float64}, d::ellipse, t::Vector{Float64}, k::Int)
     out[1, I] = muladd(c₄, c, c₃ * s)
     out[2, I] = muladd(c₂, c, c₁ * s)
   end
-
-  return nothing
-end
-
-function nu!(out::Vector{Float64}, d::ellipse, t::Float64, k::Int) 
-  p = d.pths[k]
-  ht = p.tk1 - p.tk0
-
-  αt = ht / 2
-  βt = p.tk0 + αt
-
-  C = π * (2 * p.reg - 3) / 4
-
-  τ = π * muladd(αt, t, βt) / 2 + C
-
-  s, c = sincos(τ)
-
-  # minus dgamx coefficients
-  c₁ = (π * ht / 4) * d.R1 * d.Cθ
-  c₂ = (π * ht / 4) * d.R2 * d.Sθ
-  # dgamy coefficients
-  c₃ = -(π * ht / 4) * d.R1 * d.Sθ
-  c₄ = (π * ht / 4) * d.R2 * d.Cθ
-
-  dx = muladd(c₂, c, c₁ * s)  
-  dy = muladd(c₄, c, c₃ * s)  
-  S  = sqrt(dx^2+dy^2)
-
-  out[1] = dy/S
-  out[2] = dx/S
 
   return nothing
 end
