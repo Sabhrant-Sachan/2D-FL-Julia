@@ -837,59 +837,84 @@ function nu!(out::Matrix{Float64}, d::ellipse, t::Vector{Float64}, k::Int)
   return nothing
 end
 
-"""
-    DLP(d::ellipse, t::Float64, l::Int, tau::StridedArray{Float64}, k::Int) -> StridedArray{Float64}
+# This function finds s such that γ_l(t) = γ_k(s),
+# allowing s to lie outside [-1, 1].
+function bdinv(d::ellipse, t::Float64, l::Int, k::Int)::Float64
+  @inbounds begin
+    pl = d.pths[l]
+    pk = d.pths[k]
 
-Double-layer kernel on the boundary:
-K(t, τ) = ((γ_k(τ) - γ_l(t)) ⋅ γ'_k(τ)) / ‖γ_k(τ) - γ_l(t)‖² for k ≠ l,
+    # Map t on patch l from [-1,1] to ξ_l ∈ [pl.tk0, pl.tk1].
+    ξl = muladd(0.5 * (pl.tk1 - pl.tk0), t, 0.5 * (pl.tk0 + pl.tk1))
+
+    # Same angular region: same ξ, just converted to patch-k local coordinate.
+    if pl.reg == pk.reg
+      return xi_inv(pk.tk0, pk.tk1, ξl)
+    end
+
+    # Angle on source patch l:
+    #   θ_l = π ξ_l / 2 + C_l,
+    #   C_l = π(2reg_l - 3)/4.
+    Cl = π * (2 * pl.reg - 3) / 4
+    θ = muladd(π / 2, ξl, Cl)
+
+    # Target patch k angle map:
+    #   θ_k = π ξ_k / 2 + C_k.
+    Ck = π * (2 * pk.reg - 3) / 4
+
+    # Choose the 2π-periodic copy of θ closest to patch k's angular interval.
+    #
+    # Patch k angular interval:
+    #   [Ck + π*pk.tk0/2, Ck + π*pk.tk1/2]
+    center_k = Ck + (π / 2) * (0.5 * (pk.tk0 + pk.tk1))
+
+    m = round((center_k - θ) / (2π))
+    θs = θ + 2π * m
+
+    # Convert shifted angle to ξ_k:
+    #   θs = π ξ_k / 2 + Ck
+    #   ξ_k = 2(θs - Ck)/π.
+    ξk = (2 / π) * (θs - Ck)
+
+    # Convert ξ_k to local coordinate s on patch k.
+    return xi_inv(pk.tk0, pk.tk1, ξk)
+  end
+end
+
+"""
+    DLP(d::ellipse, t::Float64, tau::StridedArray{Float64}, k::Int) -> StridedArray{Float64}
+
+K(t, τ) = ((γ_k(τ) - γ_k(t))⋅  γᵖᵉʳᵖ_k(τ)) / ‖γ_k(τ) - γ_k(t)‖² 
 and for k == l the limiting value is taken for patch k.
 The array method returns an array with the ***same shape*** as `tau`.
 """
-function DLP!(out::StridedArray{Float64}, d::ellipse, t::Float64, l::Int, 
-  tau::StridedArray{Float64},k::Int, x::Vector{Float64}, 
+function DLP!(out::StridedArray{Float64}, d::ellipse, t::Float64, 
+  tau::StridedArray{Float64}, k::Int, x::Vector{Float64}, 
   G::Vector{Float64}, GP::Vector{Float64})
-  if k != l
-    gam!(x, d, t, l)
 
-    @inbounds  for i in eachindex(tau)
-      ti = tau[i]
-      gam!(G, d, ti, k)
-      gamp!(GP, d, ti, k)
+  p = d.pths[k]
 
-      dx = G[1] - x[1]
-      dy = G[2] - x[2]
-      # num = dot(Δ, GP); den = dot(Δ, Δ)
-      num = muladd(dx, GP[1], dy * GP[2])
-      den = muladd(dx, dx, dy * dy)
-      out[i] = num / den
-    end
+  ht = p.tk1 - p.tk0
 
-  else
-    p = d.pths[k]
+  aτ, bτ = ht / 2, p.tk0 + ht / 2
 
-    ht = p.tk1 - p.tk0
+  t̂ = muladd(aτ, t, bτ)
 
-    aτ, bτ = ht / 2, p.tk0 + ht / 2
+  C = π * (2 * p.reg - 3) / 4
 
-    t̂ = muladd(aτ, t, bτ)
+  pref = ht * π * d.R1 * d.R2 / 8
 
-    C = π * (2 * p.reg - 3) / 4
+  @inbounds for I in eachindex(tau, out)
 
-    pref  = ht * π * d.R1 * d.R2 / 8
+    τ = muladd(aτ, tau[I], bτ)
 
-    @inbounds for I in eachindex(tau, out)
+    tt = (π / 4) * (t̂ + τ) + C
 
-      τ = muladd(aτ, tau[I], bτ)
+    s, c = sincos(tt)
+    # r1^2 sin^2 + r2^2 cos^2
+    denom = muladd(d.R1^2, s * s, d.R2^2 * (c * c))
 
-      tt = (π/4) * (t̂ + τ) + C
-
-      s, c = sincos(tt)
-      # r1^2 sin^2 + r2^2 cos^2
-      denom = muladd(d.R1^2, s*s, d.R2^2 * (c*c)) 
-
-      out[I] = pref / denom
-    end
-
+    out[I] = pref / denom
   end
 
   return nothing

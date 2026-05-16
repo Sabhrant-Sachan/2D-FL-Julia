@@ -1,4 +1,5 @@
-function testDLP(d::D, dp::domprop; p::Int=2, nr::Int=64, plot_err::Bool=true)::Float64 where {D<:abstractdomain}
+function testDLP(d::D, dp::domprop; p::Int=2, nr::Int=64, 
+    plot_err::Bool=true)::Float64 where {D<:abstractdomain}
 
     #This is just for testing the DLP evaluation, and not the solver.
     #Zeta density is taken as 1. 
@@ -227,36 +228,102 @@ function testDLP(d::D, dp::domprop; p::Int=2, nr::Int=64, plot_err::Bool=true)::
     end
 
     jintp = 0
-    Naux = dp.Lᵢₙ - 1
 
     @inbounds for row in 1:Ni
         dp.bdmode[row] != BD_INTP && continue
 
         # Mode-2 point: very close to the boundary.
-        # We evaluate full DLP at auxiliary normal-offset points,
-        # then interpolate back to the true distance ε.
+        # We evaluate full DLP at interpolation nodes, then interpolate
+        # back to the true distance ε.
         jintp += 1
 
         l = dp.bdclosest[jintp]
         tₛ = dp.bdt[jintp]
         ϵ = dp.bddist[jintp]
 
-        # For this test ζ ≡ 1.
-        # The interior limiting value of the full DLP is exactly 1.
-        # For a general density, replace this by:
-        #     boundary principal-value DLP + 1/2 ζ(tₛ)
+        gam!(γxbd, d, tₛ, l)
+
+        # ------------------------------------------------------------
+        # m = 1: boundary interpolation value.
+        #
+        # For ζ ≡ 1:
+        #     interior boundary limit = principal value + 1/2.
+        #
+        # Self panel k == l:
+        #     use diagonal DLP formula with target parameter tₛ on patch l.
+        #
+        # Near off-diagonal panels stored in bdintp for m = 1:
+        #     bdintpt stores extended inverse s satisfying γ_k(s)=γ_l(tₛ).
+        #     Use diagonal/continued formula on patch k.
+        #
+        # Far off-diagonal panels:
+        #     use ordinary off-diagonal formula.
+        # ------------------------------------------------------------
         fvals[1] = 0.5
+
+        a = (jintp - 1) * dp.Lᵢₙ + 1
+
+        q1 = dp.bdintpptr[a]
+        q2 = dp.bdintpptr[a+1] - 1
 
         for ll in 1:Mbd
             k = d.kd[ll]
-            DLP!(ker_reg, d, tₛ, l, zr, k, μ₀, γt1, γt2)
-            @. ker_reg = ker_reg * fwr
-            fvals[1] += sum(ker_reg) * inv2π
+
+            if k == l
+                # Self-panel boundary principal value.
+                DLP!(ker_reg, d, tₛ, zr, k, μ₀, γt1, γt2)
+
+                @. ker_reg = ker_reg * fwr
+
+                fvals[1] += sum(ker_reg) * inv2π
+
+            else
+                near_flag = false
+                s_inv = 0.0
+
+                for q in q1:q2
+                    if dp.bdintpk[q] == k
+                        near_flag = true
+                        s_inv = dp.bdintpt[q]
+                        break
+                    end
+                end
+
+                if near_flag
+                    # Near off-diagonal boundary panel.
+                    # Use the extended inverse parameter on patch k.
+                    DLP!(ker_reg, d, s_inv, zr, k, μ₀, γt1, γt2)
+
+                    @. ker_reg = ker_reg * fwr
+
+                    fvals[1] += sum(ker_reg) * inv2π
+
+                else
+                    # Far off-diagonal panel: ordinary direct quadrature.
+                    gam!(gamkr, d, zr, k)
+                    gamp!(gamperpkr, d, zr, k)
+
+                    @inbounds for j in 1:nr
+                        dx1 = gamkr[1, j] - γxbd[1]
+                        dx2 = gamkr[2, j] - γxbd[2]
+
+                        num = dx1 * gamperpkr[1, j] + dx2 * gamperpkr[2, j]
+                        den = dx1 * dx1 + dx2 * dx2
+
+                        ker_reg[j] = (num * fwr[j] * inv2π) / den
+                    end
+
+                    fvals[1] += sum(ker_reg)
+                end
+            end
         end
 
-        #fvals[1] = 1.0
-
-        gam!(γxbd, d, tₛ, l)
+        # ------------------------------------------------------------
+        # m = 2:Lᵢₙ: auxiliary interior interpolation nodes.
+        #
+        # Here bdintpt stores the ordinary closest projected parameter
+        # onto each near panel.
+        # ------------------------------------------------------------
         nu!(γt1, d, tₛ, l)
 
         for m in 2:dp.Lᵢₙ
@@ -268,9 +335,7 @@ function testDLP(d::D, dp::domprop; p::Int=2, nr::Int=64, plot_err::Bool=true)::
 
             fvals[m] = 0.0
 
-            # Flattened auxiliary near-panel list for this mode-2 target
-            # and this auxiliary interpolation point.
-            a = (jintp - 1) * Naux + (m - 1)
+            a = (jintp - 1) * dp.Lᵢₙ + m
 
             q1 = dp.bdintpptr[a]
             q2 = dp.bdintpptr[a+1] - 1
@@ -359,7 +424,6 @@ function testDLP(d::D, dp::domprop; p::Int=2, nr::Int=64, plot_err::Bool=true)::
                     end
 
                 else
-
                     gam!(gamkr, d, zr, k)
                     gamp!(gamperpkr, d, zr, k)
 
@@ -394,51 +458,3 @@ function testDLP(d::D, dp::domprop; p::Int=2, nr::Int=64, plot_err::Bool=true)::
     return Err
 
 end
-
-
-# tₛ = dp.distpts[ℓbd].t
-
-# ChebyTN!(Tbd₂, N₂, tₛ)
-
-# @views Cbd = ζ₂coeff[(1+(ll-1)*N₂):(ll*N₂)]
-
-# gam!(γxbd, d, tₛ, l)
-
-# DLP!(kbd₁, d, tₛ, l, y₁, ℓ, μ₀, γt1, γt2)
-
-# nu!(γt1, d, tₛ, l)
-
-# @. kbd₁ = kbd₁ * fw₁
-
-# @views ζv₁ = ζ₁[(1+(ll-1)*N₁):(ll*N₁)]
-
-# @views ζv₂ = ζ₂[(1+(ll-1)*N₂):(ll*N₂)]
-
-# fvals[1] = dot(ζv₁, kbd₁) / (2π)
-
-# if ℓ == l
-
-#     ζₛ = dot(Tbd₂, Cbd)
-
-#     fvals[1] += ζₛ / 2
-# end
-
-# for i in 2:Lᵢₙ
-
-#     @. μ₀ = γxbd - xvals[i] * γt1
-
-#     @inbounds for jj in 1:N₂
-#         dx1 = gamk₂[1, jj] - μ₀[1]
-#         dx2 = gamk₂[2, jj] - μ₀[2]
-
-#         num = dx1 * gamp₂[1, jj] + dx2 * gamp₂[2, jj]
-#         den = dx1 * dx1 + dx2 * dx2
-
-#         kbd₂[jj] = (num * fw₂[jj]) / den
-#     end
-
-#     fvals[i] = dot(ζv₂, kbd₂) / (2π)
-
-# end
-
-# v[row] = v[row] + nevill!(xvals, fvals, ϵ)

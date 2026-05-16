@@ -665,7 +665,7 @@ function SLPeval(d::D, dp::domprop)::Matrix{Float64} where {D<:abstractdomain}
     #    N is number of Chebyshev coefficients per patch and
     #    Mbd is number of boundary patches. The jth column
     #    of beta contains βⱼ function values over Chebyshev mesh.
-    β = SLPbeta(d, N)
+    β = SLPbeta(d, dpbd)
 
     
 end

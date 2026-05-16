@@ -2846,108 +2846,174 @@ function bdno(d::annulus, k::Int)::Int
     return (r <= 4 ? 1 : 2)
 end
 
-"""
-    DLP(d::annulus, t::Float64, l::Int, tau::StridedArray{Float64}, k::Int)
+# This function finds s such that γ_l(t) = γ_k(s),
+# allowing s to lie outside [-1, 1].
+#
+# For annulus, this is only geometrically meaningful when patches l and k
+# lie on the same boundary component:
+#   outer component: regions 1:4
+#   inner component: regions 5:8
+function bdinv(d::annulus, t::Float64, l::Int, k::Int)::Float64
+  @inbounds begin
+    pl = d.pths[l]
+    pk = d.pths[k]
 
-Double-layer kernel on the boundary:
-K(t, τ) = ((γ_k(τ) - γ_l(t)) ⋅ γᵖᵉʳᵖ_k(t)) / ‖γ_k(τ) - γ_l(t)‖² for k ≠ l,
-and for k == l the limiting value is taken for patch k.
-The array method returns an array with the same size as `tau`.
+    rl = pl.reg
+    rk = pk.reg
+
+    outer_l = rl <= 4
+    outer_k = rk <= 4
+
+    outer_l == outer_k || throw(ArgumentError(
+      "bdinv annulus requires l and k on the same boundary; got reg(l)=$rl, reg(k)=$rk"
+    ))
+
+    # Map t on patch l from [-1,1] to ξ_l ∈ [pl.tk0, pl.tk1].
+    ξl = muladd(0.5 * (pl.tk1 - pl.tk0), t, 0.5 * (pl.tk0 + pl.tk1))
+
+    if rl == rk
+      return xi_inv(pk.tk0, pk.tk1, ξl)
+    end
+
+    # Source angle θ = Δθ_l * ξ_l + θ0_l.
+    th0_l, Δth_l = if rl == 1
+      d.T1[1], d.T1[2] - d.T1[1]
+    elseif rl == 2
+      d.T1[2], d.T1[3] - d.T1[2]
+    elseif rl == 3
+      d.T1[3], d.T1[4] - d.T1[3]
+    elseif rl == 4
+      d.T1[4], d.T1[1] - d.T1[4] + 2.0π
+    elseif rl == 5
+      d.T2[1], d.T2[2] - d.T2[1]
+    elseif rl == 6
+      d.T2[2], d.T2[3] - d.T2[2]
+    elseif rl == 7
+      d.T2[3], d.T2[4] - d.T2[3]
+    elseif rl == 8
+      d.T2[4], d.T2[1] - d.T2[4] + 2.0π
+    else
+      throw(ArgumentError("bdinv annulus expects source reg ∈ 1:8; got reg=$rl"))
+    end
+
+    θ = muladd(Δth_l, ξl, th0_l)
+
+    # Target angle map θ = Δθ_k * ξ_k + θ0_k.
+    th0_k, Δth_k = if rk == 1
+      d.T1[1], d.T1[2] - d.T1[1]
+    elseif rk == 2
+      d.T1[2], d.T1[3] - d.T1[2]
+    elseif rk == 3
+      d.T1[3], d.T1[4] - d.T1[3]
+    elseif rk == 4
+      d.T1[4], d.T1[1] - d.T1[4] + 2.0π
+    elseif rk == 5
+      d.T2[1], d.T2[2] - d.T2[1]
+    elseif rk == 6
+      d.T2[2], d.T2[3] - d.T2[2]
+    elseif rk == 7
+      d.T2[3], d.T2[4] - d.T2[3]
+    elseif rk == 8
+      d.T2[4], d.T2[1] - d.T2[4] + 2.0π
+    else
+      throw(ArgumentError("bdinv annulus expects target reg ∈ 1:8; got reg=$rk"))
+    end
+
+    # Shift θ by multiples of 2π so it is closest to the target angular interval.
+    center_k = th0_k + 0.5 * Δth_k
+    m = round((center_k - θ) / (2π))
+    θs = θ + 2π * m
+
+    # Convert angle to target ξ_k, then ξ_k to local coordinate s.
+    ξk = (θs - th0_k) / Δth_k
+
+    return xi_inv(pk.tk0, pk.tk1, ξk)
+  end
+end
+
 """
-function DLP!(out::StridedArray{Float64}, d::annulus, t::Float64, l::Int,
+    DLP(d::annulus, t::Float64, tau::StridedArray{Float64}, k::Int)
+
+K(t, τ) = ((γ_k(τ) - γ_k(t))⋅  γᵖᵉʳᵖ_k(τ)) / ‖γ_k(τ) - γ_k(t)‖² 
+and for k == l the limiting value is taken for patch k.
+The array method returns an array with the ***same shape*** as `tau`.
+"""
+function DLP!(out::StridedArray{Float64}, d::annulus, t::Float64,
   tau::StridedArray{Float64}, k::Int, x::Vector{Float64},
   G::Vector{Float64}, GP::Vector{Float64})
 
-  if k != l
-    gam!(x, d, t, l)
+  p = d.pths[k]
 
-    @inbounds for i in eachindex(tau)
-      ti = tau[i]
-      gam!(G, d, ti, k)
-      gamp!(GP, d, ti, k)
+  ht = p.tk1 - p.tk0
 
-      dx = G[1] - x[1]
-      dy = G[2] - x[2]
-      # num = dot(Δ, GP); den = dot(Δ, Δ)
-      num = muladd(dx, GP[1], dy * GP[2])
-      den = muladd(dx, dx, dy * dy)
-      out[i] = num / den
+  αv = 0.5 * ht
+  βv = 0.5 * (p.tk0 + p.tk1)
+
+  reg = p.reg
+
+  @inbounds begin
+    if reg == 1
+      ak = d.T1[2] - d.T1[1]
+      bk = d.T1[1]
+    elseif reg == 2
+      ak = d.T1[3] - d.T1[2]
+      bk = d.T1[2]
+    elseif reg == 3
+      ak = d.T1[4] - d.T1[3]
+      bk = d.T1[3]
+    elseif reg == 4
+      ak = d.T1[1] - d.T1[4] + 2.0 * pi
+      bk = d.T1[4]
+    elseif reg == 5
+      ak = d.T2[2] - d.T2[1]
+      bk = d.T2[1]
+    elseif reg == 6
+      ak = d.T2[3] - d.T2[2]
+      bk = d.T2[2]
+    elseif reg == 7
+      ak = d.T2[4] - d.T2[3]
+      bk = d.T2[3]
+    elseif reg == 8
+      ak = d.T2[1] - d.T2[4] + 2.0 * pi
+      bk = d.T2[4]
+    else
+      throw(ArgumentError("DLP diagonal formula expects reg ∈ 1:8; got reg=$reg"))
+    end
+  end
+
+
+  # With xi(t) = αv*t + βv:
+  # tt = ak*(xi(t) + xi(tau))/2 + bk
+  #    = ak*( (αv*t + βv) + (αv*τ + βv) )/2 + bk
+  #    = ak*( αv*(t+τ) + 2βv )/2 + bk
+  #    = (ak*αv/2)*(t+τ) + ak*βv + bk = c1*(t+τ) + c0
+  c1 = 0.5 * ak * αv
+  c0 = ak * βv + bk
+
+  if reg <= 4
+    pref = 0.25 * ht * ak * d.R12 * d.R11
+
+    @inbounds for i in eachindex(out, tau)
+      τ = tau[i]
+
+      st, ct = sincos(muladd(c1, t + τ, c0))
+
+      den = (d.R11 * st)^2 + (d.R12 * ct)^2
+
+      out[i] = pref / den
     end
 
   else
-    p = d.pths[k]
+    pref = -0.25 * ht * ak * d.R22 * d.R21
 
-    ht = p.tk1 - p.tk0
+    @inbounds for i in eachindex(out, tau)
+      τ = tau[i]
 
-    αv = 0.5 * ht
-    βv = 0.5 * (p.tk0 + p.tk1)
+      st, ct = sincos(muladd(c1, t + τ, c0))
 
-    reg = p.reg
+      den = (d.R21 * st)^2 + (d.R22 * ct)^2
 
-    @inbounds begin
-      if reg == 1
-        ak = d.T1[2] - d.T1[1]
-        bk = d.T1[1]
-      elseif reg == 2
-        ak = d.T1[3] - d.T1[2]
-        bk = d.T1[2]
-      elseif reg == 3
-        ak = d.T1[4] - d.T1[3]
-        bk = d.T1[3]
-      elseif reg == 4
-        ak = d.T1[1] - d.T1[4] + 2.0 * pi
-        bk = d.T1[4]
-      elseif reg == 5
-        ak = d.T2[2] - d.T2[1]
-        bk = d.T2[1]
-      elseif reg == 6
-        ak = d.T2[3] - d.T2[2]
-        bk = d.T2[2]
-      elseif reg == 7
-        ak = d.T2[4] - d.T2[3]
-        bk = d.T2[3]
-      elseif reg == 8
-        ak = d.T2[1] - d.T2[4] + 2.0 * pi
-        bk = d.T2[4]
-      else
-        throw(ArgumentError("DLP diagonal formula expects reg ∈ 1:8; got reg=$reg"))
-      end
-    end
-
-
-    # With xi(t) = αv*t + βv:
-    # tt = ak*(xi(t) + xi(tau))/2 + bk
-    #    = ak*( (αv*t + βv) + (αv*τ + βv) )/2 + bk
-    #    = ak*( αv*(t+τ) + 2βv )/2 + bk
-    #    = (ak*αv/2)*(t+τ) + ak*βv + bk = c1*(t+τ) + c0
-    c1 = 0.5 * ak * αv
-    c0 = ak * βv + bk
-
-    if reg <= 4
-      pref = 0.25 * ht * ak * d.R12 * d.R11
-
-      for i in eachindex(out, tau)
-        τ = tau[i]
-
-        st, ct = sincos(muladd(c1, t + τ, c0))
-
-        den = (d.R11 * st)^2 + (d.R12 * ct)^2
-
-        out[i] = pref / den
-      end
-
-    else
-      pref = -0.25 * ht * ak * d.R22 * d.R21
-
-      for i in eachindex(out, tau)
-        τ = tau[i]
-
-        st, ct = sincos(muladd(c1, t + τ, c0))
-
-        den = (d.R21 * st)^2 + (d.R22 * ct)^2
-
-        out[i] = pref / den
-      end
+      out[i] = pref / den
     end
   end
 

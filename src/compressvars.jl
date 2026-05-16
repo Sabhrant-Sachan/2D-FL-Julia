@@ -1,13 +1,17 @@
 """
-compress_vars_Aform builds a NamedTuple IV containing only what is needed for 
+If matrix_form=true, compress_vars builds a NamedTuple IV which is needed for 
 functions Axbdop.jl, Axbdpth.jl, and Axintpth.jl (these functions help build 
-the matrix A) with preallocated scratch arrays and FFTW r2r plans to avoid 
-allocations.
+the matrix A) with preallocated scratch arrays to avoid allocations.
+
+If matrix_form=false, compress_vars builds a NamedTuple IV which is needed for 
+functions Axb.jl (For a matrix free iterative solver) with preallocated scratch 
+arrays to avoid allocations.
 """
-function compress_vars(d::abstractdomain, N::Int, s::Float64,
-    p::Int, dₙₕ::Int, δclsbd::Float64; matrix_form=true)
+function compress_vars(d::abstractdomain, dp::domprop, s::Float64,
+    p::Int; matrix_form=true)
     # ----------------- BASIC CONSTANTS -------------------
     # Number of points per patch
+    N = dp.N
     Np = N * N
     M = d.Npat
     Mbd = length(d.kd)
@@ -79,56 +83,95 @@ function compress_vars(d::abstractdomain, N::Int, s::Float64,
     ChebyTN!(Tz1, N, yvec)          
     ChebyTN!(Tz, N, zr)         
 
-    # ----------------- BOUNDARY INTEGRAL -------------------
-    # For the boundary integral on the boundary curves
-    N_intbd = 128
-    N_nearbd = 768      # N_nearbd = 768;
+    # ----------------- Boundary DLP quadrature -------------------
+    nr_bdy = 64
+    ns_near = 128
 
-    N₁ = N_intbd
-    N₂ = N_nearbd
+    fwr_bdy = getF1W(nr_bdy)
+    fw_near = getF1W(ns_near)
 
-    fw₁ = getF1W(N₁)
-    fw₂ = getF1W(N₂)
+    zr_bdy = Vector{Float64}(undef, nr_bdy)
 
-    # Compute boundary parametrization on N₂ points
-    y₁ = Vector{Float64}(undef, N₁)
-    y₂ = Vector{Float64}(undef, N₂)
-
-    @inbounds for j in 1:N₁
-        t₁ = π * (2 * j - 1) / (2 * N₁)
-        y₁[j] = cos(t₁)
+    @inbounds for j in 1:nr_bdy
+        zr_bdy[j] = cospi((2 * j - 1) / (2 * nr_bdy))
     end
 
-    @inbounds for j in 1:N₂
-        t₂ = π * (2 * j - 1) / (2 * N₂)
-        y₂[j] = cos(t₂)
+    z_near1 = Vector{Float64}(undef, ns_near)
+    z_near2 = Vector{Float64}(undef, ns_near)
+
+    @inbounds for i in 1:ns_near
+        c = π * (2 * i - 1) / (2 * ns_near)
+        z_near1[i] = cos(c / 2)^2
+        z_near2[i] = sin(c / 2)^2
     end
 
-    # Storage for gam!(...) or gamp!(...) 
-    gamk₁ = Matrix{Float64}(undef, 2, N₁)
-    gamp₁ = Matrix{Float64}(undef, 2, N₁)
-    gamk₂ = Matrix{Float64}(undef, 2, N₂)
-    gamp₂ = Matrix{Float64}(undef, 2, N₂)
-    kbd₁  = Vector{Float64}(undef, N₁)
-    kbd₂  = Vector{Float64}(undef, N₂)
-    γx    = Vector{Float64}(undef, 2)
-    μ₀    = Vector{Float64}(undef, 2)
-    γt1   = Vector{Float64}(undef, 2)
-    γt2   = Vector{Float64}(undef, 2)
-    
-    #For interpolating 
-    Lᵢₙ = 7
-    xvals = zeros(Float64,Lᵢₙ)
-    # δclsbd = 0.01 and δclsbd/2 = 0.005. 
-    for j in 2:Lᵢₙ
-        xvals[j] = δclsbd * j / 2 
-    end
-    #2nd value slighty bigger than δclsbd
-    #comment this line if you want to match matlab
-    #xvals[2] += 1e-10 #<--- I don't do this in matlab
-    fvals = Vector{Float64}(undef, Lᵢₙ)
-    γxbd  = Vector{Float64}(undef, 2)
-    kdx   = Vector{Int}(undef, 2*dₙₕ + 1)
+    # Dynamic split points for interior projected parameter t0.
+    y₁ = Vector{Float64}(undef, ns_near)
+    y₂ = Vector{Float64}(undef, ns_near)
+
+    # Fixed endpoint split nodes:
+    # t0 = +1 uses yt1, t0 = -1 uses yt2.
+    yt1 = Vector{Float64}(undef, ns_near)
+    yt2 = Vector{Float64}(undef, ns_near)
+
+    wmz₁ = Vector{Float64}(undef, ns_near)
+    wmz₂ = Vector{Float64}(undef, ns_near)
+    dwz₁ = Vector{Float64}(undef, ns_near)
+    dwz₂ = Vector{Float64}(undef, ns_near)
+
+    wfunc!(wmz₁, p, z_near1; α=-1.0)
+    wfunc!(wmz₂, p, z_near2; α=-1.0)
+
+    @. yt1 = 1.0 - 2.0 * wmz₁
+    @. yt2 = -1.0 + 2.0 * wmz₂
+
+    dwfunc!(dwz₁, p, z_near1)
+    dwfunc!(dwz₂, p, z_near2)
+
+    # Kernel-weight buffers.
+    kbd_bdy = Vector{Float64}(undef, nr_bdy)
+    kbd₁ = Vector{Float64}(undef, ns_near)
+    kbd₂ = Vector{Float64}(undef, ns_near)
+
+    # Geometry buffers for regular boundary quadrature.
+    gamkbdy = Matrix{Float64}(undef, 2, nr_bdy)
+    gampkbdy = Matrix{Float64}(undef, 2, nr_bdy)
+
+    # Geometry buffers for dynamic split.
+    gamks₁ = Matrix{Float64}(undef, 2, ns_near)
+    gamks₂ = Matrix{Float64}(undef, 2, ns_near)
+    gamperpks₁ = Matrix{Float64}(undef, 2, ns_near)
+    gamperpks₂ = Matrix{Float64}(undef, 2, ns_near)
+
+    # Geometry buffers for endpoint split.
+    gamkt1 = Matrix{Float64}(undef, 2, ns_near)
+    gamkt2 = Matrix{Float64}(undef, 2, ns_near)
+    gamperpkt1 = Matrix{Float64}(undef, 2, ns_near)
+    gamperpkt2 = Matrix{Float64}(undef, 2, ns_near)
+
+    μ₀ = Vector{Float64}(undef, 2)
+    γt1 = Vector{Float64}(undef, 2)
+    γt2 = Vector{Float64}(undef, 2)
+
+    fvals = Vector{Float64}(undef, dp.Lᵢₙ)
+    γxbd = Vector{Float64}(undef, 2)
+    Tbd = Vector{Float64}(undef, N)
+
+    inv2π = 1 / (2π)
+
+    BD_FAR = UInt8(0)
+    BD_NEAR = UInt8(1)
+    BD_INTP = UInt8(2)
+
+    # Chebyshev polynomials at fixed endpoint split nodes.
+    Tbdt1 = Matrix{Float64}(undef, ns_near, N)
+    Tbdt2 = Matrix{Float64}(undef, ns_near, N)
+
+    ChebyTN!(Tbdt1, N, yt1)
+    ChebyTN!(Tbdt2, N, yt2)
+
+    # Dynamic split basis values.
+    Tbdt₀ = Matrix{Float64}(undef, ns_near, N)
 
     # ------------ TEMPORARY VARS  ------------
     # ------------ Reg Integration ------------
@@ -232,35 +275,33 @@ function compress_vars(d::abstractdomain, N::Int, s::Float64,
         Grg = Matrix{Float64}(undef, N, N)
         Wrg = Matrix{Float64}(undef, nr, nr)
 
-        # boundary idct matrices used by Axbdop!
-        tbd₁ = Vector{Float64}(undef, N₁)
-        tbd₂ = Vector{Float64}(undef, N₂)
-        idctbd₁ = Matrix{Float64}(undef, N₁, N)
-        idctbd₂ = Matrix{Float64}(undef, N₂, N)
+        # Boundary basis values on regular boundary nodes.
+        γx = Vector{Float64}(undef, 2)
+        tbd = Vector{Float64}(undef, nr_bdy)
+        idctbd = Matrix{Float64}(undef, nr_bdy, N)
 
-        @inbounds for i in 1:N₁
-            tbd₁[i] = π * (2 * i - 1) / (2 * N₁)
-        end
-
-        @inbounds for i in 1:N₂
-            tbd₂[i] = π * (2 * i - 1) / (2 * N₂)
+        @inbounds for i in 1:nr_bdy
+            tbd[i] = π * (2 * i - 1) / (2 * nr_bdy)
         end
 
         @inbounds for j in 1:N
-            tp = π * (2j - 1) / (2N)
+            tp = π * (2 * j - 1) / (2 * N)
 
-            @inbounds for i in 1:N₁
-                u = tp + tbd₁[i]
-                v = tp - tbd₁[i]
-                idctbd₁[i, j] = (gs(u, N) + gs(v, N) - 1.0) / N
-            end
-
-            @inbounds for i in 1:N₂
-                u = tp + tbd₂[i]
-                v = tp - tbd₂[i]
-                idctbd₂[i, j] = (gs(u, N) + gs(v, N) - 1.0) / N
+            @inbounds for i in 1:nr_bdy
+                u = tp + tbd[i]
+                v = tp - tbd[i]
+                idctbd[i, j] = (gs(u, N) + gs(v, N) - 1.0) / N
             end
         end
+
+        # Basis values at fixed endpoint split nodes.
+        Bbdt1 = Matrix{Float64}(undef, ns_near, N)
+        Bbdt2 = Matrix{Float64}(undef, ns_near, N)
+
+        mul!(Bbdt1, Tbdt1, coeffs)
+        mul!(Bbdt2, Tbdt2, coeffs)
+
+        Bbdt₀ = Matrix{Float64}(undef, ns_near, N)
 
         Tbd = Vector{Float64}(undef, N)
 
@@ -277,31 +318,79 @@ function compress_vars(d::abstractdomain, N::Int, s::Float64,
 
         IVbdth = (zx2=zx2, zy2=zy2, coeffs=coeffs, coeffs_sum=coeffs_sum)
 
-        IVbd = (N₁=N₁, N₂=N₂, fw₁=fw₁, fw₂=fw₂, idctbd₁=idctbd₁, idctbd₂=idctbd₂, dₙₕ=dₙₕ)
-
         IVt = (Zx=Zx, Zy=Zy, DJ=DJ, KIr=KIr, Wrg=Wrg, Grgtmp=Grgtmp, Grg=Grg)
 
         IVbt1 = (Zx₂=Zx₂, Zy₂=Zy₂, DJ₂=DJ₂, KIbd=KIbd)
 
         IVbt2 = (mfw=mfw, CT=CT, B1bd=B1bd, B2bd=B2bd, Gbdtmp=Gbdtmp, Gbd=Gbd, Wbd=Wbd)
+        
+        #Storing boundary variables in the following 4 structs
+        #IVbd, IVbdt1, IVbdt2, and IVbdt3.
+        IVbd = (
+            nr_bdy=nr_bdy,
+            ns_near=ns_near,
+            fwr_bdy=fwr_bdy,
+            fw_near=fw_near,
+            zr_bdy=zr_bdy,
+            idctbd=idctbd,
+            inv2π=inv2π,
+            BD_FAR=BD_FAR,
+            BD_NEAR=BD_NEAR,
+            BD_INTP=BD_INTP)
 
-        IVbdt1 = (y₁=y₁, y₂=y₂, gamk₁=gamk₁, gamp₁=gamp₁, gamk₂=gamk₂, gamp₂=gamp₂)
+        IVbdt1 = (
+            y₁=y₁,y₂=y₂,
+            yt1=yt1,yt2=yt2,
+            wmz₁=wmz₁,wmz₂=wmz₂,
+            dwz₁=dwz₁,dwz₂=dwz₂,
+            gamkbdy=gamkbdy,
+            gampkbdy=gampkbdy,
+            gamks₁=gamks₁,
+            gamks₂=gamks₂,
+            gamperpks₁=gamperpks₁,
+            gamperpks₂=gamperpks₂,
+            gamkt1=gamkt1,
+            gamkt2=gamkt2,
+            gamperpkt1=gamperpkt1,
+            gamperpkt2=gamperpkt2)
 
-        IVbdt2 = (kbd₁=kbd₁, kbd₂=kbd₂, γx=γx, μ₀=μ₀, γt1=γt1, γt2=γt2)
+        IVbdt2 = (
+            kbd_bdy=kbd_bdy,
+            kbd₁=kbd₁,
+            kbd₂=kbd₂,
+            γx=γx,μ₀=μ₀,
+            γt1=γt1,γt2=γt2)
 
-        IVbdt3 = (Lᵢₙ=Lᵢₙ, xvals=xvals, fvals=fvals, γxbd=γxbd, kdx=kdx, Tbd=Tbd)
+        IVbdt3 = (
+            fvals=fvals,
+            γxbd=γxbd,
+            Tbd=Tbd,
+            Tbdt1=Tbdt1,
+            Tbdt2=Tbdt2,
+            Tbdt₀=Tbdt₀,
+            Bbdt1=Bbdt1,
+            Bbdt2=Bbdt2,
+            Bbdt₀=Bbdt₀)
 
         IV = (IV1=IV1, IVr=IVr, IVbdth=IVbdth, IVbd=IVbd, IVt=IVt, IVbt1=IVbt1,
             IVbt2=IVbt2, IVbdt1=IVbdt1, IVbdt2=IVbdt2, IVbdt3=IVbdt3)
 
     else
         # ------ matrix-free-only coefficient machinery ------
+
         chebcoef = Vector{Float64}(undef, M * Np + Mbd * N)
         ufin = Vector{Float64}(undef, M * nrp)
 
-        ζ₁ = Vector{Float64}(undef, Mbd * N₁)
-        ζ₂ = Vector{Float64}(undef, Mbd * N₂)
-        ζ₂coeff = Vector{Float64}(undef, Mbd * N₂)
+        # Boundary density values:
+        # ζ_bdy     : ζ evaluated on the regular boundary Chebyshev grid zr_bdy
+        # ζ_neart1  : ζ evaluated on fixed endpoint-smoothed nodes yt1
+        # ζ_neart2  : ζ evaluated on fixed endpoint-smoothed nodes yt2
+        #
+        # Dynamic near nodes y₁/y₂ are handled inside Ax! by Chebyshev
+        # interpolation using Tbdt₀ and the stored boundary coefficients.
+        ζ_bdy = Vector{Float64}(undef, Mbd * nr_bdy)
+        ζ_neart1 = Vector{Float64}(undef, Mbd * ns_near)
+        ζ_neart2 = Vector{Float64}(undef, Mbd * ns_near)
 
         UV = Matrix{Float64}(undef, N, N)
         CN = Matrix{Float64}(undef, N, N)
@@ -320,44 +409,135 @@ function compress_vars(d::abstractdomain, N::Int, s::Float64,
         p_dct3_dim2 = FFTW.plan_r2r!(UFV, FFTW.REDFT01, 2; flags=FFTW.MEASURE)
         p_dct3_dim1 = FFTW.plan_r2r!(UFV, FFTW.REDFT01, 1; flags=FFTW.MEASURE)
 
+        # Boundary DCT work vectors.
         ζv = Vector{Float64}(undef, N)
-        ζfv₁ = Vector{Float64}(undef, N₁)
-        ζfv₂ = Vector{Float64}(undef, N₂)
+        ζfv_bdy = Vector{Float64}(undef, nr_bdy)
 
         p_dct2_N = FFTW.plan_r2r!(ζv, FFTW.REDFT10; flags=FFTW.MEASURE)
-        p_dct3_N1 = FFTW.plan_r2r!(ζfv₁, FFTW.REDFT01; flags=FFTW.MEASURE)
-        p_dct3_N2 = FFTW.plan_r2r!(ζfv₂, FFTW.REDFT01; flags=FFTW.MEASURE)
+        p_dct3_bdy = FFTW.plan_r2r!(ζfv_bdy, FFTW.REDFT01; flags=FFTW.MEASURE)
 
         TzT = transpose(Tz)
-        
-        Tbd₂ = Vector{Float64}(undef, N₂)
+
+        # Boundary Chebyshev values at one projected point tₛ.
+        # Used for ζ(tₛ)/2 in the DLP jump term.
+        Tbd = Vector{Float64}(undef, N)
 
         # ============================================================
-        # Matrix-free IV Used by Ax!
-        # I do not pack matrix-assembly-only data here.
+        # Matrix-free IV used by Ax!
         # ============================================================
-        IV1 = (N=N, Np=Np, Cs=Cs, M=M, Mbd=Mbd)
 
-        IVr = (nr=nr, fwr=fwr, nrp=nrp, zx=zx, zt=zt, zy=zy, Df=Df)
+        IV1 = (
+            N=N,
+            Np=Np,
+            Cs=Cs,
+            M=M,
+            Mbd=Mbd
+        )
 
-        IVbdth = (zx2=zx2, zy2=zy2, Tz1=Tz1)
+        IVr = (
+            nr=nr,
+            fwr=fwr,
+            nrp=nrp,
+            zx=zx,
+            zt=zt,
+            zy=zy,
+            Df=Df
+        )
 
-        IVbd = (N₁=N₁, N₂=N₂, fw₁=fw₁, fw₂=fw₂, dₙₕ=dₙₕ)
+        IVbdth = (
+            zx2=zx2,
+            zy2=zy2,
+            Tz1=Tz1
+        )
 
-        IVt = (Zx=Zx, Zy=Zy, DJ=DJ, Ker=Ker, KIr=KIr, Ur=Ur, CN=CN)
+        IVt = (
+            Zx=Zx,
+            Zy=Zy,
+            DJ=DJ,
+            Ker=Ker,
+            KIr=KIr,
+            Ur=Ur,
+            CN=CN
+        )
 
-        IVbt1 = (Zx₂=Zx₂, Zy₂=Zy₂, DJ₂=DJ₂, Ker₂=Ker₂, KIbd=KIbd)
+        IVbt1 = (
+            Zx₂=Zx₂,
+            Zy₂=Zy₂,
+            DJ₂=DJ₂,
+            Ker₂=Ker₂,
+            KIbd=KIbd
+        )
 
-        IVbt2 = (Ubd=Ubd, mfw=mfw, CT=CT)
+        IVbt2 = (
+            Ubd=Ubd,
+            mfw=mfw,
+            CT=CT
+        )
 
-        IVbdt1 = (y₁=y₁, y₂=y₂, gamk₁=gamk₁, gamp₁=gamp₁, gamk₂=gamk₂, gamp₂=gamp₂)
+        IVbd = (
+            nr_bdy=nr_bdy,
+            ns_near=ns_near,
+            fwr_bdy=fwr_bdy,
+            fw_near=fw_near,
+            zr_bdy=zr_bdy,
+            inv2π=inv2π,
+            BD_FAR=BD_FAR,
+            BD_NEAR=BD_NEAR,
+            BD_INTP=BD_INTP
+        )
 
-        IVbdt2 = (kbd₁=kbd₁, kbd₂=kbd₂, γx=γx, μ₀=μ₀, γt1=γt1, γt2=γt2)
+        IVbdt1 = (
+            y₁=y₁,
+            y₂=y₂,
+            yt1=yt1,
+            yt2=yt2,
+            wmz₁=wmz₁,
+            wmz₂=wmz₂,
+            dwz₁=dwz₁,
+            dwz₂=dwz₂,
+            gamkbdy=gamkbdy,
+            gampkbdy=gampkbdy,
+            gamks₁=gamks₁,
+            gamks₂=gamks₂,
+            gamperpks₁=gamperpks₁,
+            gamperpks₂=gamperpks₂,
+            gamkt1=gamkt1,
+            gamkt2=gamkt2,
+            gamperpkt1=gamperpkt1,
+            gamperpkt2=gamperpkt2
+        )
 
-        IVbdt3 = (Lᵢₙ=Lᵢₙ, xvals=xvals, fvals=fvals, γxbd=γxbd, kdx=kdx, Tbd₂=Tbd₂)
+        IVbdt2 = (
+            kbd_bdy=kbd_bdy,
+            kbd₁=kbd₁,
+            kbd₂=kbd₂,
+            μ₀=μ₀,
+            γt1=γt1,
+            γt2=γt2
+        )
 
-        IVAf = (chebcoef=chebcoef, ufin=ufin, ζ₁=ζ₁, ζ₂=ζ₂, ζ₂coeff=ζ₂coeff,
-            UV=UV, UFV=UFV, ζv=ζv, ζfv₁=ζfv₁, ζfv₂=ζfv₂, CNnr=CNnr, TzT=TzT)
+        IVbdt3 = (
+            fvals=fvals,
+            γxbd=γxbd,
+            Tbd=Tbd,
+            Tbdt₀=Tbdt₀,
+            Tbdt1=Tbdt1,
+            Tbdt2=Tbdt2
+        )
+
+        IVAf = (
+            chebcoef=chebcoef,
+            ufin=ufin,
+            ζ_bdy=ζ_bdy,
+            ζ_neart1=ζ_neart1,
+            ζ_neart2=ζ_neart2,
+            UV=UV,
+            UFV=UFV,
+            ζv=ζv,
+            ζfv_bdy=ζfv_bdy,
+            CNnr=CNnr,
+            TzT=TzT
+        )
 
         IVAdct = (
             p_dct2_dim2=p_dct2_dim2,
@@ -365,12 +545,23 @@ function compress_vars(d::abstractdomain, N::Int, s::Float64,
             p_dct3_dim2=p_dct3_dim2,
             p_dct3_dim1=p_dct3_dim1,
             p_dct2_N=p_dct2_N,
-            p_dct3_N1=p_dct3_N1,
-            p_dct3_N2=p_dct3_N2)
+            p_dct3_bdy=p_dct3_bdy
+        )
 
-        IV = (IV1=IV1, IVr=IVr, IVbdth=IVbdth, IVbd=IVbd, IVt=IVt, IVbt1=IVbt1,
-            IVbt2=IVbt2, IVbdt1=IVbdt1, IVbdt2=IVbdt2, IVbdt3=IVbdt3, IVAf=IVAf,
-            IVAdct=IVAdct)
+        IV = (
+            IV1=IV1,
+            IVr=IVr,
+            IVbdth=IVbdth,
+            IVbd=IVbd,
+            IVt=IVt,
+            IVbt1=IVbt1,
+            IVbt2=IVbt2,
+            IVbdt1=IVbdt1,
+            IVbdt2=IVbdt2,
+            IVbdt3=IVbdt3,
+            IVAf=IVAf,
+            IVAdct=IVAdct
+        )
     end
 
     return IV

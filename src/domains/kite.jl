@@ -1878,120 +1878,183 @@ function nu!(out::Matrix{Float64}, d::kite, t::Vector{Float64}, k::Int)
   return nothing
 end
 
+# This function finds s such that γ_l(t) = γ_k(s),
+# allowing s to lie outside [-1, 1].
+function bdinv(d::kite, t::Float64, l::Int, k::Int)::Float64
+  @inbounds begin
+    pl = d.pths[l]
+    pk = d.pths[k]
+
+    plr = pl.reg
+    pkr = pk.reg
+
+    # Map local t on patch l to its xi coordinate.
+    xil = muladd(0.5 * (pl.tk1 - pl.tk0), t, 0.5 * (pl.tk0 + pl.tk1))
+
+    # If both patches are in the same angular region, the same xi works.
+    if plr == pkr
+      return xi_inv(xil, pk.tk0, pk.tk1)
+    end
+
+    # Compute physical angle theta corresponding to γ_l(t).
+    th = if plr == 1
+      xil * (d.tht4 - d.tht3) - d.tht4
+    elseif plr == 2
+      xil * (d.tht3 - d.tht1) - d.tht3
+    elseif plr == 3
+      xil * d.tht1 - d.tht1
+    elseif plr == 4
+      xil * d.tht1
+    elseif plr == 5
+      xil * (d.tht3 - d.tht1) + d.tht1
+    elseif plr == 6
+      xil * (d.tht4 - d.tht3) + d.tht3
+    elseif plr == 7
+      xil * (π - d.tht2 - d.tht4) + d.tht4
+    elseif plr == 8
+      xil * d.tht2 + π - d.tht2
+    elseif plr == 9
+      xil * d.tht2 + π
+    elseif plr == 10
+      xil * (π - d.tht2 - d.tht4) + π + d.tht2
+    else
+      throw(ArgumentError("bdinv source region must be 1–10; got reg=$plr"))
+    end
+
+    # Get angular map for target patch k:
+    #     theta = ak * xi + bk
+    ak, bk = if pkr == 1
+      d.tht4 - d.tht3, -d.tht4
+    elseif pkr == 2
+      d.tht3 - d.tht1, -d.tht3
+    elseif pkr == 3
+      d.tht1, -d.tht1
+    elseif pkr == 4
+      d.tht1, 0.0
+    elseif pkr == 5
+      d.tht3 - d.tht1, d.tht1
+    elseif pkr == 6
+      d.tht4 - d.tht3, d.tht3
+    elseif pkr == 7
+      π - d.tht2 - d.tht4, d.tht4
+    elseif pkr == 8
+      d.tht2, π - d.tht2
+    elseif pkr == 9
+      d.tht2, π
+    elseif pkr == 10
+      π - d.tht2 - d.tht4, π + d.tht2
+    else
+      throw(ArgumentError("bdinv target region must be 1–10; got reg=$pkr"))
+    end
+
+    # Shift th by multiples of 2π so it is closest to the target region.
+    # The target angular interval is [bk, bk + ak].
+    center = bk + 0.5 * ak
+    m = round((center - th) / (2π))
+    ths = th + 2π * m
+
+    # Convert angle to target xi, then xi to local patch coordinate s.
+    xik = (ths - bk) / ak
+
+    return xi_inv(xik, pk.tk0, pk.tk1)
+  end
+end
+
 """
-    DLP(d::kite, t::Float64, l::Int, tau::StridedArray{Float64}, k::Int)
+    DLP(d::kite, t::Float64, tau::StridedArray{Float64}, k::Int)
 
 Double-layer kernel on the boundary:
-K(t, τ) = ((γ_k(τ) - γ_l(t))⋅  γᵖᵉʳᵖ_k(τ)) / ‖γ_k(τ) - γ_l(t)‖² for k ≠ l,
+K(t, τ) = ((γ_k(τ) - γ_k(t))⋅  γᵖᵉʳᵖ_k(τ)) / ‖γ_k(τ) - γ_k(t)‖² 
 and for k == l the limiting value is taken for patch k.
 The array method returns an array with the ***same shape*** as `tau`.
 """
-function DLP!(out::StridedArray{Float64}, d::kite, t::Float64, l::Int, 
-  tau::StridedArray{Float64}, k::Int, x::Vector{Float64}, 
+function DLP!(out::StridedArray{Float64}, d::kite, t::Float64,
+  tau::StridedArray{Float64}, k::Int, x::Vector{Float64},
   G::Vector{Float64}, GP::Vector{Float64})
 
-  if k != l
-    gam!(x, d, t, l)
+  p = d.pths[k]
 
-    @inbounds  for i in eachindex(tau)
-      ti = tau[i]
-      gam!(G, d, ti, k)
-      gamp!(GP, d, ti, k)
+  ht = p.tk1 - p.tk0
+  αt = 0.5 * ht
+  βt = p.tk0 + αt
 
-      dx = G[1] - x[1]
-      dy = G[2] - x[2]
-      # num = dot(Δ, GP); den = dot(Δ, Δ)
-      num = muladd(dx, GP[1], dy * GP[2])
-      den = muladd(dx, dx, dy * dy)
-      out[i] = num / den
-    end
+  reg = p.reg
+
+  if reg == 1
+    ak = d.tht4 - d.tht3
+    bk = -d.tht4
+
+  elseif reg == 2
+    ak = d.tht3 - d.tht1
+    bk = -d.tht3
+
+  elseif reg == 3
+    ak = d.tht1
+    bk = -d.tht1
+
+  elseif reg == 4
+    ak = d.tht1
+    bk = 0.0
+
+  elseif reg == 5
+    ak = d.tht3 - d.tht1
+    bk = d.tht1
+
+  elseif reg == 6
+    ak = d.tht4 - d.tht3
+    bk = d.tht3
+
+  elseif reg == 7
+    ak = π - d.tht2 - d.tht4
+    bk = d.tht4
+
+  elseif reg == 8
+    ak = d.tht2
+    bk = π - d.tht2
+
+  elseif reg == 9
+    ak = d.tht2
+    bk = π
+
+  elseif reg == 10
+    ak = π - d.tht2 - d.tht4
+    bk = π + d.tht2
 
   else
-    p = d.pths[k]
+    throw(ArgumentError("DLP! self term defined only for regions 1–10; got reg=$reg"))
 
-    ht = p.tk1 - p.tk0
-    αt  = 0.5 * ht
-    βt  = p.tk0 + αt  
+  end
 
-    reg = p.reg
+  R1 = d.R1
+  R2 = d.R2
+  P = d.P
 
-    if reg == 1
-      ak = d.tht4 - d.tht3
-      bk = -d.tht4
+  # t mapped to [tk0, tk1]
+  tm = muladd(αt, t, βt)
+  pref = 0.25 * ht * ak * R2
+  halfak = 0.5 * ak
 
-    elseif reg == 2
-      ak = d.tht3 - d.tht1
-      bk = -d.tht3
+  @inbounds for i in eachindex(tau, out)
+    τm = muladd(αt, tau[i], βt)
 
-    elseif reg == 3
-      ak = d.tht1
-      bk = -d.tht1
+    tt = muladd(halfak, tm + τm, bk)
+    Δ = halfak * (τm - tm)
 
-    elseif reg == 4
-      ak = d.tht1
-      bk = 0.0
+    st, ct = sincos(tt)
+    sΔ, cΔ = sincos(Δ)
 
-    elseif reg == 5
-      ak = d.tht3 - d.tht1
-      bk = d.tht1
+    ct2 = ct * ct
+    s2t = 2.0 * st * ct
 
-    elseif reg == 6
-      ak = d.tht4 - d.tht3
-      bk = d.tht3
+    c_thet_tau = muladd(ct, cΔ, -st * sΔ)
 
-    elseif reg == 7
-      ak = π - d.tht2 - d.tht4
-      bk = d.tht4
+    vv1 = muladd(P * s2t, cΔ, R1 * st)
+    vv2 = R2 * ct
 
-    elseif reg == 8
-      ak = d.tht2
-      bk = π - d.tht2
+    den = muladd(vv1, vv1, vv2 * vv2)
+    num = muladd(2.0 * P * c_thet_tau, ct2, R1)
 
-    elseif reg == 9
-      ak = d.tht2
-      bk = π
-
-    elseif reg == 10
-      ak = π - d.tht2 - d.tht4
-      bk = π + d.tht2
-
-    else
-      throw(ArgumentError("DLP! self term defined only for regions 1–10; got reg=$reg"))
-
-    end
-
-    R1 = d.R1
-    R2 = d.R2
-    P = d.P
-
-    # t mapped to [tk0, tk1]
-    tm = muladd(αt, t, βt)
-    pref = 0.25 * ht * ak * R2
-    halfak = 0.5 * ak
-
-    @inbounds for i in eachindex(tau, out)
-      τm = muladd(αt, tau[i], βt)
-
-      tt = muladd(halfak, tm + τm, bk)
-      Δ = halfak * (τm - tm)
-
-      st, ct = sincos(tt)
-      sΔ, cΔ = sincos(Δ)
-
-      ct2 = ct * ct
-      s2t = 2.0 * st * ct
-
-      c_thet_tau = muladd(ct, cΔ, -st * sΔ)
-
-      vv1 = muladd(P * s2t, cΔ, R1 * st)
-      vv2 = R2 * ct
-
-      den = muladd(vv1, vv1, vv2 * vv2)
-      num = muladd(2.0 * P * c_thet_tau, ct2, R1)
-
-      out[i] = pref * num / den
-    end
-
+    out[i] = pref * num / den
   end
 
   return nothing

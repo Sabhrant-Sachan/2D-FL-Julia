@@ -118,32 +118,52 @@ mutable struct domprop
     bdxvals::Vector{Float64}
 
     #==========
-    For every mode-2 target and every auxiliary interior interpolation point,
-    store the boundary panels that are within del_near of that auxiliary point.
-
-    The storage is flattened. Let Naux = Lᵢₙ - 1 and let jintp be the running 
-    index over mode-2 targets. For interpolation node j = 2:Lᵢₙ, define
+    For every mode-2 target and every interpolation node, store boundary panels
+    that require special treatment. There are Lᵢₙ interpolation nodes:
     
-        a = (jintp - 1) * Naux + (j - 1).
+        bdxvals[1] = 0
     
-    Then the near-panel data for that auxiliary point is stored in
+    corresponds to the projected boundary point γ_l(t₀), and
+    
+        bdxvals[j] > 0,  j = 2:Lᵢₙ
+    
+    corresponds to auxiliary interior points
+    
+        z_j = γ_l(t₀) - bdxvals[j] * ν_l(t₀).
+    
+    For j = 1, we store boundary panels within del_intp of γ_l(t₀). This is
+    used when computing the boundary interpolation value. For these
+    entries:
+    
+        bdintpk[q] = actual boundary patch index k close to γ_l(t₀)
+        bdintpt[q] = extended inverse parameter s on patch k such that
+                     γ_k(s) = γ_l(t₀)
+    
+    Here s will lie outside (-1, 1). This is intentional: it lets us evaluate
+    the near off-diagonal boundary contribution using a diagonal/continued
+    same-panel formula on patch k, avoiding cancellation in γ_k(τ)-γ_l(t₀).
+    For j = 2:Lᵢₙ, we store boundary panels within del_near of z_j. For these
+    entries:
+    
+        bdintpk[q] = actual boundary patch index near z_j
+        bdintpt[q] = projected local parameter of z_j onto that patch,
+                     usually in [-1, 1].
+    
+    The storage is flattened. If jintp is the running index over mode-2
+    targets and j is the interpolation-node index, define
+    
+        a = (jintp - 1) * Lᵢₙ + j.
+    
+    Then
     
         q1 = bdintpptr[a]
         q2 = bdintpptr[a + 1] - 1
     
-    and for q = q1:q2:
-    
-        bdintpk[q] = actual boundary patch index near this auxiliary point
-        bdintpt[q] = projected local parameter of the auxiliary point
-                     onto that boundary patch.
-    
-    These projections are stored for each auxiliary point separately because
-    on curved geometries, such as the kite, the projected parameter can change
-    noticeably as the auxiliary point moves along the normal line.
+    gives the entries for that mode-2 target and interpolation node.
     ==========#
-    bdintpptr::Vector{Int}       # length NP2 * (Lᵢₙ - 1) + 1
+    bdintpptr::Vector{Int}       # length NP2 * Lᵢₙ + 1
     bdintpk::Vector{Int}         # flattened near panel indices
-    bdintpt::Vector{Float64}     # corresponding projection parameters
+    bdintpt::Vector{Float64}     # inverse/projection parameters; see above
 
     # pthgo[k] = first column in prepts for actual volume patch k
     # pthgo[M+1] = first column of the regular boundary-target block in prepts
@@ -592,35 +612,33 @@ mutable struct domprop
         end
 
         # ---------------------------------------------------------------------
-        # 7. Mode-2 auxiliary-point near-panel classification
+        # 7. Mode-2 interpolation-node near-panel classification
         # ---------------------------------------------------------------------
         # For bdmode == 2 targets, the original target is closer than del_intp
-        # to the boundary. We avoid evaluating the DLP there directly.
-        # Instead, for each such target, we use normal interpolation. If the
-        # closest boundary projection is γ_l(t₀), and ν_l(t₀) is the outward
-        # unit normal, then the auxiliary interpolation points are
+        # to the boundary. We evaluate such targets by normal interpolation.
+        #
+        # For a mode-2 target with closest projection γ_l(t₀), the interpolation
+        # nodes are
         #
         #     z_j = γ_l(t₀) - bdxvals[j] * ν_l(t₀),     j = 1:Lᵢₙ.
         #
-        # The first interpolation node is the boundary point bdxvals[1] = 0.
-        # For every mode-2 target and every auxiliary interior point, we store
-        # the boundary panels lying within del_near, along with the projected
-        # parameter of that auxiliary point onto each such panel.
-
-        # The storage is flattened. Let Naux = Lᵢₙ - 1. For mode-2 target index 
-        # jintp and interpolation node j = 2:Lᵢₙ, define
+        # For j = 1, z_j is the boundary point γ_l(t₀). We store panels within
+        # del_intp of this point. The corresponding bdintpt entries are NOT
+        # nearest-projection parameters; they are extended inverse parameters
+        # s satisfying γ_k(s) = γ_l(t₀). This inverse is filled below.
         #
-        #     a = (jintp - 1) * Naux + (j - 1).
+        # For j = 2:Lᵢₙ, z_j is an auxiliary interior point. We store panels
+        # within del_near, and bdintpt stores the ordinary projected parameter
+        # of z_j onto those panels.
         #
-        # Then the near panels for this auxiliary point are stored in
+        # Flattened indexing:
+        #
+        #     a = (jintp - 1) * Lᵢₙ + j,        j = 1:Lᵢₙ
+        #
+        # and
         #
         #     q1 = bdintpptr[a]
-        #     q2 = bdintpptr[a + 1] - 1
-        #
-        # and for q = q1:q2:
-        #
-        #     bdintpk[q]  = actual boundary patch index
-        #     bdintpt[q] = projected local parameter onto that patch.
+        #     q2 = bdintpptr[a + 1] - 1.
         # ---------------------------------------------------------------------
 
         @assert Lᵢₙ >= 2 "Lᵢₙ must be at least 2."
@@ -643,12 +661,48 @@ mutable struct domprop
             l = bdclosest[jintp]
             t0 = bdt[jintp]
 
-            # Boundary projection and outward unit normal.
             gam!(γbd, dom, t0, l)
             nu!(ν, dom, t0, l)
 
-            # Only classify auxiliary interior points.
-            # The boundary point j = 1 is handled by the boundary limiting value.
+            # -------------------------------------------------------------
+            # m = 1: boundary interpolation node γ_l(t0)
+            # Store close off-diagonal panels k != l.
+            # bdintpt stores the extended inverse parameter s satisfying
+            # γ_k(s) = γ_l(t0), not the closest projection parameter.
+            # -------------------------------------------------------------
+            zδ1 = γbd[1]
+            zδ2 = γbd[2]
+
+            for kb in 1:Mbd
+                k = dom.kd[kb]
+
+                k == l && continue
+
+                P1x, P1y = Qebd_intp[1, kb], Qebd_intp[2, kb]
+                P2x, P2y = Qebd_intp[3, kb], Qebd_intp[4, kb]
+                P3x, P3y = Qebd_intp[5, kb], Qebd_intp[6, kb]
+                P4x, P4y = Qebd_intp[7, kb], Qebd_intp[8, kb]
+
+                if ptinqua(zδ1, zδ2, P1x, P1y, P2x, P2y, P3x, P3y, P4x, P4y)
+
+                    if isnspbd(dom, zδ1, zδ2, k, del_intp)
+
+                        s = bdinv(dom, t0, l, k)
+
+                        push!(bdintpk, k)
+                        push!(bdintpt, s)
+
+                    end
+                end
+            end
+
+            # End of the m = 1 boundary-node list.
+            push!(bdintpptr, length(bdintpk) + 1)
+
+            # -------------------------------------------------------------
+            # m = 2:Lᵢₙ: auxiliary interior interpolation nodes.
+            # bdintpt stores the ordinary closest projected parameter.
+            # -------------------------------------------------------------
             for m in 2:Lᵢₙ
 
                 δ = bdxvals[m]
@@ -656,7 +710,6 @@ mutable struct domprop
                 zδ1 = γbd[1] - δ * ν[1]
                 zδ2 = γbd[2] - δ * ν[2]
 
-                # Find all boundary panels within del_near of this auxiliary point.
                 for kb in 1:Mbd
                     k = dom.kd[kb]
 
@@ -682,7 +735,7 @@ mutable struct domprop
                     end
                 end
 
-                # End of one auxiliary-point near-panel list.
+                # End of the m-th auxiliary-node list.
                 push!(bdintpptr, length(bdintpk) + 1)
             end
         end
@@ -1077,15 +1130,16 @@ function plotnsbd(dp::domprop, d::abstractdomain, k::Integer)
 end
 
 """
-Plot the mode-2 auxiliary interpolation geometry for a given jintp.
+Plot the mode-2 interpolation geometry for a given jintp.
 
 For the mode-2 target indexed by `jintp`, this plots:
 - the original target point in red,
 - the closest boundary projection in black,
 - auxiliary interpolation points in blue,
-- projections of each auxiliary point onto its nearby boundary panels in green,
-- arrows from each auxiliary point to those projections,
-- del_near-extended boundary quadrilaterals for the involved panels.
+- projected/inverse points from bdintpk/bdintpt in green,
+- arrows from interpolation points to their stored panel points,
+- del_intp boxes for the boundary node panels,
+- del_near boxes for the auxiliary interior node panels.
 """
 function plotbdintp(dp::domprop, d::abstractdomain, jintp::Integer)
 
@@ -1108,7 +1162,6 @@ function plotbdintp(dp::domprop, d::abstractdomain, jintp::Integer)
     xt = γbd[1] - ε * ν[1]
     yt = γbd[2] - ε * ν[2]
 
-    # Plot original target and boundary projection.
     scatter!(ax, [xt], [yt];
         markersize=12,
         color=:red,
@@ -1125,19 +1178,26 @@ function plotbdintp(dp::domprop, d::abstractdomain, jintp::Integer)
         shaftwidth=1.5,
         color=:red)
 
-    # Draw del_near boxes only for panels appearing in bdintpk for this jintp.
-    involved = Set{Int}()
+    # ------------------------------------------------------------
+    # Collect involved panels.
+    # m = 1 uses del_intp.
+    # m >= 2 uses del_near.
+    # ------------------------------------------------------------
+    involved_intp = Set{Int}()
+    involved_near = Set{Int}()
 
-    Naux = dp.Lᵢₙ - 1
-
-    for m in 2:dp.Lᵢₙ
-        a = (jintp - 1) * Naux + (m - 1)
+    for m in 1:dp.Lᵢₙ
+        a = (jintp - 1) * dp.Lᵢₙ + m
 
         q1 = dp.bdintpptr[a]
         q2 = dp.bdintpptr[a + 1] - 1
 
         for q in q1:q2
-            push!(involved, dp.bdintpk[q])
+            if m == 1
+                push!(involved_intp, dp.bdintpk[q])
+            else
+                push!(involved_near, dp.bdintpk[q])
+            end
         end
     end
 
@@ -1145,7 +1205,8 @@ function plotbdintp(dp::domprop, d::abstractdomain, jintp::Integer)
     iy = [2, 4, 6, 8, 2]
     Pext = Vector{Float64}(undef, 8)
 
-    for k in involved
+    # Draw del_near boxes for auxiliary interior nodes.
+    for k in involved_near
         kb = findfirst(==(k), d.kd)
         kb === nothing && continue
 
@@ -1157,7 +1218,24 @@ function plotbdintp(dp::domprop, d::abstractdomain, jintp::Integer)
             linewidth=2)
     end
 
-    # Plot auxiliary points and their projections.
+    # Draw del_intp boxes for boundary node panels.
+    for k in involved_intp
+        kb = findfirst(==(k), d.kd)
+        kb === nothing && continue
+
+        @views Pbd = d.Qptsbd[:, kb]
+        extendqua!(Pext, Pbd, dp.del_intp)
+
+        lines!(ax, Pext[ix], Pext[iy];
+            color=:orange,
+            linewidth=2)
+    end
+
+    # ------------------------------------------------------------
+    # Plot interpolation nodes and stored panel points.
+    # For m = 1, bdintpt stores the extended inverse parameter.
+    # For m >= 2, bdintpt stores the ordinary projection parameter.
+    # ------------------------------------------------------------
     xaux = Float64[]
     yaux = Float64[]
 
@@ -1169,17 +1247,19 @@ function plotbdintp(dp::domprop, d::abstractdomain, jintp::Integer)
     uarr = Float64[]
     varr = Float64[]
 
-    @inbounds for m in 2:dp.Lᵢₙ
+    @inbounds for m in 1:dp.Lᵢₙ
 
         δ = dp.bdxvals[m]
 
         zδ1 = γbd[1] - δ * ν[1]
         zδ2 = γbd[2] - δ * ν[2]
 
-        push!(xaux, zδ1)
-        push!(yaux, zδ2)
+        if m >= 2
+            push!(xaux, zδ1)
+            push!(yaux, zδ2)
+        end
 
-        a = (jintp - 1) * Naux + (m - 1)
+        a = (jintp - 1) * dp.Lᵢₙ + m
 
         q1 = dp.bdintpptr[a]
         q2 = dp.bdintpptr[a + 1] - 1
@@ -1225,8 +1305,8 @@ function plotbdintp(dp::domprop, d::abstractdomain, jintp::Integer)
     @printf("closest patch l = %d\n", l)
     @printf("t0 = %.16e\n", t0)
     @printf("epsilon = %.16e\n", ε)
-    @printf("number of involved panels = %d\n", length(involved))
-    @printf("involved panels = %s\n", collect(involved))
+    @printf("boundary-node involved panels = %s\n", collect(involved_intp))
+    @printf("auxiliary-node involved panels = %s\n", collect(involved_near))
 
     display(GLMakie.Screen(), fig)
 
@@ -2009,8 +2089,16 @@ function Base.show(io::IO, ::MIME"text/plain", d::domprop)
     total_near_pairs = length(d.bdneark)
     total_intp_pairs = length(d.bdintpk)
 
-    Naux = d.Lᵢₙ - 1
-    expected_intp_ptr_len = length(d.bdclosest) * Naux + 1
+    nbdinv = 0
+
+    @inbounds for jintp in eachindex(d.bdclosest)
+        a = (jintp - 1) * d.Lᵢₙ + 1
+        nbdinv += d.bdintpptr[a+1] - d.bdintpptr[a]
+    end
+
+    nauxpairs = total_intp_pairs - nbdinv
+
+    expected_intp_ptr_len = length(d.bdclosest) * d.Lᵢₙ + 1
 
     println(io, "domain properties:")
     println(io, "  N:          ", d.N)
@@ -2050,13 +2138,15 @@ function Base.show(io::IO, ::MIME"text/plain", d::domprop)
     println(io, "    bddist    :  Vector{Float64} (", length(d.bddist), " distances)")
 
     println(io)
-    println(io, "  Mode-2 auxiliary interpolation storage:")
+    println(io, "  Mode-2 interpolation-node storage:")
     println(io, "    Lᵢₙ       :  ", d.Lᵢₙ)
     println(io, "    bdxvals   :  Vector{Float64} (", length(d.bdxvals), " interpolation distances)")
     println(io, "    bdintpptr :  Vector{Int}     (", length(d.bdintpptr), ")")
     println(io, "    bdintpk   :  Vector{Int}     (", length(d.bdintpk), " panel entries)")
-    println(io, "    bdintpt   :  Vector{Float64} (", length(d.bdintpt), " projections)")
-    println(io, "    total auxiliary near pairs: ", total_intp_pairs)
+    println(io, "    bdintpt   :  Vector{Float64} (", length(d.bdintpt), " inverse/projection values)")
+    println(io, "    total interpolation-node pairs: ", total_intp_pairs)
+    println(io, "    boundary inverse pairs        : ", nbdinv)
+    println(io, "    auxiliary projection pairs    : ", nauxpairs)
     println(io, "    expected bdintpptr length: ", expected_intp_ptr_len)
 
     if !isempty(d.bdclosest)
@@ -2069,13 +2159,13 @@ function Base.show(io::IO, ::MIME"text/plain", d::domprop)
 
     if !isempty(d.bdxvals)
         println(io)
-        println(io, "  Auxiliary interpolation preview:")
+        println(io, "  Interpolation-distance preview:")
         println(io, "    bdxvals:   ", _preview(d.bdxvals; scale = 1e-3, suffix = " × 10^{-3}"))
     end
 
     if !isempty(d.bdintpk)
         println(io)
-        println(io, "  Auxiliary near-panel preview:")
+        println(io, "  Interpolation-node panel preview:")
         println(io, "    bdintpk:   ", _preview(d.bdintpk))
         println(io, "    bdintpt:   ", _preview(d.bdintpt))
     end

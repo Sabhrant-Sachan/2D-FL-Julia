@@ -638,55 +638,69 @@ function nu!(out::Matrix{Float64}, d::disc, t::Vector{Float64}, k::Int)
   return nothing
 end
 
-"""
-    DLP(d::disc, t::Float64, l::Int, tau::Float64, k::Int) -> Float64
-    DLP(d::disc, t::Float64, l::Int, tau::StridedArray{Float64}, k::Int)
+# This function finds s such that γ_l(t) = γ_k(s),
+# allowing s to lie outside [-1, 1].
+function bdinv(d::disc, t::Float64, l::Int, k::Int)::Float64
+    @inbounds begin
+        pl = d.pths[l]
+        pk = d.pths[k]
 
-Double-layer kernel on the boundary:
-K(t, τ) = ((γ_k(τ) - γ_l(t)) ⋅ γ'_k(τ)) / ‖γ_k(τ) - γ_l(t)‖² for k ≠ l,
-and for k == l the limiting value is (π * ht / 8), where ht = tk1 - tk0
-for patch k. The array method returns an array with the ***same shape*** as `tau`.
-"""
-function DLP(d::disc, t::Float64, l::Int, tau::Float64, k::Int)
-    if k != l
-        x  = gam(d, t, l)            # 2-vector
-        g  = gam(d, tau, k)          # 2-vector
-        gp = gamp(d, tau, k)         # 2-vector
-        δ  = g .- x
-        num = dot(δ, gp)
-        den = δ[1]^2 + δ[2]^2
-        return num / den
-    else
-        p  = d.pths[k]
-        ht = p.tk1 - p.tk0
-        return (π * ht) / 8
+        # Map t on patch l from [-1,1] to ξ_l ∈ [pl.tk0, pl.tk1].
+        ξl = muladd(0.5 * (pl.tk1 - pl.tk0), t, 0.5 * (pl.tk0 + pl.tk1))
+
+        # If both patches are in the same angular region, the same ξ gives
+        # the same physical angle. We only need to convert ξ_l to the local
+        # coordinate on patch k.
+        if pl.reg == pk.reg
+            return xi_inv(pk.tk0, pk.tk1, ξl)
+        end
+
+        # Angle representation on patch l:
+        #   θ_l = π ξ_l / 2 + c_l,
+        #   c_l = π(2reg_l - 3)/4.
+        cl = π * (2 * pl.reg - 3) / 4
+        θ = muladd(π / 2, ξl, cl)
+
+        # Target patch k has angle map:
+        #   θ_k = π ξ_k / 2 + c_k.
+        ck = π * (2 * pk.reg - 3) / 4
+
+        # Because angles are periodic, choose θ + 2πm closest to the angular
+        # interval of patch k.
+        # Patch k angular interval:
+        #   [ck + π*pk.tk0/2, ck + π*pk.tk1/2]
+        #
+        # Its center is:
+        center_k = muladd(π / 2, 0.5 * (pk.tk0 + pk.tk1), ck) 
+
+        m = round((center_k - θ) / (2π))
+        θs = θ + 2π * m
+
+        # Convert shifted angle θs to ξ_k:
+        #   θs = π ξ_k / 2 + c_k
+        #   ξ_k = 2(θs - c_k)/π.
+        ξk = (2 / π) * (θs - ck)
+
+        # Convert ξ_k to local Chebyshev coordinate s on patch k.
+        return xi_inv(pk.tk0, pk.tk1, ξk)
     end
 end
 
-function DLP!(out::StridedArray{Float64}, d::disc, t::Float64, l::Int, 
+"""
+    DLP(d::disc, t::Float64, tau::StridedArray{Float64}, k::Int)
+
+Double-layer kernel on the boundary:
+K(t, τ) = ((γ_k(τ) - γ_k(t))⋅  γᵖᵉʳᵖ_k(τ)) / ‖γ_k(τ) - γ_k(t)‖² 
+and for k == l the limiting value is taken for patch k.
+The array method returns an array with the ***same shape*** as `tau`.
+"""
+function DLP!(out::StridedArray{Float64}, d::disc, t::Float64,
   tau::StridedArray{Float64}, k::Int, x::Vector{Float64}, G::Vector{Float64},
   GP::Vector{Float64})
-  if k != l
-    gam!(x, d, t, l)
 
-    @inbounds  for i in eachindex(tau)
-      ti = tau[i]
-      gam!(G, d, ti, k)
-      gamp!(GP, d, ti, k)
-
-      dx = G[1] - x[1]
-      dy = G[2] - x[2]
-      # num = dot(Δ, GP); den = dot(Δ, Δ)
-      num = muladd(dx, GP[1], dy * GP[2])
-      den = muladd(dx, dx, dy * dy)
-      out[i] = num / den
-    end
-
-  else
-    p = d.pths[k]
-    ht = p.tk1 - p.tk0
-    fill!(out, (π * ht) / 8)
-  end
+  p = d.pths[k]
+  ht = p.tk1 - p.tk0
+  fill!(out, (π * ht) / 8)
 
   return nothing
 end
