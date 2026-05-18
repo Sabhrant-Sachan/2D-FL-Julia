@@ -29,12 +29,12 @@ using WriteVTK, VTKBase
 # --------------------------
 # Data / domains / compression
 include("domains/domain.jl")
+include("domprop.jl")
 
 include("FLdata.jl")
 include("compressvars.jl")
 
 # Core assembly pieces
-include("domprop.jl")
 include("bvec.jl")
 include("precomps.jl")
 

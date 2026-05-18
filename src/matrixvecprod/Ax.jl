@@ -260,7 +260,7 @@ function Ax!(v::AbstractVector{Float64}, u::AbstractVector{Float64}, IntS::Matri
         gamp!(gamperpkt1, d, yt1, k)
         gamp!(gamperpkt2, d, yt2, k)
 
-        #Contribution of all points for the ℓth patch
+        #Contribution of all points for the kth patch
         @inbounds for row in 1:Ni
 
             x1 = dp.tgtpts[1, row]
@@ -278,9 +278,9 @@ function Ax!(v::AbstractVector{Float64}, u::AbstractVector{Float64}, IntS::Matri
                     kbd_bdy[j] = (num * fwr_bdy[j] * inv2π) / den
                 end
 
-                @views ζv = ζ_bdy[(1+(ll-1)*nr_bdy):(ll*nr_bdy)]
+                @views ζfv = ζ_bdy[(1+(ll-1)*nr_bdy):(ll*nr_bdy)]
 
-                v[row] += dot(ζv, kbd_bdy)
+                v[row] += dot(ζfv, kbd_bdy)
 
             elseif dp.bdmode[row] == BD_NEAR
                 # Mode-1 point, near to some panels, but not close enough
@@ -306,9 +306,9 @@ function Ax!(v::AbstractVector{Float64}, u::AbstractVector{Float64}, IntS::Matri
                                 kbd₁[j] = (num * fw_near[j] * dwz₁[j] * inv2π) / den
                             end
 
-                            @views ζv = ζ_neart1[(1+(ll-1)*ns_near):(ll*ns_near)]
+                            @views ζfv = ζ_neart1[(1+(ll-1)*ns_near):(ll*ns_near)]
 
-                            v[row] = v[row] + dot(ζv, kbd₁)
+                            v[row] = v[row] + dot(ζfv, kbd₁)
 
                         elseif t₀ == -1.0
                             # So only the y₂-side contributes.
@@ -323,9 +323,9 @@ function Ax!(v::AbstractVector{Float64}, u::AbstractVector{Float64}, IntS::Matri
                                 kbd₂[j] = (num * fw_near[j] * dwz₂[j] * inv2π) / den
                             end
 
-                            @views ζv = ζ_neart2[(1+(ll-1)*ns_near):(ll*ns_near)]
+                            @views ζfv = ζ_neart2[(1+(ll-1)*ns_near):(ll*ns_near)]
 
-                            v[row] = v[row] + dot(ζv, kbd₂)
+                            v[row] = v[row] + dot(ζfv, kbd₂)
                         else
                             # Both sides contribute:
                             @. y₁ = t₀ - (t₀ + 1.0) * wmz₁
@@ -337,9 +337,9 @@ function Ax!(v::AbstractVector{Float64}, u::AbstractVector{Float64}, IntS::Matri
 
                             ChebyTN!(Tbdt₀, N, y₁)
 
-                            @views ζv = chebcoef[a_ll+1:a_ll+N]
+                            @views ζfv = chebcoef[a_ll+1:a_ll+N]
                             #Re-using y₁ here, which is fine
-                            mul!(y₁, Tbdt₀, ζv)
+                            mul!(y₁, Tbdt₀, ζfv)
 
                             @inbounds for j in 1:ns_near
                                 dx1 = gamks₁[1, j] - x1
@@ -357,7 +357,7 @@ function Ax!(v::AbstractVector{Float64}, u::AbstractVector{Float64}, IntS::Matri
 
                             ChebyTN!(Tbdt₀, N, y₂)
                             #Re-using y₂ here, which is fine
-                            mul!(y₂, Tbdt₀, ζv)
+                            mul!(y₂, Tbdt₀, ζfv)
 
                             @inbounds for j in 1:ns_near
                                 dx1 = gamks₂[1, j] - x1
@@ -390,9 +390,9 @@ function Ax!(v::AbstractVector{Float64}, u::AbstractVector{Float64}, IntS::Matri
                         kbd_bdy[j] = (num * fwr_bdy[j] * inv2π) / den
                     end
 
-                    @views ζv = ζ_bdy[(1+(ll-1)*nr_bdy):(ll*nr_bdy)]
+                    @views ζfv = ζ_bdy[(1+(ll-1)*nr_bdy):(ll*nr_bdy)]
 
-                    v[row] = v[row] + dot(ζv, kbd_bdy)
+                    v[row] = v[row] + dot(ζfv, kbd_bdy)
                 end
 
             end
@@ -793,7 +793,7 @@ function Ax!(v::AbstractVector{Float64}, u::AbstractVector{Float64}, IntS::Matri
 
             for ll in 1:Mbd
                 k = d.kd[ll]
-                @views ζv = ζ_bdy[(1+(ll-1)*nr_bdy):(ll*nr_bdy)]
+                @views ζfv = ζ_bdy[(1+(ll-1)*nr_bdy):(ll*nr_bdy)]
 
                 if k == ptl
                     # Self-panel boundary principal value.
@@ -801,7 +801,7 @@ function Ax!(v::AbstractVector{Float64}, u::AbstractVector{Float64}, IntS::Matri
 
                     @. kbd_bdy = kbd_bdy * fwr_bdy * inv2π
 
-                    v[row] += dot(ζv, kbd_bdy)
+                    v[row] += dot(ζfv, kbd_bdy)
 
                 else
                     near_flag = false
@@ -824,7 +824,7 @@ function Ax!(v::AbstractVector{Float64}, u::AbstractVector{Float64}, IntS::Matri
 
                         @. kbd_bdy = kbd_bdy * fwr_bdy * inv2π
 
-                        v[row] += dot(ζv, kbd_bdy)
+                        v[row] += dot(ζfv, kbd_bdy)
 
                     else
                         # Far off-diagonal panel: ordinary direct quadrature.
@@ -841,7 +841,7 @@ function Ax!(v::AbstractVector{Float64}, u::AbstractVector{Float64}, IntS::Matri
                             kbd_bdy[j] = (num * fwr_bdy[j] * inv2π) / den
                         end
 
-                        v[row] += dot(ζv, kbd_bdy)
+                        v[row] += dot(ζfv, kbd_bdy)
                     end
                 end
             end

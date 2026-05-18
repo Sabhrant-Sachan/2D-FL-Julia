@@ -41,8 +41,8 @@ Base.@kwdef struct Problem
     s::Float64
     p::Int
     δ::Float64
-    δclsbd::Float64
-    dₙₕ::Int
+    δ_near::Float64
+    δ_intp::Float64
     f!::Function
     dom::abstractdomain
     #This uex is not multiplied by d^s vector
@@ -195,7 +195,7 @@ end
 function solveFL_core(prob::Problem; opts::Options=Options())
     d  = prob.dom
     n = prob.nₚᵣ
-    dp = domprop(prob.N, prob.δ, prob.δclsbd, d)
+    dp = domprop(prob.N, prob.δ, prob.δ_near, prob.δ_intp, d)
 
     # precomputations
     if prob.s >= 0.5
@@ -207,12 +207,9 @@ function solveFL_core(prob::Problem; opts::Options=Options())
     # RHS
     b = bvec(d, dp, prob.s, prob.f!)
 
-    # compression vars
-    δeff = dp.delclsbd
-
     if opts.matrixfree
         #Matrix free approach is not for domains with holes in it
-        IV = compress_vars(d, dp.N, prob.s, prob.p, prob.dₙₕ, δeff; matrix_form=false)
+        IV = compress_vars(d, dp, prob.s, prob.p; matrix_form=false)
 
         Uapp = copy(b)
         (; N, Np, M, Mbd) = IV.IV1
@@ -244,7 +241,7 @@ function solveFL_core(prob::Problem; opts::Options=Options())
 
     end
 
-    IV = compress_vars(d, dp.N, prob.s, prob.p, prob.dₙₕ, δeff; matrix_form=true)
+    IV = compress_vars(d, dp, prob.s, prob.p; matrix_form=true)
 
     # assemble matrix
     A = _assemble_matrix(dp, d, IntS, prob.s, IV)
@@ -529,8 +526,8 @@ function show(io::IO, ::MIME"text/plain", v::SolveView)
 
     prob = res.problem
     println(io, "\n----------- Parameters -----------")
-    @printf(io, "N=%d, nₚᵣ=%d, s=%.6g, p=%d, δ=%.6g, δclsbd=%.6g\n",
-            prob.N, prob.nₚᵣ, prob.s, prob.p, prob.δ, prob.δclsbd)
+    @printf(io, "N=%d, nₚᵣ=%d, s=%.6g, p=%d, δ=%.6g, δ_near=%.6g, δ_intp=%.6g\n",
+            prob.N, prob.nₚᵣ, prob.s, prob.p, prob.δ, prob.δ_near, prob.δ_intp)
 
     println(io, "\n----------- System -----------")
     n = length(v.core.b)

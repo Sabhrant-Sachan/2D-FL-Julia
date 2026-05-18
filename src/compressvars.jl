@@ -153,9 +153,9 @@ function compress_vars(d::abstractdomain, dp::domprop, s::Float64,
     γt1 = Vector{Float64}(undef, 2)
     γt2 = Vector{Float64}(undef, 2)
 
-    fvals = Vector{Float64}(undef, dp.Lᵢₙ)
     γxbd = Vector{Float64}(undef, 2)
     Tbd = Vector{Float64}(undef, N)
+    fvals = Vector{Float64}(undef, dp.Lᵢₙ)
 
     inv2π = 1 / (2π)
 
@@ -279,6 +279,7 @@ function compress_vars(d::abstractdomain, dp::domprop, s::Float64,
         γx = Vector{Float64}(undef, 2)
         tbd = Vector{Float64}(undef, nr_bdy)
         idctbd = Matrix{Float64}(undef, nr_bdy, N)
+        FVals = Matrix{Float64}(undef, N, dp.Lᵢₙ) 
 
         @inbounds for i in 1:nr_bdy
             tbd[i] = π * (2 * i - 1) / (2 * nr_bdy)
@@ -363,6 +364,7 @@ function compress_vars(d::abstractdomain, dp::domprop, s::Float64,
 
         IVbdt3 = (
             fvals=fvals,
+            FVals=FVals,
             γxbd=γxbd,
             Tbd=Tbd,
             Tbdt1=Tbdt1,
