@@ -25,8 +25,11 @@ function Ax!(v::AbstractVector{Float64}, u::AbstractVector{Float64}, IntS::Matri
     #      Email : ssachan@caletch.edu
 
     # --------- Unpack IV ---------
-    (; IV1, IVr, IVbdth, IVbd, IVt, IVbt1, IVbt2,
-        IVbdt1, IVbdt2, IVbdt3, IVAf, IVAdct) = IV
+    (; IV1, IVr, IVbdth, IVbd, IVt, IVbt2,
+        IVbdt1, IVbdt2, IVbdt3, IVAf, IVAdct, IVgeom) = IV
+
+    (; Zx_all, Zy_all, DJ_all, Df_all,
+        Zx2_all, Zy2_all, DJ2_all, Dhc_bd) = IVgeom
 
     (; p_dct2_dim2, p_dct2_dim1,
         p_dct3_dim2, p_dct3_dim1,
@@ -39,26 +42,23 @@ function Ax!(v::AbstractVector{Float64}, u::AbstractVector{Float64}, IntS::Matri
 
     (; N, Np, Cs, M, Mbd) = IV1
 
-    (; nr, fwr, nrp, zx, zt, zy, Df) = IVr
+    (; nr, fwr, nrp) = IVr
 
-    (; zx2, zy2, Tz1) = IVbdth
+    (; nbd, Tz1) = IVbdth
 
     (; nr_bdy, ns_near, fwr_bdy, fw_near, zr_bdy,
-        inv2π, BD_FAR, BD_NEAR, BD_INTP) = IVbd
+        inv2π, BD_FAR, BD_NEAR, BD_INTP, bdloc) = IVbd
 
-    (; Zx, Zy, DJ, Ker, KIr, Ur, CN) = IVt
+    (; KIr, Ur, CN) = IVt
 
-    (; Zx₂, Zy₂, DJ₂, Ker₂, KIbd) = IVbt1
+    (; Ubd, mfw, CT, KIbd) = IVbt2
 
-    (; Ubd, mfw, CT) = IVbt2
-
-    (; y₁, y₂, yt1, yt2,
-        wmz₁, wmz₂, dwz₁, dwz₂,
-        gamkbdy, gampkbdy,
+    (; y₁, y₂, wmz₁, wmz₂, dwz₁, dwz₂,
+        gamkbdy_all, gampkbdy_all,
         gamks₁, gamks₂,
         gamperpks₁, gamperpks₂,
-        gamkt1, gamkt2,
-        gamperpkt1, gamperpkt2) = IVbdt1
+        gamkt1_all, gamkt2_all,
+        gamperpkt1_all, gamperpkt2_all) = IVbdt1
 
     (; kbd_bdy, kbd₁, kbd₂, μ₀, γt1, γt2) = IVbdt2
 
@@ -66,6 +66,7 @@ function Ax!(v::AbstractVector{Float64}, u::AbstractVector{Float64}, IntS::Matri
 
     Ni = M * Np
     Nb = Mbd * N
+    Nbdr = nbd * nr
 
     # ----- STEP 1: Get chebyshev coefficients and finer function values -----
     # ----- Compute Chebyshev coeffs for interior patches + refined ufin -----
@@ -145,10 +146,9 @@ function Ax!(v::AbstractVector{Float64}, u::AbstractVector{Float64}, IntS::Matri
 
     end
 
-    # ----- Boundary ζ: coefficients + values on nr_bdy grid -----
+    # ----- Boundary ζ: coefficients + values on fixed boundary grids -----
     # For k=1:Mbd boundary patches, u has ζ values on N Cheby nodes for each bd patch.
     # We will also compute and store ζ_neart1 and ζ_neart2 once over all bd patches.
-    # ----- Boundary ζ: coefficients + values on fixed boundary grids -----
     @inbounds for kb in 1:Mbd
         ak = Ni + (kb - 1) * N
         ibd = (kb - 1) * nr_bdy
@@ -245,20 +245,23 @@ function Ax!(v::AbstractVector{Float64}, u::AbstractVector{Float64}, IntS::Matri
 
     # ----- Contribution from DLP starts here -----
 
-    for ll in 1:Mbd
+    @inbounds for ll in 1:Mbd
         a_ll = Ni + (ll - 1) * N
 
         k = d.kd[ll]
 
         jnear = 0
 
-        gam!(gamkbdy, d, zr_bdy, k)
-        gamp!(gampkbdy, d, zr_bdy, k)
+        rb = ((ll-1)*nr_bdy+1):(ll*nr_bdy)
+        rs = ((ll-1)*ns_near+1):(ll*ns_near)
 
-        gam!(gamkt1, d, yt1, k)
-        gam!(gamkt2, d, yt2, k)
-        gamp!(gamperpkt1, d, yt1, k)
-        gamp!(gamperpkt2, d, yt2, k)
+        @views gamkbdy = gamkbdy_all[:, rb]
+        @views gampkbdy = gampkbdy_all[:, rb]
+
+        @views gamkt1 = gamkt1_all[:, rs]
+        @views gamkt2 = gamkt2_all[:, rs]
+        @views gamperpkt1 = gamperpkt1_all[:, rs]
+        @views gamperpkt2 = gamperpkt2_all[:, rs]
 
         #Contribution of all points for the kth patch
         @inbounds for row in 1:Ni
@@ -415,8 +418,7 @@ function Ax!(v::AbstractVector{Float64}, u::AbstractVector{Float64}, IntS::Matri
         gam!(γxbd, d, tₛ, l)
 
         # Find boundary-local index of closest patch l.
-        ll_l = findfirst(==(l), d.kd)
-        ll_l === nothing && error("closest boundary patch l=$l not found in d.kd")
+        ll_l = bdloc[l]
 
         a_l = Ni + (ll_l - 1) * N
 
@@ -436,7 +438,7 @@ function Ax!(v::AbstractVector{Float64}, u::AbstractVector{Float64}, IntS::Matri
         q1 = dp.bdintpptr[a]
         q2 = dp.bdintpptr[a+1] - 1
 
-        for ll in 1:Mbd
+        @inbounds for ll in 1:Mbd
             k = d.kd[ll]
 
             @views ζb = ζ_bdy[(1+(ll-1)*nr_bdy):(ll*nr_bdy)]
@@ -470,8 +472,9 @@ function Ax!(v::AbstractVector{Float64}, u::AbstractVector{Float64}, IntS::Matri
                     fvals[1] += dot(ζb, kbd_bdy)
 
                 else
-                    gam!(gamkbdy, d, zr_bdy, k)
-                    gamp!(gampkbdy, d, zr_bdy, k)
+                    r = (ll-1)*nr_bdy+1:ll*nr_bdy
+                    @views gamkbdy = gamkbdy_all[:, r]
+                    @views gampkbdy = gampkbdy_all[:, r]
 
                     for j in 1:nr_bdy
                         dx1 = gamkbdy[1, j] - γxbd[1]
@@ -493,7 +496,7 @@ function Ax!(v::AbstractVector{Float64}, u::AbstractVector{Float64}, IntS::Matri
         # ------------------------------------------------------------
         nu!(γt1, d, tₛ, l)
 
-        for m in 2:dp.Lᵢₙ
+        @inbounds for m in 2:dp.Lᵢₙ
 
             δ = dp.bdxvals[m]
 
@@ -526,14 +529,17 @@ function Ax!(v::AbstractVector{Float64}, u::AbstractVector{Float64}, IntS::Matri
                     t₀ = tnear
 
                     if t₀ == 1.0
-                        gam!(gamks₁, d, yt1, k)
-                        gamp!(gamperpks₁, d, yt1, k)
+
+                        rs = ((ll-1)*ns_near+1):(ll*ns_near)
+
+                        @views gamkt1 = gamkt1_all[:, rs]
+                        @views gamperpkt1 = gamperpkt1_all[:, rs]
 
                         for j in 1:ns_near
-                            dx1 = gamks₁[1, j] - μ₀[1]
-                            dx2 = gamks₁[2, j] - μ₀[2]
+                            dx1 = gamkt1[1, j] - μ₀[1]
+                            dx2 = gamkt1[2, j] - μ₀[2]
 
-                            num = dx1 * gamperpks₁[1, j] + dx2 * gamperpks₁[2, j]
+                            num = dx1 * gamperpkt1[1, j] + dx2 * gamperpkt1[2, j]
                             den = dx1 * dx1 + dx2 * dx2
 
                             kbd₁[j] = (num * fw_near[j] * dwz₁[j] * inv2π) / den
@@ -544,14 +550,17 @@ function Ax!(v::AbstractVector{Float64}, u::AbstractVector{Float64}, IntS::Matri
                         fvals[m] += dot(ζn, kbd₁)
 
                     elseif t₀ == -1.0
-                        gam!(gamks₂, d, yt2, k)
-                        gamp!(gamperpks₂, d, yt2, k)
+
+                        rs = ((ll-1)*ns_near+1):(ll*ns_near)
+
+                        @views gamkt2 = gamkt2_all[:, rs]
+                        @views gamperpkt2 = gamperpkt2_all[:, rs]
 
                         for j in 1:ns_near
-                            dx1 = gamks₂[1, j] - μ₀[1]
-                            dx2 = gamks₂[2, j] - μ₀[2]
+                            dx1 = gamkt2[1, j] - μ₀[1]
+                            dx2 = gamkt2[2, j] - μ₀[2]
 
-                            num = dx1 * gamperpks₂[1, j] + dx2 * gamperpks₂[2, j]
+                            num = dx1 * gamperpkt2[1, j] + dx2 * gamperpkt2[2, j]
                             den = dx1 * dx1 + dx2 * dx2
 
                             kbd₂[j] = (num * fw_near[j] * dwz₂[j] * inv2π) / den
@@ -609,8 +618,9 @@ function Ax!(v::AbstractVector{Float64}, u::AbstractVector{Float64}, IntS::Matri
                     end
 
                 else
-                    gam!(gamkbdy, d, zr_bdy, k)
-                    gamp!(gampkbdy, d, zr_bdy, k)
+                    r = (ll-1)*nr_bdy+1:ll*nr_bdy
+                    @views gamkbdy = gamkbdy_all[:, r]
+                    @views gampkbdy = gampkbdy_all[:, r]
 
                     for j in 1:nr_bdy
                         dx1 = gamkbdy[1, j] - μ₀[1]
@@ -632,19 +642,22 @@ function Ax!(v::AbstractVector{Float64}, u::AbstractVector{Float64}, IntS::Matri
         v[row] += nevill!(dp.bdxvals, fvals, ϵ)
     end
 
-    # ----- STEP 3: Volumetruc Integrals over all rows -----
-    for k in 1:M
-        isbdflag = (k in d.kd)
+    # ----- STEP 3: Volumetric Integrals over all rows -----
+    @inbounds for k in 1:M
+
+        kb = get(bdloc, k, 0)
+        isbdflag = kb != 0
 
         if isbdflag
-            # Zx₂, Zy₂: images of Chebyshev grid (zx2,zy2) on patch k
-            mapxy_Dmap!(Zx₂, Zy₂, DJ₂, d, zx2, zy2, k) # nr×nr Zx₂, Zy₂, DJ₂
+            # Cached boundary-patch quadrature geometry.
+            @views begin
+                Zx2v = Zx2_all[:, kb]
+                Zy2v = Zy2_all[:, kb]
+                DJ2v = DJ2_all[:, kb]
+            end
 
-            hc = d.pths[k].ck1 - d.pths[k].ck0
+            Dhc = Dhc_bd[kb]
 
-            Dhc = s >= 0.5 ? hc^(s - 1) : hc^s
-
-            #CN .= reshape(chebcoef[(k - 1) * Np + 1 : k * Np], N, N)
             ak = (k - 1) * Np
 
             @inbounds for i in 1:Np
@@ -652,27 +665,29 @@ function Ax!(v::AbstractVector{Float64}, u::AbstractVector{Float64}, IntS::Matri
             end
 
             mul!(CNnr, CN, TzT)   # N × nr
-            mul!(Ubd, Tz1, CNnr)            # nbd × nr
+            mul!(Ubd, Tz1, CNnr)  # nbd × nr
 
-            @. Ubd = Ubd * DJ₂
+            @inbounds for i in 1:Nbdr
+                Ubd[i] *= DJ2v[i]
+            end
+
         else
-            # Zx, Zy: images of Chebyshev grid (zx,zy) on patch k
-            mapxy_Dmap!(Zx, Zy, DJ, d, zx, zy, k) # nr×nr Zx, Zy, DJ
+            # Cached regular volume-patch geometry.
+            @views begin
+                Zxv = Zx_all[:, k]
+                Zyv = Zy_all[:, k]
+                DJv = DJ_all[:, k]
+                Dfv = Df_all[:, k]
+            end
 
-            dfunc!(Df, d, k, zt, s)
-
-            #UFV .= reshape(ufin[(k - 1) * nrp + 1 : k * nrp], nr, nr)
             ak = (k - 1) * nrp
 
             @inbounds for i in 1:nrp
-                UFV[i] = ufin[ak+i]
+                Ur[i] = ufin[ak+i] * DJv[i] * Dfv[i]
             end
-
-            @. Ur = UFV * DJ * Df
         end
 
         for row in 1:Ni
-
             ℓ = cld(row, Np)
             k == ℓ && continue
 
@@ -680,41 +695,38 @@ function Ax!(v::AbstractVector{Float64}, u::AbstractVector{Float64}, IntS::Matri
             col = get(dp.hmap, Ikey, 0)
 
             if col != 0
-                # ---------- Near-singular patch case ----------
                 @views ck = chebcoef[(k-1)*Np+1:k*Np]
-
                 @views NSI = IntS[:, col]
 
                 v[row] += Cs * dot(ck, NSI)
+
             else
-                # ---------- Regular patch case ----------
                 x1 = dp.tgtpts[1, row]
                 x2 = dp.tgtpts[2, row]
 
                 if isbdflag
-                    @. Ker₂ = ((x1 - Zx₂)^2 + (x2 - Zy₂)^2)^(-s)
-                    @. KIbd = Ker₂ * Ubd
+                    @inbounds for i in 1:Nbdr
+                        KIbd[i] = Ubd[i] * ((x1 - Zx2v[i])^2 + (x2 - Zy2v[i])^2)^(-s)
+                    end
+
                     v[row] += Cs * Dhc * dot(mfw, KIbd, fwr)
 
                 else
-                    @. Ker = ((x1 - Zx)^2 + (x2 - Zy)^2)^(-s)
-                    @. KIr = Ker * Ur
-                    # Computes fwr' * KIr * fwr
+                    @inbounds for i in 1:nrp
+                        KIr[i] = Ur[i] * ((x1 - Zxv[i])^2 + (x2 - Zyv[i])^2)^(-s)
+                    end
+
                     v[row] += Cs * dot(fwr, KIr, fwr)
                 end
-
             end
         end
 
         if s < 0.5
-
             Lₚₘ = Ni + 1
             Lₚₙ = Ni + Nb
 
             for row in Lₚₘ:Lₚₙ
-
                 k₀ = cld(row - Ni, N)
-
                 ℓ = d.kd[k₀]
 
                 k == ℓ && continue
@@ -723,32 +735,31 @@ function Ax!(v::AbstractVector{Float64}, u::AbstractVector{Float64}, IntS::Matri
                 col = get(dp.hmap, Ikey, 0)
 
                 if col != 0
-                    # ---------- Near-singular patch case ----------
                     @views ck = chebcoef[(k-1)*Np+1:k*Np]
-
                     @views NSI = IntS[:, col]
 
                     v[row] += Cs * dot(ck, NSI)
+
                 else
-                    # ---------- Regular patch case ----------
                     x1 = dp.tgtpts[1, row]
                     x2 = dp.tgtpts[2, row]
 
                     if isbdflag
-                        @. Ker₂ = ((x1 - Zx₂)^2 + (x2 - Zy₂)^2)^(-s)
-                        @. KIbd = Ker₂ * Ubd
+                        @inbounds for i in 1:Nbdr
+                            KIbd[i] = Ubd[i] * ((x1 - Zx2v[i])^2 + (x2 - Zy2v[i])^2)^(-s)
+                        end
+
                         v[row] += Cs * Dhc * dot(mfw, KIbd, fwr)
 
                     else
-                        @. Ker = ((x1 - Zx)^2 + (x2 - Zy)^2)^(-s)
-                        @. KIr = Ker * Ur
-                        # Computes fwr' * KIr * fwr
+                        @inbounds for i in 1:nrp
+                            KIr[i] = Ur[i] * ((x1 - Zxv[i])^2 + (x2 - Zyv[i])^2)^(-s)
+                        end
+
                         v[row] += Cs * dot(fwr, KIr, fwr)
                     end
-
                 end
             end
-
         end
     end
 
@@ -828,8 +839,10 @@ function Ax!(v::AbstractVector{Float64}, u::AbstractVector{Float64}, IntS::Matri
 
                     else
                         # Far off-diagonal panel: ordinary direct quadrature.
-                        gam!(gamkbdy, d, zr_bdy, k)
-                        gamp!(gampkbdy, d, zr_bdy, k)
+                        rb = ((ll-1)*nr_bdy+1):(ll*nr_bdy)
+
+                        @views gamkbdy = gamkbdy_all[:, rb]
+                        @views gampkbdy = gampkbdy_all[:, rb]
 
                         @inbounds for j in 1:nr_bdy
                             dx1 = gamkbdy[1, j] - γxbd[1]

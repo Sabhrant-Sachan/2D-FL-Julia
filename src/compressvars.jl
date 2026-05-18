@@ -133,15 +133,15 @@ function compress_vars(d::abstractdomain, dp::domprop, s::Float64,
     kbd₁ = Vector{Float64}(undef, ns_near)
     kbd₂ = Vector{Float64}(undef, ns_near)
 
-    # Geometry buffers for regular boundary quadrature.
-    gamkbdy = Matrix{Float64}(undef, 2, nr_bdy)
-    gampkbdy = Matrix{Float64}(undef, 2, nr_bdy)
-
     # Geometry buffers for dynamic split.
     gamks₁ = Matrix{Float64}(undef, 2, ns_near)
     gamks₂ = Matrix{Float64}(undef, 2, ns_near)
     gamperpks₁ = Matrix{Float64}(undef, 2, ns_near)
     gamperpks₂ = Matrix{Float64}(undef, 2, ns_near)
+
+    # Geometry buffers for regular boundary quadrature.
+    gamkbdy = Matrix{Float64}(undef, 2, nr_bdy)
+    gampkbdy = Matrix{Float64}(undef, 2, nr_bdy)
 
     # Geometry buffers for endpoint split.
     gamkt1 = Matrix{Float64}(undef, 2, ns_near)
@@ -398,11 +398,7 @@ function compress_vars(d::abstractdomain, dp::domprop, s::Float64,
         CN = Matrix{Float64}(undef, N, N)
         CNnr = Matrix{Float64}(undef, N, nr)
         UFV = Matrix{Float64}(undef, nr, nr)
-
-        Ker = Matrix{Float64}(undef, nr, nr)
         Ur = Matrix{Float64}(undef, nr, nr)
-
-        Ker₂ = Matrix{Float64}(undef, nbd, nr)
         Ubd = Matrix{Float64}(undef, nbd, nr)
 
         p_dct2_dim2 = FFTW.plan_r2r!(UV, FFTW.REDFT10, 2; flags=FFTW.MEASURE)
@@ -424,6 +420,101 @@ function compress_vars(d::abstractdomain, dp::domprop, s::Float64,
         # Used for ζ(tₛ)/2 in the DLP jump term.
         Tbd = Vector{Float64}(undef, N)
 
+        bdloc = Dict{Int,Int}()
+        sizehint!(bdloc, Mbd)
+
+        @inbounds for ll in 1:Mbd
+            bdloc[d.kd[ll]] = ll
+        end
+
+        # Geometry buffers for regular boundary quadrature.
+        gamkbdy_all = Matrix{Float64}(undef, 2, nr_bdy * Mbd)
+        gampkbdy_all = Matrix{Float64}(undef, 2, nr_bdy * Mbd)
+
+        # Geometry buffers for endpoint split.
+        gamkt1_all = Matrix{Float64}(undef, 2, ns_near * Mbd)
+        gamkt2_all = Matrix{Float64}(undef, 2, ns_near * Mbd)
+        gamperpkt1_all = Matrix{Float64}(undef, 2, ns_near * Mbd)
+        gamperpkt2_all = Matrix{Float64}(undef, 2, ns_near * Mbd)
+
+        @inbounds for ll in 1:Mbd
+            k = d.kd[ll]
+
+            gam!(gamkbdy, d, zr_bdy, k)
+            gamp!(gampkbdy, d, zr_bdy, k)
+
+            gam!(gamkt1, d, yt1, k)
+            gam!(gamkt2, d, yt2, k)
+
+            gamp!(gamperpkt1, d, yt1, k)
+            gamp!(gamperpkt2, d, yt2, k)
+
+            @inbounds for j in 1:nr_bdy
+                rb = (ll - 1) * nr_bdy + j
+
+                gamkbdy_all[1, rb] = gamkbdy[1, j]
+                gamkbdy_all[2, rb] = gamkbdy[2, j]
+
+                gampkbdy_all[1, rb] = gampkbdy[1, j]
+                gampkbdy_all[2, rb] = gampkbdy[2, j]
+            end
+
+            @inbounds for j in 1:ns_near
+                rs = (ll - 1) * ns_near + j
+
+                gamkt1_all[1, rs] = gamkt1[1, j]
+                gamkt1_all[2, rs] = gamkt1[2, j]
+
+                gamkt2_all[1, rs] = gamkt2[1, j]
+                gamkt2_all[2, rs] = gamkt2[2, j]
+
+                gamperpkt1_all[1, rs] = gamperpkt1[1, j]
+                gamperpkt1_all[2, rs] = gamperpkt1[2, j]
+
+                gamperpkt2_all[1, rs] = gamperpkt2[1, j]
+                gamperpkt2_all[2, rs] = gamperpkt2[2, j]
+            end
+        end
+
+        #Storing patch mapping and jacobian for all vol. patches
+        Zx_all = Matrix{Float64}(undef, nrp, M)
+        Zy_all = Matrix{Float64}(undef, nrp, M)
+        DJ_all = Matrix{Float64}(undef, nrp, M)
+        Df_all = Matrix{Float64}(undef, nrp, M)
+
+        Zx2_all = Matrix{Float64}(undef, nbd * nr, Mbd)
+        Zy2_all = Matrix{Float64}(undef, nbd * nr, Mbd)
+        DJ2_all = Matrix{Float64}(undef, nbd * nr, Mbd)
+        Dhc_bd = Vector{Float64}(undef, Mbd)
+
+        @inbounds for k in 1:M
+            mapxy_Dmap!(Zx, Zy, DJ, d, zx, zy, k)
+
+            dfunc!(Df, d, k, zt, s)
+
+            @inbounds for i in 1:nrp
+                Zx_all[i, k] = Zx[i]
+                Zy_all[i, k] = Zy[i]
+                DJ_all[i, k] = DJ[i]
+                Df_all[i, k] = Df[i]
+            end
+        end
+
+        @inbounds for kb in 1:Mbd
+            k = d.kd[kb]
+
+            mapxy_Dmap!(Zx₂, Zy₂, DJ₂, d, zx2, zy2, k)
+
+            @inbounds for i in 1:(nbd*nr)
+                Zx2_all[i, kb] = Zx₂[i]
+                Zy2_all[i, kb] = Zy₂[i]
+                DJ2_all[i, kb] = DJ₂[i]
+            end
+
+            hc = d.pths[k].ck1 - d.pths[k].ck0
+            Dhc_bd[kb] = s >= 0.5 ? hc^(s - 1) : hc^s
+        end
+
         # ============================================================
         # Matrix-free IV used by Ax!
         # ============================================================
@@ -439,40 +530,26 @@ function compress_vars(d::abstractdomain, dp::domprop, s::Float64,
         IVr = (
             nr=nr,
             fwr=fwr,
-            nrp=nrp,
-            zx=zx,
-            zt=zt,
-            zy=zy,
-            Df=Df
+            nrp=nrp
         )
 
         IVbdth = (
-            zx2=zx2,
-            zy2=zy2,
+            nbd=nbd,
             Tz1=Tz1
         )
 
+        # No Zx/Zy/DJ/Ker needed because geometry is cached in IVgeom.
         IVt = (
-            Zx=Zx,
-            Zy=Zy,
-            DJ=DJ,
-            Ker=Ker,
             KIr=KIr,
             Ur=Ur,
             CN=CN
         )
 
-        IVbt1 = (
-            Zx₂=Zx₂,
-            Zy₂=Zy₂,
-            DJ₂=DJ₂,
-            Ker₂=Ker₂,
-            KIbd=KIbd
-        )
-
+        # No Zx₂/Zy₂/DJ₂/Ker₂ needed anymore because geometry is cached in IVgeom.
         IVbt2 = (
             Ubd=Ubd,
             mfw=mfw,
+            KIbd = KIbd,
             CT=CT
         )
 
@@ -485,28 +562,24 @@ function compress_vars(d::abstractdomain, dp::domprop, s::Float64,
             inv2π=inv2π,
             BD_FAR=BD_FAR,
             BD_NEAR=BD_NEAR,
-            BD_INTP=BD_INTP
+            BD_INTP=BD_INTP,
+            bdloc=bdloc
         )
 
         IVbdt1 = (
             y₁=y₁,
             y₂=y₂,
-            yt1=yt1,
-            yt2=yt2,
             wmz₁=wmz₁,
             wmz₂=wmz₂,
             dwz₁=dwz₁,
-            dwz₂=dwz₂,
-            gamkbdy=gamkbdy,
-            gampkbdy=gampkbdy,
-            gamks₁=gamks₁,
+            dwz₂=dwz₂, gamkbdy_all=gamkbdy_all,
+            gampkbdy_all=gampkbdy_all, gamks₁=gamks₁,
             gamks₂=gamks₂,
             gamperpks₁=gamperpks₁,
-            gamperpks₂=gamperpks₂,
-            gamkt1=gamkt1,
-            gamkt2=gamkt2,
-            gamperpkt1=gamperpkt1,
-            gamperpkt2=gamperpkt2
+            gamperpks₂=gamperpks₂, gamkt1_all=gamkt1_all,
+            gamkt2_all=gamkt2_all,
+            gamperpkt1_all=gamperpkt1_all,
+            gamperpkt2_all=gamperpkt2_all
         )
 
         IVbdt2 = (
@@ -550,19 +623,30 @@ function compress_vars(d::abstractdomain, dp::domprop, s::Float64,
             p_dct3_bdy=p_dct3_bdy
         )
 
+        IVgeom = (
+            Zx_all=Zx_all,
+            Zy_all=Zy_all,
+            DJ_all=DJ_all,
+            Df_all=Df_all,
+            Zx2_all=Zx2_all,
+            Zy2_all=Zy2_all,
+            DJ2_all=DJ2_all,
+            Dhc_bd=Dhc_bd
+        )
+
         IV = (
             IV1=IV1,
             IVr=IVr,
             IVbdth=IVbdth,
             IVbd=IVbd,
             IVt=IVt,
-            IVbt1=IVbt1,
             IVbt2=IVbt2,
             IVbdt1=IVbdt1,
             IVbdt2=IVbdt2,
             IVbdt3=IVbdt3,
             IVAf=IVAf,
-            IVAdct=IVAdct
+            IVAdct=IVAdct,
+            IVgeom=IVgeom
         )
     end
 

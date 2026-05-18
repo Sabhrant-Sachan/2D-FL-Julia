@@ -4,6 +4,31 @@ import FL2D.FLdata as FLdata
 
 d = FL2D.disc(b=[6, 6, 6, 6, 6], a=[3, 3, 3, 3, 5])
 
+dp = FL2D.domprop(12, 0.1, 0.15, 5e-3, d; Lᵢₙ=4)
+
+s, p, n = 0.75, 4, 128
+
+# precomputations
+if s >= 0.5
+    IntS = FL2D.precompsH(d, dp, s, p; n=n);
+else
+    IntS = FL2D.precompsL(d, dp, s, p; n=n);
+end
+
+#Matrix free approach is not for domains with holes in it
+IV = FL2D.compress_vars(d, dp, s, p; matrix_form=false);
+
+(; N, Np, M, Mbd) = IV.IV1;
+
+Ltot = M * Np + Mbd * N
+
+u = zeros(Float64, Ltot);
+v = zeros(Float64, Ltot);
+
+FL2D.@btime FL2D.Ax!($v, $u, $IntS, $d, $dp, $s, $IV)
+
+d = FL2D.disc(b=[6, 6, 6, 6, 6], a=[3, 3, 3, 3, 5])
+
 dp = FL2D.domprop(12, 0.1, 0.15, 5e-3, d; Lᵢₙ = 4)
 
 FL2D.plotns(dp, d, 1)

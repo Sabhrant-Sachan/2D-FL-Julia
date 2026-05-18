@@ -526,8 +526,8 @@ function show(io::IO, ::MIME"text/plain", v::SolveView)
 
     prob = res.problem
     println(io, "\n----------- Parameters -----------")
-    @printf(io, "N=%d, nₚᵣ=%d, s=%.6g, p=%d, δ=%.6g, δ_near=%.6g, δ_intp=%.6g\n",
-            prob.N, prob.nₚᵣ, prob.s, prob.p, prob.δ, prob.δ_near, prob.δ_intp)
+    @printf(io, "N=%d, nₚᵣ=%d, s=%.6g, p=%d, δ=%.6g\nLᵢₙ=%d, δ_near=%.6g, δ_intp=%.6g\n",
+            prob.N, prob.nₚᵣ, prob.s, prob.p, prob.δ, v.core.dp.Lᵢₙ ,prob.δ_near, prob.δ_intp)
 
     println(io, "\n----------- System -----------")
     n = length(v.core.b)
@@ -573,10 +573,6 @@ function show(io::IO, ::MIME"text/plain", v::SolveView)
 
     if res.options.plot
         plot_result(res; what=:uapp)
-        # if res.uexv !== nothing
-        #     plot_result(res; what=:uex)
-        #     plot_result(res; what=:err)
-        # end
     end
 
     println(io, "=====================================================")
