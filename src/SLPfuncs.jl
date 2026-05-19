@@ -655,17 +655,674 @@ function SLPbeta(d::D, dpbd::dompropbd)::Matrix{Float64} where {D<:abstractdomai
     return beta
 end
 
-function SLPeval(d::D, dp::domprop)::Matrix{Float64} where {D<:abstractdomain}
+function SLPeval(d::D, dp::domprop, β::Matrix{Float64}, IV;
+    p::Int=6)::Matrix{Float64} where {D<:abstractdomain}
+
+    # --------------- Sizes ---------------
+    N = dp.N
+    Np = N^2
+    M = d.Npat
+    Mbd = length(d.kd)
+
+    Ni = M * Np
+    Nb = Mbd * N
+    Nt = Ni + Nb
+
+    nh = size(β, 2)
+
+    @assert size(β, 1) == Mbd * N
+
+    # ------------------------------------------------------------
+    # Unpack reusable arrays from IV
+    # ------------------------------------------------------------
+    (; IVbd, IVbdt1, IVbdt3) = IV
+
+    (; nr_bdy, ns_near, fwr_bdy, fw_near, zr_bdy) = IVbd
+
+    (; y₁, y₂, wmz₁, wmz₂, dwz₁, dwz₂,
+        gamks₁, gamks₂, gamperpks₁, gamperpks₂) = IVbdt1
+
+    (; Tbdt₀, Tbdt1, Tbdt2) = IVbdt3
+
+    inv2π = 1.0 / (2π)
+
+    BD_FAR = UInt8(0)
+    BD_NEAR = UInt8(1)
+
+    # Local DCT scratch for β.
+    βv = Vector{Float64}(undef, N)
+    βfv_bdy = Vector{Float64}(undef, nr_bdy)
+
+    p_dct2_N = FFTW.plan_r2r!(βv, FFTW.REDFT10; flags=FFTW.MEASURE)
+    p_dct3_bdy = FFTW.plan_r2r!(βfv_bdy, FFTW.REDFT01; flags=FFTW.MEASURE)
+
+    # --------------- Output ---------------
+    bZ = zeros(Float64, Nt, nh)
+
+    # ------------------------------------------------------------
+    # Boundary density storage
+    #
+    # βcoef    : Chebyshev coefficients on each boundary patch
+    # β_bdy    : β values on regular boundary quadrature grid zr_bdy
+    # β_neart1 : β values on fixed endpoint-smoothed grid near t = 1
+    # β_neart2 : β values on fixed endpoint-smoothed grid near t = -1
+    # ------------------------------------------------------------
+    βcoef    = Matrix{Float64}(undef, Mbd * N, nh)
+    β_bdy    = Matrix{Float64}(undef, Mbd * nr_bdy, nh)
+    β_neart1 = Matrix{Float64}(undef, Mbd * ns_near, nh)
+    β_neart2 = Matrix{Float64}(undef, Mbd * ns_near, nh)
+
+    @inbounds for H in 1:nh
+        @inbounds for ll in 1:Mbd
+
+            aN    = (ll - 1) * N
+            ibd   = (ll - 1) * nr_bdy
+            inear = (ll - 1) * ns_near
+
+            @inbounds for j in 1:N
+                βv[j] = β[aN + j, H]
+            end
+
+            mul!(βv, p_dct2_N, βv)
+
+            βv .*= 1.0 / N
+            βv[1] /= 2.0
+
+            @inbounds for j in 1:N
+                βcoef[aN + j, H] = βv[j]
+            end
+
+            mul!(y₁, Tbdt1, βv)
+            mul!(y₂, Tbdt2, βv)
+
+            @inbounds for j in 1:ns_near
+                β_neart1[inear + j, H] = y₁[j]
+                β_neart2[inear + j, H] = y₂[j]
+            end
+
+            βv[1] *= 2.0
+
+            fill!(βfv_bdy, 0.0)
+
+            @inbounds for j in 1:N
+                βfv_bdy[j] = βv[j]
+            end
+
+            mul!(βfv_bdy, p_dct3_bdy, βfv_bdy)
+
+            βfv_bdy .*= 0.5
+
+            @inbounds for j in 1:nr_bdy
+                β_bdy[ibd + j, H] = βfv_bdy[j]
+            end
+        end
+    end
+
+    # ------------------------------------------------------------
+    # Regular boundary geometry cache
+    #
+    # gamkbdy_all[:, rb] = γ_k(zr_bdy)
+    # gampkn_all[rb]     = ‖γ'_k(zr_bdy)‖ = ‖γᵖᵉʳᵖ_k(zr_bdy)‖
+    # ------------------------------------------------------------
+    gamkbdy = Matrix{Float64}(undef, 2, nr_bdy)
+    gampkbdy = Matrix{Float64}(undef, 2, nr_bdy)
+
+    gamkbdy_all = Matrix{Float64}(undef, 2, nr_bdy * Mbd)
+    gampkn_all = Vector{Float64}(undef, nr_bdy * Mbd)
+
+    @inbounds for ll in 1:Mbd
+        k = d.kd[ll]
+
+        gam!(gamkbdy, d, zr_bdy, k)
+        gamp!(gampkbdy, d, zr_bdy, k)
+
+        @inbounds for j in 1:nr_bdy
+            r = (ll - 1) * nr_bdy + j
+
+            gamkbdy_all[1, r] = gamkbdy[1, j]
+            gamkbdy_all[2, r] = gamkbdy[2, j]
+
+            gampkn_all[r] = hypot(gampkbdy[1, j], gampkbdy[2, j])
+        end
+    end
+
+    # ----------- Small scratch arrays ----------- 
+    βdyn1 = Vector{Float64}(undef, ns_near)
+    βdyn2 = Vector{Float64}(undef, ns_near)
+
+    # ============================================================
+    # Main SLP evaluation
+    # ============================================================
+    @inbounds for H in 1:nh
+
+        jnear = 0
+        jintp = 0
+
+        @inbounds for row in 1:Ni
+
+            x1 = dp.tgtpts[1, row]
+            x2 = dp.tgtpts[2, row]
+
+            SLP = 0.0
+
+            # ====================================================
+            # Mode 0: far from every boundary panel
+            # ====================================================
+            if dp.bdmode[row] == BD_FAR
+
+                @inbounds for ll in 1:Mbd
+
+                    rb = ((ll-1)*nr_bdy+1):(ll*nr_bdy)
+
+                    @views gamkbdy = gamkbdy_all[:, rb]
+                    @views gampkn = gampkn_all[rb]
+                    @views βv_bdy = β_bdy[rb, H]
+
+                    acc = 0.0
+
+                    @inbounds for j in 1:nr_bdy
+                        dx = x1 - gamkbdy[1, j]
+                        dy = x2 - gamkbdy[2, j]
+
+                        acc += (fwr_bdy[j] * log(hypot(dx, dy)) *
+                               inv2π * gampkn[j] * βv_bdy[j])
+                    end
+
+                    SLP += acc
+                end
+
+            elseif dp.bdmode[row] == BD_NEAR
+                # ====================================================
+                # Mode 1: moderately near some boundary panels
+                # ====================================================
+
+                jnear += 1
+
+                qnear1 = dp.bdnearptr[jnear]
+                qnear2 = dp.bdnearptr[jnear+1] - 1
+
+                @inbounds for ll in 1:Mbd
+
+                    k = d.kd[ll]
+
+                    near_flag = false
+                    t₀ = 0.0
+
+                    @inbounds for q in qnear1:qnear2
+                        if dp.bdneark[q] == k
+                            near_flag = true
+                            t₀ = dp.bdneart[q]
+                            break
+                        end
+                    end
+
+                    if near_flag
+
+                        aN = (ll - 1) * N
+                        inear = (ll - 1) * ns_near
+
+                        if t₀ == 1.0
+
+                            @views βn = β_neart1[(inear+1):(inear+ns_near), H]
+
+                            @. y₁ = 1.0 - 2.0 * wmz₁
+
+                            gam!(gamks₁, d, y₁, k)
+                            gamp!(gamperpks₁, d, y₁, k)
+
+                            acc = 0.0
+
+                            @inbounds for j in 1:ns_near
+                                dx = x1 - gamks₁[1, j]
+                                dy = x2 - gamks₁[2, j]
+
+                                gampkn = hypot(gamperpks₁[1, j], gamperpks₁[2, j])
+
+                                acc += (fw_near[j] * log(hypot(dx, dy)) *
+                                        inv2π * dwz₁[j] * gampkn * βn[j])
+                            end
+
+                            SLP += acc
+
+                        elseif t₀ == -1.0
+
+                            @views βn = β_neart2[(inear+1):(inear+ns_near), H]
+
+                            @. y₂ = -1.0 + 2.0 * wmz₂
+
+                            gam!(gamks₂, d, y₂, k)
+                            gamp!(gamperpks₂, d, y₂, k)
+
+                            acc = 0.0
+
+                            @inbounds for j in 1:ns_near
+                                dx = x1 - gamks₂[1, j]
+                                dy = x2 - gamks₂[2, j]
+
+                                gampkn = hypot(gamperpks₂[1, j], gamperpks₂[2, j])
+
+                                acc += (fw_near[j] * log(hypot(dx, dy)) *
+                                       inv2π * dwz₂[j] * gampkn * βn[j])
+                            end
+
+                            SLP += acc
+
+                        else
+
+                            @views βc = βcoef[(aN+1):(aN+N), H]
+
+                            # First side.
+                            @. y₁ = t₀ - (t₀ + 1.0) * wmz₁
+
+                            gam!(gamks₁, d, y₁, k)
+                            gamp!(gamperpks₁, d, y₁, k)
+
+                            ChebyTN!(Tbdt₀, N, y₁)
+                            mul!(βdyn1, Tbdt₀, βc)
+
+                            acc1 = 0.0
+
+                            @inbounds for j in 1:ns_near
+                                dx = x1 - gamks₁[1, j]
+                                dy = x2 - gamks₁[2, j]
+
+                                gampkn = hypot(gamperpks₁[1, j], gamperpks₁[2, j])
+
+                                acc1 += (fw_near[j] * log(hypot(dx, dy)) *
+                                        inv2π * dwz₁[j] * gampkn * βdyn1[j])
+                            end
+
+                            # Second side.
+                            @. y₂ = t₀ + (1.0 - t₀) * wmz₂
+
+                            gam!(gamks₂, d, y₂, k)
+                            gamp!(gamperpks₂, d, y₂, k)
+
+                            ChebyTN!(Tbdt₀, N, y₂)
+                            mul!(βdyn2, Tbdt₀, βc)
+
+                            acc2 = 0.0
+
+                            @inbounds for j in 1:ns_near
+                                dx = x1 - gamks₂[1, j]
+                                dy = x2 - gamks₂[2, j]
+
+                                gampkn = hypot(gamperpks₂[1, j], gamperpks₂[2, j])
+
+                                acc2 += (fw_near[j] * log(hypot(dx, dy)) *
+                                        inv2π * dwz₂[j] * gampkn * βdyn2[j])
+                            end
+
+                            SLP += ((t₀ + 1.0) * acc1 + (1.0 - t₀) * acc2) / 2.0
+                        end
+
+                    else
+
+                        rb = ((ll-1)*nr_bdy+1):(ll*nr_bdy)
+
+                        @views gamkbdy = gamkbdy_all[:, rb]
+                        @views gampkn = gampkn_all[rb]
+                        @views βv_bdy = β_bdy[rb, H]
+
+                        acc = 0.0
+
+                        @inbounds for j in 1:nr_bdy
+                            dx = x1 - gamkbdy[1, j]
+                            dy = x2 - gamkbdy[2, j]
+
+                            acc += (fwr_bdy[j] * log(hypot(dx, dy)) *
+                                   inv2π * gampkn[j] * βv_bdy[j])
+                        end
+
+                        SLP += acc
+                    end
+                end
+
+            else
+                # ====================================================
+                # Mode 2: very near the boundary
+                # For SLP, no normal interpolation is needed.
+                # Use smoothed quadrature. Nearby panels are taken from
+                # the first auxiliary interior point, m = 2.
+                # ====================================================
+
+                jintp += 1
+
+                l = dp.bdclosest[jintp]
+                tₛ = dp.bdt[jintp]
+
+                # Use first auxiliary interior point for nearby panel data.
+                a_aux = (jintp - 1) * dp.Lᵢₙ + 2
+
+                qaux1 = dp.bdintpptr[a_aux]
+                qaux2 = dp.bdintpptr[a_aux+1] - 1
+
+                @inbounds for ll in 1:Mbd
+
+                    k = d.kd[ll]
+
+                    near_flag = false
+                    t₀ = 0.0
+
+                    if k == l
+                        near_flag = true
+                        t₀ = tₛ
+                    else
+                        @inbounds for q in qaux1:qaux2
+                            if dp.bdintpk[q] == k
+                                near_flag = true
+                                t₀ = dp.bdintpt[q]
+                                break
+                            end
+                        end
+                    end
+
+                    if near_flag
+
+                        aN = (ll - 1) * N
+                        inear = (ll - 1) * ns_near
+
+                        if t₀ == 1.0
+
+                            @views βn = β_neart1[(inear+1):(inear+ns_near), H]
+
+                            @. y₁ = 1.0 - 2.0 * wmz₁
+
+                            gam!(gamks₁, d, y₁, k)
+                            gamp!(gamperpks₁, d, y₁, k)
+
+                            acc = 0.0
+
+                            @inbounds for j in 1:ns_near
+                                dx = x1 - gamks₁[1, j]
+                                dy = x2 - gamks₁[2, j]
+
+                                gampkn = hypot(gamperpks₁[1, j], gamperpks₁[2, j])
+
+                                acc += (fw_near[j] * log(hypot(dx, dy)) *
+                                       inv2π * dwz₁[j] * gampkn * βn[j])
+                            end
+
+                            SLP += acc
+
+                        elseif t₀ == -1.0
+
+                            @views βn = β_neart2[(inear+1):(inear+ns_near), H]
+
+                            @. y₂ = -1.0 + 2.0 * wmz₂
+
+                            gam!(gamks₂, d, y₂, k)
+                            gamp!(gamperpks₂, d, y₂, k)
+
+                            acc = 0.0
+
+                            @inbounds for j in 1:ns_near
+                                dx = x1 - gamks₂[1, j]
+                                dy = x2 - gamks₂[2, j]
+
+                                gampkn = hypot(gamperpks₂[1, j], gamperpks₂[2, j])
+
+                                acc += (fw_near[j] * log(hypot(dx, dy)) *
+                                       inv2π * dwz₂[j] * gampkn * βn[j])
+                            end
+
+                            SLP += acc
+
+                        else
+
+                            @views βc = βcoef[(aN+1):(aN+N), H]
+
+                            # First side.
+                            @. y₁ = t₀ - (t₀ + 1.0) * wmz₁
+
+                            gam!(gamks₁, d, y₁, k)
+                            gamp!(gamperpks₁, d, y₁, k)
+
+                            ChebyTN!(Tbdt₀, N, y₁)
+                            mul!(βdyn1, Tbdt₀, βc)
+
+                            acc1 = 0.0
+
+                            @inbounds for j in 1:ns_near
+                                dx = x1 - gamks₁[1, j]
+                                dy = x2 - gamks₁[2, j]
+
+                                gampkn = hypot(gamperpks₁[1, j], gamperpks₁[2, j])
+
+                                acc1 += (fw_near[j] * log(hypot(dx, dy)) *
+                                        inv2π * dwz₁[j] * gampkn * βdyn1[j])
+                            end
+
+                            # Second side.
+                            @. y₂ = t₀ + (1.0 - t₀) * wmz₂
+
+                            gam!(gamks₂, d, y₂, k)
+                            gamp!(gamperpks₂, d, y₂, k)
+
+                            ChebyTN!(Tbdt₀, N, y₂)
+                            mul!(βdyn2, Tbdt₀, βc)
+
+                            acc2 = 0.0
+
+                            @inbounds for j in 1:ns_near
+                                dx = x1 - gamks₂[1, j]
+                                dy = x2 - gamks₂[2, j]
+
+                                gampkn = hypot(gamperpks₂[1, j], gamperpks₂[2, j])
+
+                                acc2 += (fw_near[j] * log(hypot(dx, dy)) *
+                                        inv2π * dwz₂[j] * gampkn * βdyn2[j])
+                            end
+
+                            SLP += ((t₀ + 1.0) * acc1 + (1.0 - t₀) * acc2) / 2.0
+                        end
+
+                    else
+
+                        rb = ((ll-1)*nr_bdy+1):(ll*nr_bdy)
+
+                        @views gamkbdy = gamkbdy_all[:, rb]
+                        @views gampkn = gampkn_all[rb]
+                        @views βv_bdy = β_bdy[rb, H]
+
+                        acc = 0.0
+
+                        @inbounds for j in 1:nr_bdy
+                            dx = x1 - gamkbdy[1, j]
+                            dy = x2 - gamkbdy[2, j]
+
+                            acc += (fwr_bdy[j] * log(hypot(dx, dy)) *
+                                   inv2π * gampkn[j] * βv_bdy[j])
+                        end
+
+                        SLP += acc
+                    end
+                end
+            end
+
+            bZ[row, H] = SLP
+        end
+
+        # ------------------------------------------------------------
+        # Boundary values are known.
+        # Boundary component H+1 gets value 1, all others stay 0.
+        # ------------------------------------------------------------
+        @inbounds for ll in 1:Mbd
+            if bdno(d, d.kd[ll]) == H + 1
+                a = Ni + (ll - 1) * N
+
+                @inbounds for j in 1:N
+                    bZ[a+j, H] = 1.0
+                end
+            end
+        end
+    end
+
+    return bZ
+end
+
+function SLPeval(d::D, dp::domprop, IV; δ::Float64 = 0.1,
+     p::Int = 6)::Matrix{Float64} where {D<:abstractdomain}
+
     #This function evaluates the single layer potentials 
-    #for interioir points 
-    N, δ = dp.N, 0.1
+    #for interioir points
+    N = dp.N
 
     dpbd = dompropbd(N, δ, d)
+
     # β: A rectangular matrix of size (Mbd*N) * nh where
     #    N is number of Chebyshev coefficients per patch and
     #    Mbd is number of boundary patches. The jth column
     #    of beta contains βⱼ function values over Chebyshev mesh.
     β = SLPbeta(d, dpbd)
 
-    
+    return SLPeval(d, dp, β, IV; p = p)
+end
+
+function SLPtest(d::annulus, dp::domprop, IV;
+    δ::Float64 = 0.1,
+    tolβ::Float64 = 5e-10,
+    tolSLP::Float64 = 5e-10)
+
+    # This test assumes a circular concentric annulus.
+    # Outer boundary: reg 1:4, radius R2
+    # Inner boundary: reg 5:8, radius R1
+
+    @assert d.nh == 1 "SLPtest expects an annulus with one hole."
+
+    @assert isapprox(d.R11, d.R12; rtol=0.0, atol=1e-14) "Outer boundary must be circular."
+    @assert isapprox(d.R21, d.R22; rtol=0.0, atol=1e-14) "Inner boundary must be circular."
+
+    R2 = d.R11
+    R1 = d.R21
+
+    @assert R1 < R2 "Expected inner radius R1 < outer radius R2."
+
+    logratio = log(R1 / R2)
+
+    βinner_exact =  1.0 / (R1 * logratio)
+    βouter_exact = -1.0 / (R2 * logratio)
+
+    N   = dp.N
+    Np  = N^2
+    M   = d.Npat
+    Mbd = length(d.kd)
+
+    Ni = M * Np
+    Nb = Mbd * N
+    Nt = Ni + Nb
+
+    # ------------------------------------------------------------
+    # 1. Compute β using the actual solver.
+    # ------------------------------------------------------------
+    dpbd = dompropbd(N, δ, d)
+
+    β = SLPbeta(d, dpbd)
+
+    @assert size(β, 1) == Mbd * N
+    @assert size(β, 2) == d.nh
+
+    # ------------------------------------------------------------
+    # 2. Compare computed β against exact constant density.
+    # ------------------------------------------------------------
+    βexact = Matrix{Float64}(undef, Mbd * N, d.nh)
+
+    @inbounds for ll in 1:Mbd
+        k = d.kd[ll]
+        reg = d.pths[k].reg
+
+        βval = reg <= 4 ? βouter_exact : βinner_exact
+
+        a = (ll - 1) * N
+        for j in 1:N
+            βexact[a + j, 1] = βval
+        end
+    end
+
+    βerr = abs.(β .- βexact)
+
+    βmaxerr, βworst = findmax(βerr)
+
+    βrelerr = βmaxerr / maximum(abs.(βexact))
+
+    # ------------------------------------------------------------
+    # 3. Evaluate SLP using computed β.
+    # ------------------------------------------------------------
+    bZ = SLPeval(d, dp, β, IV)
+
+    # ------------------------------------------------------------
+    # 4. Exact SLP:
+    #
+    #     S[β](x) = log(r/R2) / log(R1/R2)
+    #
+    # centered at (d.A, d.B).
+    # ------------------------------------------------------------
+    exact = Vector{Float64}(undef, Nt)
+
+    @inbounds for i in 1:Nt
+        x = dp.tgtpts[1, i] - d.A
+        y = dp.tgtpts[2, i] - d.B
+        r = hypot(x, y)
+
+        exact[i] = log(r / R2) / logratio
+    end
+
+    # Boundary exact values:
+    # outer boundary = 0, inner boundary = 1.
+    @inbounds for ll in 1:Mbd
+        k = d.kd[ll]
+        reg = d.pths[k].reg
+
+        val = reg <= 4 ? 0.0 : 1.0
+
+        a = Ni + (ll - 1) * N
+        for j in 1:N
+            exact[a + j] = val
+        end
+    end
+
+    slperr = abs.(bZ[:, 1] .- exact)
+
+    slpmaxerr, slpworst = findmax(slperr)
+
+    slprelerr = slpmaxerr / maximum(abs.(exact))
+
+    # ------------------------------------------------------------
+    # 5. Report.
+    # ------------------------------------------------------------
+    println("SLP annulus full test")
+    println("  R1 inner radius       : ", R1)
+    println("  R2 outer radius       : ", R2)
+    println("  exact β inner         : ", βinner_exact)
+    println("  exact β outer         : ", βouter_exact)
+
+    println()
+    if βmaxerr < tolβ
+        println("  β solve: Okay!")
+    else
+        println("  β solve: Bug!")
+    end
+
+    println("    max β error         : ", βmaxerr)
+    println("    rel β error         : ", βrelerr)
+    println("    worst β index       : ", βworst)
+    println("    computed β          : ", β[βworst])
+    println("    exact β             : ", βexact[βworst])
+    println("    β difference        : ", β[βworst] - βexact[βworst])
+
+    println()
+    if slpmaxerr < tolSLP
+        println("  SLP eval: Okay!")
+    else
+        println("  SLP eval: Bug!")
+    end
+
+    println("    max SLP error       : ", slpmaxerr)
+    println("    rel SLP error       : ", slprelerr)
+    println("    worst target index  : ", slpworst)
+    println("    computed SLP        : ", bZ[slpworst, 1])
+    println("    exact SLP           : ", exact[slpworst])
+    println("    SLP difference      : ", bZ[slpworst, 1] - exact[slpworst])
+
+    return β, βexact, bZ, exact, βerr, slperr
 end

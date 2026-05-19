@@ -10,9 +10,9 @@ using LinearAlgebra
 using Printf
 using MAT
 
-# -------------------------
-# User-facing configuration
-# -------------------------
+#-------------------------
+#User-facing configuration
+#-------------------------
 
 Base.@kwdef struct Options
     plot::Bool = false                      # show plots (requires plotfunc(dp,d,vec))
@@ -24,6 +24,7 @@ Base.@kwdef struct Options
     abstol::Float64 = 0.0
     restart::Int = 450
     matrixfree::Bool = false
+    s_small::Bool = false
 end
 
 """
@@ -164,24 +165,37 @@ function _load_uexv(path::String)
     end
 end
 
-function _assemble_matrix(dp, d, IntS, s, IV)
+function _assemble_matrix(dp, d, IntS, s, IV; s_small::Bool=false)
     (; N, Np, M, Mbd) = IV.IV1
+
     Lpn = M * Np
     Lp  = Lpn + Mbd * N
 
     A = zeros(Float64, Lp, Lp)
 
-    for k in 1:M
-        @views v = A[:, (1 + Np*(k-1)) : (Np*k)]
-        if k in d.kd
-            Axbdpth!(v, k, IntS, d, dp, s, IV)
-        else
-            Axintpth!(v, k, IntS, d, dp, s, IV)
+    if s_small
+        for k in 1:M
+            @views v = A[:, (1 + Np*(k-1)):(Np*k)]
+            if k in d.kd
+                Axbdpth_small!(v, k, IntS, d, dp, s, IV)
+            else
+                Axintpth_small!(v, k, IntS, d, dp, s, IV)
+            end
+        end
+
+    else
+        for k in 1:M
+            @views v = A[:, (1 + Np*(k-1)):(Np*k)]
+            if k in d.kd
+                Axbdpth!(v, k, IntS, d, dp, s, IV)
+            else
+                Axintpth!(v, k, IntS, d, dp, s, IV)
+            end
         end
     end
 
     for k in 1:Mbd
-        @views v = A[:, Lpn + N*(k-1) + 1 : Lpn + N*k]
+        @views v = A[:, Lpn+N*(k-1)+1:Lpn+N*k]
         Axbdop!(v, k, d, dp, s, IV)
     end
 
@@ -191,60 +205,70 @@ end
 # -------------------------
 # Phase 1: CORE solve (benchmark this part)
 # -------------------------
-
 function solveFL_core(prob::Problem; opts::Options=Options())
-    d  = prob.dom
+    d = prob.dom
     n = prob.nₚᵣ
     dp = domprop(prob.N, prob.δ, prob.δ_near, prob.δ_intp, d)
 
-    # precomputations
-    if prob.s >= 0.5
-        IntS = precompsH(d, dp, prob.s, prob.p; n=n)
+    #In this case, a direct solver is always due to high
+    #condition number of the discretized matrix
+    if opts.s_small
+
+        IntS = precompsLs(d, dp, prob.s, prob.p; n=n)
+
+        b = bvec(d, dp, prob.f!)
+
+        IV = compress_vars(d, dp, prob.s, prob.p; matrix_form=true)
+
+        A = _assemble_matrix(dp, d, IntS, prob.s, IV; s_small=true)
+
     else
-        IntS = precompsL(d, dp, prob.s, prob.p; n=n)
+        IntS = prob.s >= 0.5 ?
+               precompsH(d, dp, prob.s, prob.p; n=n) :
+               precompsL(d, dp, prob.s, prob.p; n=n)
+
+        b = bvec(d, dp, prob.s, prob.f!)
+
+        if opts.matrixfree
+            #Matrix free approach is not for domains with holes in it
+            IV = compress_vars(d, dp, prob.s, prob.p; matrix_form=false)
+
+            Uapp = copy(b)
+            (; N, Np, M, Mbd) = IV.IV1
+            Ltot = M * Np + Mbd * N
+            restart_eff = min(opts.restart, Ltot)
+
+            #===
+            The argument is an in-place function
+                (v, x) -> Ax!(v, x, IntS, d, dp, prob.s, IV)
+            which means:
+            given an input vector x, compute A*x and write the result into v.
+            The two Ltot arguments specify the size of the linear operator:
+                size(Aop) == (Ltot, Ltot)
+            This is necessary because gmres! needs to know the dimensions of the
+            linear system, even though A is not stored explicitly.
+            The keyword ismutating=true tells LinearMap that the supplied function
+            is an in-place/mutating matvec of the form f!(v, x), rather than a
+            function of the form f(x) that returns a new vector.
+            ===#
+            Aop = LinearMap{Float64}((v, x) -> Ax!(v, x, IntS, d, dp, prob.s, IV),
+                Ltot, Ltot; ismutating=true)
+
+            Uapp, ch = gmres!(Uapp, Aop, b;
+                reltol=opts.reltol, abstol=opts.abstol, restart=restart_eff, log=true)
+
+            iters = hasproperty(ch, :iters) ? ch.iters : 0
+            conv = hasproperty(ch, :isconverged) ? ch.isconverged : false
+            info = SolveInfo(solver=:gmres, iters=iters, converged=conv, reltol=opts.reltol)
+
+            return CoreResult(dp=dp, d=d, IntS=IntS, A=nothing, b=b, Uapp=Uapp, info=info)
+
+        end
+
+        IV = compress_vars(d, dp, prob.s, prob.p; matrix_form=true)
+
+        A = _assemble_matrix(dp, d, IntS, prob.s, IV; s_small=false)
     end
-
-    # RHS
-    b = bvec(d, dp, prob.s, prob.f!)
-
-    if opts.matrixfree
-        #Matrix free approach is not for domains with holes in it
-        IV = compress_vars(d, dp, prob.s, prob.p; matrix_form=false)
-
-        Uapp = copy(b)
-        (; N, Np, M, Mbd) = IV.IV1
-        Ltot = M * Np + Mbd * N
-        restart_eff = min(opts.restart, Ltot)
-
-        # The argument is an in-place function
-        #     (v, x) -> Ax!(v, x, IntS, d, dp, prob.s, IV)
-        # which means:
-        #     given an input vector x, compute A*x and write the result into v.
-        # The two Ltot arguments specify the size of the linear operator:
-        #     size(Aop) == (Ltot, Ltot)
-        # This is necessary because gmres! needs to know the dimensions of the
-        # linear system, even though A is not stored explicitly.
-        # The keyword ismutating=true tells LinearMap that the supplied function
-        # is an in-place/mutating matvec of the form f!(v, x), rather than a
-        # function of the form f(x) that returns a new vector.
-        Aop = LinearMap{Float64}((v, x) -> Ax!(v, x, IntS, d, dp, prob.s, IV),
-            Ltot, Ltot; ismutating=true)
-
-        Uapp, ch = gmres!(Uapp, Aop, b;
-            reltol=opts.reltol, abstol=opts.abstol, restart=restart_eff, log=true)
-
-        iters = hasproperty(ch, :iters) ? ch.iters : 0
-        conv = hasproperty(ch, :isconverged) ? ch.isconverged : false
-        info = SolveInfo(solver=:gmres, iters=iters, converged=conv, reltol=opts.reltol)
-
-        return CoreResult(dp=dp, d=d, IntS=IntS, A=nothing, b=b, Uapp=Uapp, info=info)
-
-    end
-
-    IV = compress_vars(d, dp, prob.s, prob.p; matrix_form=true)
-
-    # assemble matrix
-    A = _assemble_matrix(dp, d, IntS, prob.s, IV)
 
     if size(IntS, 2) > 100_000
         IntS = nothing
@@ -260,9 +284,10 @@ function solveFL_core(prob::Problem; opts::Options=Options())
             info = SolveInfo(solver=:direct, iters=0, converged=true, reltol=0)
 
         else
-            # There are HOLES!! in our domain
-            # The LU decomposition will have nh zero rows
-            # in matrix U. We now compute the Single layer potentials.
+            # There are holes in the domain.
+            # A is rank-deficient by d.nh. We use SLP basis functions
+            # to modify the RHS so that it is in the image of A.
+
             (; N, Np, M, Mbd) = IV.IV1
 
             # bZ : The single layer potential on all the
@@ -271,41 +296,52 @@ function solveFL_core(prob::Problem; opts::Options=Options())
             #      (Npat*N*N + Mbd*N) * nh where nh is the
             #      number of holes and Npat*N*N + Mbd*N is total
             #      number of target points.
-            bZ = SLPeval(d, dp)
+            bZ = SLPeval(d, dp, IV)
 
-            if s >= 0.5
-                bZ[(1+M*Np):(M*Np+Mbd*N), 1:d.nh] .= 0.0
+            if !opts.s_small && prob.s >= 0.5
+                bZ[(M*Np+1):(M*Np+Mbd*N), 1:d.nh] .= 0.0
             end
 
-            # Last Nh indices
-            indx = (M*Np+Mbd*N-d.nh+1):(M*Np+Mbd*N)
+            Lp = M * Np + Mbd * N
+            indx = (Lp-d.nh+1):Lp
 
-            # QR decomposition method to solve for unknowns
-            F = qr(A)
+            # Use pivoted QR for rank-deficient A.
+            F = qr(A, ColumnNorm())
+
             Qa = Matrix(F.Q)
             Ra = F.R
             Pa = Matrix(F.P)
 
-            # matrix A is not needed now
-            A = nothing
+            if size(A, 2) > 30_000
+                A = nothing
+                GC.gc()
+            end
+
 
             B_SLP = Qa' * b
-
             Beta_SLP = Qa' * bZ
 
-            # matrix Qa is not needed now
-            Qa = nothing
+            if size(Qa, 2) > 30_000
+                Qa = nothing
+                GC.gc()
+            end
 
+            # Choose SLP coefficients so bottom compatibility equations vanish:
+            # Q₂ᵀ(b + bZ*R) = 0.
             RNh = -(Beta_SLP[indx, :] \ B_SLP[indx])
 
             beq = B_SLP + Beta_SLP * RNh
 
-            for j in 1:D.Nh
-                Ra[indx[j], indx[j]] = 1
+            # Enforce exact numerical compatibility in the artificial rows.
+            beq[indx] .= 0.0
+
+            for j in 1:d.nh
+                Ra[indx[j], indx[j]] = 1.0
             end
 
             Uapp = Pa * (Ra \ beq)
 
+            info = SolveInfo(solver=:direct, iters=0, converged=true, reltol=0.0)
         end
 
     elseif opts.solver == :gmres
@@ -330,13 +366,12 @@ function solveFL_core(prob::Problem; opts::Options=Options())
     end
 
     #Too much RAM usage for modern laptops. ~15GB
-    if size(A, 2) > 40_000
+    if A !== nothing && size(A, 2) > 40_000
         A = nothing
         GC.gc()
     end
 
     return CoreResult(dp=dp, d=d, IntS=IntS, A=A, b=b, Uapp=Uapp, info=info)
-
 
 end
 
@@ -459,10 +494,12 @@ function solveFL(prob::Problem; opts::Options=Options())
             plot=false,
             benchmark=false,
             solver=opts.solver,
+            cond_num=opts.cond_num,
             reltol=opts.reltol,
             abstol=opts.abstol,
             restart=opts.restart,
-            matrixfree=opts.matrixfree)
+            matrixfree=opts.matrixfree,
+            s_small=opts.s_small)
 
         core  = solveFL_core(prob; opts=opts_core)  # compute once for actual result
 
@@ -514,7 +551,7 @@ function show(io::IO, ::MIME"text/plain", v::SolveView)
     res = solveFL_post(v.prob, v.core; opts=v.opts)
 
     #Everytime show is called, the paraview files are changed!
-    #u_to_paraview(v.core.dp, v.core.d, v.core.Uapp, v.prob.s)
+    u_to_paraview(v.core.dp, v.core.d, v.core.Uapp, v.prob.s)
 
     println(io, "\n----------- Domain -----------")
     try
@@ -538,7 +575,11 @@ function show(io::IO, ::MIME"text/plain", v::SolveView)
     println(io, "Near-singular  points : $n")
 
     if res.cond_num != -1
-        @printf(io, "Cond. num 2-norm: %f\n", res.cond_num)
+        if res.cond_num > 1000
+            @printf(io, "Cond. num 2-norm: %.2e\n", res.cond_num)
+        else
+            @printf(io, "Cond. num 2-norm: %f\n", res.cond_num)
+        end
     end
 
     println(io, "\n----------- Solve -----------")

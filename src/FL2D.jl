@@ -48,6 +48,9 @@ include("matrixvecprod/Axbdpth.jl")
 include("matrixvecprod/Axbdop.jl")
 include("matrixvecprod/Ax.jl")
 
+include("matrixvecprod/Axintpth_small.jl")
+include("matrixvecprod/Axbdpth_small.jl")
+
 # --------------------------
 # Public API (black-box)
 # --------------------------
