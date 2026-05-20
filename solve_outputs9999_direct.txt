@@ -307,3 +307,139 @@ L^2 error   : 3.85e-07
 Root MSE err: 3.59e-09
 =====================================================
 
+================ FractionalLaplacian2D ================
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[11 12 13 … 58 59 60]
+  Npat   = 80
+  pths   = Vector{Patch} (80 patches)
+  Qpts   = 8×80 Matrix
+  Qptsbd = 8×20 Matrix
+
+
+----------- Parameters -----------
+N=12, nₚᵣ=1024, s=0.9999, p=5000, δ=0.1
+Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
+
+----------- System -----------
+Target points (Vars.) : 11760
+Precomputation points : 43516
+Near-singular  points : 31756
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 9.37e-09
+Max Rel err : 9.41e-09
+L^2 error   : 3.85e-07
+Root MSE err: 3.58e-09
+=====================================================
+
+================ FractionalLaplacian2D ================
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[13 14 15 … 70 71 72]
+  Npat   = 102
+  pths   = Vector{Patch} (102 patches)
+  Qpts   = 8×102 Matrix
+  Qptsbd = 8×24 Matrix
+
+
+----------- Parameters -----------
+N=12, nₚᵣ=128, s=0.9999, p=5000, δ=0.1
+Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
+
+----------- System -----------
+Target points (Vars.) : 14976
+Precomputation points : 61316
+Near-singular  points : 46340
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 2.41e-06
+Max Rel err : 2.42e-06
+L^2 error   : 2.99e-05
+Root MSE err: 2.46e-07
+=====================================================
+
+================ FractionalLaplacian2D ================
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[13 14 15 … 70 71 72]
+  Npat   = 102
+  pths   = Vector{Patch} (102 patches)
+  Qpts   = 8×102 Matrix
+  Qptsbd = 8×24 Matrix
+
+
+----------- Parameters -----------
+N=12, nₚᵣ=256, s=0.9999, p=5000, δ=0.1
+Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
+
+----------- System -----------
+Target points (Vars.) : 14976
+Precomputation points : 61316
+Near-singular  points : 46340
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 1.58e-07
+Max Rel err : 1.59e-07
+L^2 error   : 1.35e-06
+Root MSE err: 1.11e-08
+=====================================================
+
+================ FractionalLaplacian2D ================
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[13 14 15 … 70 71 72]
+  Npat   = 102
+  pths   = Vector{Patch} (102 patches)
+  Qpts   = 8×102 Matrix
+  Qptsbd = 8×24 Matrix
+
+
+----------- Parameters -----------
+N=12, nₚᵣ=512, s=0.9999, p=5000, δ=0.1
+Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
+
+----------- System -----------
+Target points (Vars.) : 14976
+Precomputation points : 61316
+Near-singular  points : 46340
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 1.01e-08
+Max Rel err : 1.02e-08
+L^2 error   : 2.02e-07
+Root MSE err: 1.67e-09
+=====================================================
+

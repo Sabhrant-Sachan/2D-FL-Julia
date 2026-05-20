@@ -44,6 +44,7 @@ include(joinpath(@__DIR__, "disc.jl"));
 include(joinpath(@__DIR__, "ellipse.jl")); 
 include(joinpath(@__DIR__, "kite.jl")); 
 include(joinpath(@__DIR__, "annulus.jl")); 
+include(joinpath(@__DIR__, "squircle.jl")); 
 
 """
     find_roots!(roots, tbl, d, p, u, v;

@@ -1018,7 +1018,7 @@ the reference coordinates `[t; s]` in `[-1,1]^2` such that `mapxy(d, t, s, k) = 
 
 Strategy:
 1. 2D Newton using `jinvmap`. If it fails to converge, fall back to a 1D root
-   in `t ∈ [-30,30]` (`ApproxFun`) and reconstruct `s`.
+   in `t ∈ [-30,30]` and reconstruct `s`.
 """
 
 @inline function Xx(s::Float64, d::disc, r::Int)
@@ -1256,7 +1256,7 @@ Convert a parametric point between region ↔ patch coordinates.
 
 Inputs:
 - `t1` : 1st cooridnate of point t
-- `t1` : 2nd cooridnate of point t
+- `t2` : 2nd cooridnate of point t
 - `idx`: region index (if `"to_pth"`) or patch index (if `"to_reg"`)
 - `ptdest`: `"to_pth"` or `"to_reg"`
 

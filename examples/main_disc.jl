@@ -79,13 +79,9 @@ case_specs = [
     (dom=d1, N=6,  nₚᵣ=64), (dom=d1, N=7,  nₚᵣ=64), (dom=d1, N=8,  nₚᵣ=64),
 
     (dom=d1, N=9,  nₚᵣ=128), (dom=d1, N=10, nₚᵣ=128), (dom=d1, N=12, nₚᵣ=128),
-
     (dom=d2, N=10, nₚᵣ=128), (dom=d2, N=12, nₚᵣ=128), (dom=d2, N=12, nₚᵣ=256),
-
     (dom=d3, N=10, nₚᵣ=128), (dom=d3, N=12, nₚᵣ=128), (dom=d3, N=12, nₚᵣ=256),
-
     (dom=d5, N=12, nₚᵣ=128), (dom=d5, N=12, nₚᵣ=256), (dom=d5, N=12, nₚᵣ=512), 
-    
     (dom=d6, N=12, nₚᵣ=128), (dom=d6, N=12, nₚᵣ=256), (dom=d6, N=12, nₚᵣ=512)
 ];
 
@@ -377,8 +373,10 @@ open("solve_outputs0500_direct.txt", "w") do io
 
         (dom=d3, N=12, nₚᵣ=128),
 
+        (dom=d5, N=12, nₚᵣ=128),
         (dom=d5, N=12, nₚᵣ=256),
 
+        (dom=d6, N=12, nₚᵣ=128),
         (dom=d6, N=12, nₚᵣ=256),
         (dom=d6, N=12, nₚᵣ=512),
     ]
@@ -392,1013 +390,114 @@ open("solve_outputs0500_direct.txt", "w") do io
     flush(io)
 end
 
-
-#Direct solver for many value of s
 open("solve_outputs0250_direct.txt", "w") do io
-    # =============================================
+
     s, p = 0.25, 4
 
     println(io, "Run started: ", Dates.now())
     println(io, "s = ", s)
-    
-    δ, δclsbd = 0.1, 0.01
+    println(io, "p = ", p)
+    flush(io)
 
-    dom = FL2D_small.disc(b=[1, 1, 1, 1, 1], L1=0.8, L2=0.8)
+    cases = [
+        (dom=d1, N=10, nₚᵣ=128),
+        (dom=d1, N=12, nₚᵣ=128),
 
-    Anₚᵣ = [64, 64, 64, 128, 128, 128, 128, 128, 128]
+        (dom=d2, N=12, nₚᵣ=128),
 
-    AN = [3, 4, 5, 6, 7, 8, 9, 10, 12]
+        (dom=d3, N=12, nₚᵣ=128),
 
-    f!, uex, fv = makediscfuex(5, s)
+        (dom=d5, N=12, nₚᵣ=128),
+        (dom=d5, N=12, nₚᵣ=256),
 
-    for i in 1:9
+        (dom=d6, N=12, nₚᵣ=128),
+        (dom=d6, N=12, nₚᵣ=256),
+        (dom=d6, N=12, nₚᵣ=512),
+    ]
 
-        nₚᵣ, N = Anₚᵣ[i], AN[i]
-
-        prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-            dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
-
-        opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark)
-
-        core_res = solveFL(prob; opts=opts)
-
-        println(io, SolveView(prob, opts, core_res))
-
-        flush(io)
-
+    for case in cases
+        run_one!(io, case; s=s, p=p, nJac=5)
     end
 
-    # =============================================
-    dom = FL2D_small.disc(b=[2, 2, 2, 2, 2], L1=0.8, L2=0.8)
-
-    for i in 1:9
-
-        nₚᵣ, N = 128, AN[i]
-
-        prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-            dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
-
-        opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark)
-
-        core_res = solveFL(prob; opts=opts)
-
-        println(io, SolveView(prob, opts, core_res))
-
-        flush(io)
-
-    end
-    # =============================================
-    dom = FL2D_small.disc(b=[3, 3, 3, 3, 3], L1=0.8, L2=0.8)
-
-    for i in 1:9
-
-        nₚᵣ, N = 128, AN[i]
-
-        prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-            dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
-
-        opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark)
-
-        core_res = solveFL(prob; opts=opts)
-
-        println(io, SolveView(prob, opts, core_res))
-
-        flush(io)
-
-    end
-    # =============================================
-    dom = FL2D_small.disc(b=[5, 5, 5, 5, 5], a=[3, 3, 3, 3, 4], L1=0.8, L2=0.8)
-
-    for i in 1:9
-
-        nₚᵣ, N = 128, AN[i]
-
-        prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-            dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
-
-        opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark)
-
-        core_res = solveFL(prob; opts=opts)
-
-        println(io, SolveView(prob, opts, core_res))
-
-        flush(io)
-
-    end
-
-    # =============================================
-    dom = FL2D_small.disc(b=[6, 6, 6, 6, 6], a=[3, 3, 3, 3, 5], L1=0.8, L2=0.8)
-
-    for i in 1:9
-
-        nₚᵣ, N = 256, AN[i]
-
-        prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-            dₙₕ=2, (f!)=f!, uex=uex, dom=dom)
-
-        opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark)
-
-        core_res = solveFL(prob; opts=opts)
-
-        println(io, SolveView(prob, opts, core_res))
-
-        flush(io)
-
-    end
-
-    println(io, "==End of Disc==")
-
+    println(io, "\n==End of Disc==")
+    println(io, "Run finished: ", Dates.now())
+    flush(io)
 end
-# Start from here for overnight
+
 open("solve_outputs0100_direct.txt", "w") do io
-    # =============================================
-    s, p = 0.1, 4
+
+    s, p = 0.1, 10
 
     println(io, "Run started: ", Dates.now())
     println(io, "s = ", s)
-    
-    δ, δclsbd = 0.1, 0.01
-
-    dom = FL2D_small.disc(b=[1, 1, 1, 1, 1], L1=0.8, L2=0.8)
-
-    Anₚᵣ = [64, 64, 64, 128, 128, 128, 128, 128, 128]
-
-    AN = [3, 4, 5, 6, 7, 8, 9, 10, 12]
-
-    f!, uex, fv = makediscfuex(5, s)
-
-    for i in 1:9
-
-        nₚᵣ, N = Anₚᵣ[i], AN[i]
-
-        prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-            dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
-
-        opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark)
-
-        core_res = solveFL(prob; opts=opts)
-
-        println(io, SolveView(prob, opts, core_res))
-
-        flush(io)
-
-    end
-
-    # =============================================
-    dom = FL2D_small.disc(b=[2, 2, 2, 2, 2], L1=0.8, L2=0.8)
-
-    for i in 8:9
-
-        nₚᵣ, N = 128, AN[i]
-
-        prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-            dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
-
-        opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark)
-
-        core_res = solveFL(prob; opts=opts)
-
-        println(io, SolveView(prob, opts, core_res))
-
-        flush(io)
-
-    end
-    # =============================================
-    dom = FL2D_small.disc(b=[3, 3, 3, 3, 3], L1=0.8, L2=0.8)
-
-    for i in 8:9
-
-        nₚᵣ, N = 128, AN[i]
-
-        prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-            dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
-
-        opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark)
-
-        core_res = solveFL(prob; opts=opts)
-
-        println(io, SolveView(prob, opts, core_res))
-
-        flush(io)
-
-    end
-    # =============================================
-    dom = FL2D_small.disc(b=[5, 5, 5, 5, 5], a=[3, 3, 3, 3, 4], L1=0.8, L2=0.8)
-
-    for i in 8:9
-
-        nₚᵣ, N = 128, AN[i]
-
-        prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-            dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
-
-        opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark)
-
-        core_res = solveFL(prob; opts=opts)
-
-        println(io, SolveView(prob, opts, core_res))
-
-        flush(io)
-
-    end
-
-    nₚᵣ, N = 256, 12
-
-    prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-        dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
-
-    opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark)
-
-    core_res = solveFL(prob; opts=opts)
-
-    println(io, SolveView(prob, opts, core_res))
-
+    println(io, "p = ", p)
     flush(io)
 
-    # =============================================
-    dom = FL2D_small.disc(b=[6, 6, 6, 6, 6], a=[3, 3, 3, 3, 5], L1=0.8, L2=0.8)
+    cases = [
+        (dom=d1, N=10, nₚᵣ=128),
+        (dom=d1, N=12, nₚᵣ=128),
 
-    for i in 8:9
+        (dom=d2, N=12, nₚᵣ=128),
 
-        nₚᵣ, N = 256, AN[i]
+        (dom=d3, N=12, nₚᵣ=128),
 
-        prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-            dₙₕ=2, (f!)=f!, uex=uex, dom=dom)
+        (dom=d5, N=12, nₚᵣ=128),
+        (dom=d5, N=12, nₚᵣ=256),
 
-        opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark)
+        (dom=d6, N=12, nₚᵣ=128),
+        (dom=d6, N=12, nₚᵣ=256),
+        (dom=d6, N=12, nₚᵣ=512),
+    ]
 
-        core_res = solveFL(prob; opts=opts)
-
-        println(io, SolveView(prob, opts, core_res))
-
-        flush(io)
-
+    for case in cases
+        run_one!(io, case; s=s, p=p, nJac=5)
     end
 
-    println(io, "==End of Disc==")
-
-end
-
-open("solve_outputs0010_direct.txt", "w") do io
-    # =============================================
-    s, p = 0.01, 4
-
-    println(io, "Run started: ", Dates.now())
-    println(io, "s = ", s)
-    
-    δ, δclsbd = 0.1, 0.01
-
-    dom = FL2D_small.disc(b=[1, 1, 1, 1, 1], L1=0.8, L2=0.8)
-
-    Anₚᵣ = [64, 64, 64, 128, 128, 128, 128, 128, 128]
-
-    AN = [3, 4, 5, 6, 7, 8, 9, 10, 12]
-
-    f!, uex, fv = makediscfuex(5, s)
-
-    for i in 1:9
-
-        nₚᵣ, N = Anₚᵣ[i], AN[i]
-
-        prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-            dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
-
-        opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark)
-
-        core_res = solveFL(prob; opts=opts)
-
-        println(io, SolveView(prob, opts, core_res))
-
-        flush(io)
-
-    end
-
-    # =============================================
-    dom = FL2D_small.disc(b=[2, 2, 2, 2, 2], L1=0.8, L2=0.8)
-
-    for i in 8:9
-
-        nₚᵣ, N = 128, AN[i]
-
-        prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-            dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
-
-        opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark)
-
-        core_res = solveFL(prob; opts=opts)
-
-        println(io, SolveView(prob, opts, core_res))
-
-        flush(io)
-
-    end
-    # =============================================
-    dom = FL2D_small.disc(b=[3, 3, 3, 3, 3], L1=0.8, L2=0.8)
-
-    for i in 8:9
-
-        nₚᵣ, N = 128, AN[i]
-
-        prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-            dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
-
-        opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark)
-
-        core_res = solveFL(prob; opts=opts)
-
-        println(io, SolveView(prob, opts, core_res))
-
-        flush(io)
-
-    end
-    # =============================================
-    dom = FL2D_small.disc(b=[5, 5, 5, 5, 5], a=[3, 3, 3, 3, 4], L1=0.8, L2=0.8)
-
-    for i in 8:9
-
-        nₚᵣ, N = 128, AN[i]
-
-        prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-            dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
-
-        opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark)
-
-        core_res = solveFL(prob; opts=opts)
-
-        println(io, SolveView(prob, opts, core_res))
-
-        flush(io)
-
-    end
-
-    nₚᵣ, N = 256, 12
-
-    prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-        dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
-
-    opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark)
-
-    core_res = solveFL(prob; opts=opts)
-
-    println(io, SolveView(prob, opts, core_res))
-
+    println(io, "\n==End of Disc==")
+    println(io, "Run finished: ", Dates.now())
     flush(io)
-
-    # =============================================
-    dom = FL2D_small.disc(b=[6, 6, 6, 6, 6], a=[3, 3, 3, 3, 5], L1=0.8, L2=0.8)
-
-    for i in 8:9
-
-        nₚᵣ, N = 256, AN[i]
-
-        prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-            dₙₕ=2, (f!)=f!, uex=uex, dom=dom)
-
-        opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark)
-
-        core_res = solveFL(prob; opts=opts)
-
-        println(io, SolveView(prob, opts, core_res))
-
-        flush(io)
-
-    end
-
-    println(io, "==End of Disc==")
-
 end
 
-open("solve_outputs0001_direct.txt", "w") do io
-    # =============================================
-    s, p = 0.001, 4
+#From this point on, s_small is true
+case_specs = [
+    (dom=d1, N=3,  nₚᵣ=32), (dom=d1, N=4,  nₚᵣ=32), (dom=d1, N=5,  nₚᵣ=32),
+    (dom=d1, N=6,  nₚᵣ=64), (dom=d1, N=7,  nₚᵣ=64), (dom=d1, N=8,  nₚᵣ=64),
 
-    println(io, "Run started: ", Dates.now())
-    println(io, "s = ", s)
-    
-    δ, δclsbd = 0.1, 0.01
+    (dom=d1, N=9,  nₚᵣ=128), (dom=d1, N=10, nₚᵣ=128), (dom=d1, N=12, nₚᵣ=128),
+    (dom=d2, N=10, nₚᵣ=128), (dom=d2, N=12, nₚᵣ=128), (dom=d2, N=12, nₚᵣ=256),
+    (dom=d3, N=10, nₚᵣ=128), (dom=d3, N=12, nₚᵣ=128), (dom=d3, N=12, nₚᵣ=256),
+    (dom=d5, N=12, nₚᵣ=128), (dom=d5, N=12, nₚᵣ=256),
+];
 
-    dom = FL2D_small.disc(b=[1, 1, 1, 1, 1], L1=0.8, L2=0.8)
 
-    Anₚᵣ = [64, 64, 64, 128, 128, 128, 128, 128, 128]
+#Small s algorithm comparison
+small_true_opts = (solver=:direct, matrixfree=false, benchmark=false, cond_num=true, s_small=true);
+small_true_cases  = [(; c..., small_true_opts...) for c in case_specs];
 
-    AN = [3, 4, 5, 6, 7, 8, 9, 10, 12]
+for (s, p, tag) in [
+    (0.50, 4, "0500"),
+    (0.25, 4, "0250"),
+    (0.10, 4, "0100"),
+    (0.01, 4, "0010"),
+    (1e-3, 4, "1e-3"),
+    (1e-4, 4, "1e-4"),
+    (1e-7, 4, "1e-7"),
+    (1e-16, 4, "1e-16"),]
 
-    f!, uex, fv = makediscfuex(5, s)
-
-    for i in 1:9
-
-        nₚᵣ, N = Anₚᵣ[i], AN[i]
-
-        prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-            dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
-
-        opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark)
-
-        core_res = solveFL(prob; opts=opts)
-
-        println(io, SolveView(prob, opts, core_res))
-
+    open("solve_outputs$(tag)_s_small_true.txt", "w") do io
+        println(io, "Run started: ", Dates.now())
+        println(io, "s = ", s)
+        println(io, "p = ", p)
         flush(io)
 
-    end
+        for case in small_true_cases
+            run_one!(io, case; s=s, p=p, nJac=5)
+        end
 
-    # =============================================
-    dom = FL2D_small.disc(b=[2, 2, 2, 2, 2], L1=0.8, L2=0.8)
-
-    for i in 8:9
-
-        nₚᵣ, N = 128, AN[i]
-
-        prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-            dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
-
-        opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark)
-
-        core_res = solveFL(prob; opts=opts)
-
-        println(io, SolveView(prob, opts, core_res))
-
+        println(io, "\n==End of Disc: s_small=true==")
+        println(io, "Run finished: ", Dates.now())
         flush(io)
-
     end
-    # =============================================
-    dom = FL2D_small.disc(b=[3, 3, 3, 3, 3], L1=0.8, L2=0.8)
-
-    for i in 8:9
-
-        nₚᵣ, N = 128, AN[i]
-
-        prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-            dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
-
-        opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark)
-
-        core_res = solveFL(prob; opts=opts)
-
-        println(io, SolveView(prob, opts, core_res))
-
-        flush(io)
-
-    end
-    # =============================================
-    dom = FL2D_small.disc(b=[5, 5, 5, 5, 5], a=[3, 3, 3, 3, 4], L1=0.8, L2=0.8)
-
-    for i in 8:9
-
-        nₚᵣ, N = 128, AN[i]
-
-        prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-            dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
-
-        opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark)
-
-        core_res = solveFL(prob; opts=opts)
-
-        println(io, SolveView(prob, opts, core_res))
-
-        flush(io)
-
-    end
-
-    nₚᵣ, N = 256, 12
-
-    prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-        dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
-
-    opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark)
-
-    core_res = solveFL(prob; opts=opts)
-
-    println(io, SolveView(prob, opts, core_res))
-
-    flush(io)
-
-    # =============================================
-    dom = FL2D_small.disc(b=[6, 6, 6, 6, 6], a=[3, 3, 3, 3, 5], L1=0.8, L2=0.8)
-
-    for i in 8:9
-
-        nₚᵣ, N = 256, AN[i]
-
-        prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-            dₙₕ=2, (f!)=f!, uex=uex, dom=dom)
-
-        opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark)
-
-        core_res = solveFL(prob; opts=opts)
-
-        println(io, SolveView(prob, opts, core_res))
-
-        flush(io)
-
-    end
-
-    println(io, "==End of Disc==")
-
-end
-
-open("solve_outputs1e_4_direct.txt", "w") do io
-    # =============================================
-    s, p = 1e-4, 4
-
-    println(io, "Run started: ", Dates.now())
-    println(io, "s = ", s)
-    
-    δ, δclsbd = 0.1, 0.01
-
-    dom = FL2D_small.disc(b=[1, 1, 1, 1, 1], L1=0.8, L2=0.8)
-
-    Anₚᵣ = [64, 64, 64, 128, 128, 128, 128, 128, 128]
-
-    AN = [3, 4, 5, 6, 7, 8, 9, 10, 12]
-
-    f!, uex, fv = makediscfuex(5, s)
-
-    for i in 1:9
-
-        nₚᵣ, N = Anₚᵣ[i], AN[i]
-
-        prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-            dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
-
-        opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark)
-
-        core_res = solveFL(prob; opts=opts)
-
-        println(io, SolveView(prob, opts, core_res))
-
-        flush(io)
-
-    end
-
-    # =============================================
-    dom = FL2D_small.disc(b=[2, 2, 2, 2, 2], L1=0.8, L2=0.8)
-
-    for i in 8:9
-
-        nₚᵣ, N = 128, AN[i]
-
-        prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-            dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
-
-        opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark)
-
-        core_res = solveFL(prob; opts=opts)
-
-        println(io, SolveView(prob, opts, core_res))
-
-        flush(io)
-
-    end
-    # =============================================
-    dom = FL2D_small.disc(b=[3, 3, 3, 3, 3], L1=0.8, L2=0.8)
-
-    for i in 8:9
-
-        nₚᵣ, N = 128, AN[i]
-
-        prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-            dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
-
-        opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark)
-
-        core_res = solveFL(prob; opts=opts)
-
-        println(io, SolveView(prob, opts, core_res))
-
-        flush(io)
-
-    end
-    # =============================================
-    dom = FL2D_small.disc(b=[5, 5, 5, 5, 5], a=[3, 3, 3, 3, 4], L1=0.8, L2=0.8)
-
-    for i in 8:9
-
-        nₚᵣ, N = 128, AN[i]
-
-        prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-            dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
-
-        opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark)
-
-        core_res = solveFL(prob; opts=opts)
-
-        println(io, SolveView(prob, opts, core_res))
-
-        flush(io)
-
-    end
-
-    nₚᵣ, N = 256, 12
-
-    prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-        dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
-
-    opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark)
-
-    core_res = solveFL(prob; opts=opts)
-
-    println(io, SolveView(prob, opts, core_res))
-
-    flush(io)
-
-    # =============================================
-    dom = FL2D_small.disc(b=[6, 6, 6, 6, 6], a=[3, 3, 3, 3, 5], L1=0.8, L2=0.8)
-
-    for i in 8:9
-
-        nₚᵣ, N = 256, AN[i]
-
-        prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-            dₙₕ=2, (f!)=f!, uex=uex, dom=dom)
-
-        opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark)
-
-        core_res = solveFL(prob; opts=opts)
-
-        println(io, SolveView(prob, opts, core_res))
-
-        flush(io)
-
-    end
-
-    println(io, "==End of Disc==")
-
-end
-
-
-open("solve_outputs1e_7_direct.txt", "w") do io
-    # =============================================
-    s, p = 1e-7, 4
-
-    println(io, "Run started: ", Dates.now())
-    println(io, "s = ", s)
-    
-    δ, δclsbd = 0.1, 0.01
-
-    dom = FL2D_small.disc(b=[1, 1, 1, 1, 1], L1=0.8, L2=0.8)
-
-    Anₚᵣ = [64, 64, 64, 128, 128, 128, 128, 128, 128]
-
-    AN = [3, 4, 5, 6, 7, 8, 9, 10, 12]
-
-    f!, uex, fv = makediscfuex(5, s)
-
-    for i in 1:9
-
-        nₚᵣ, N = Anₚᵣ[i], AN[i]
-
-        prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-            dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
-
-        opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark)
-
-        core_res = solveFL(prob; opts=opts)
-
-        println(io, SolveView(prob, opts, core_res))
-
-        flush(io)
-
-    end
-
-    # =============================================
-    dom = FL2D_small.disc(b=[2, 2, 2, 2, 2], L1=0.8, L2=0.8)
-
-    for i in 8:9
-
-        nₚᵣ, N = 128, AN[i]
-
-        prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-            dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
-
-        opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark)
-
-        core_res = solveFL(prob; opts=opts)
-
-        println(io, SolveView(prob, opts, core_res))
-
-        flush(io)
-
-    end
-    # =============================================
-    dom = FL2D_small.disc(b=[3, 3, 3, 3, 3], L1=0.8, L2=0.8)
-
-    for i in 8:9
-
-        nₚᵣ, N = 128, AN[i]
-
-        prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-            dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
-
-        opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark)
-
-        core_res = solveFL(prob; opts=opts)
-
-        println(io, SolveView(prob, opts, core_res))
-
-        flush(io)
-
-    end
-    # =============================================
-    dom = FL2D_small.disc(b=[5, 5, 5, 5, 5], a=[3, 3, 3, 3, 4], L1=0.8, L2=0.8)
-
-    for i in 8:9
-
-        nₚᵣ, N = 128, AN[i]
-
-        prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-            dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
-
-        opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark)
-
-        core_res = solveFL(prob; opts=opts)
-
-        println(io, SolveView(prob, opts, core_res))
-
-        flush(io)
-
-    end
-
-    nₚᵣ, N = 256, 12
-
-    prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-        dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
-
-    opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark)
-
-    core_res = solveFL(prob; opts=opts)
-
-    println(io, SolveView(prob, opts, core_res))
-
-    flush(io)
-
-    # =============================================
-    dom = FL2D_small.disc(b=[6, 6, 6, 6, 6], a=[3, 3, 3, 3, 5], L1=0.8, L2=0.8)
-
-    for i in 8:9
-
-        nₚᵣ, N = 256, AN[i]
-
-        prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-            dₙₕ=2, (f!)=f!, uex=uex, dom=dom)
-
-        opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark)
-
-        core_res = solveFL(prob; opts=opts)
-
-        println(io, SolveView(prob, opts, core_res))
-
-        flush(io)
-
-    end
-
-    println(io, "==End of Disc==")
-
-end
-
-open("solve_outputs1e_14_direct.txt", "w") do io
-    # =============================================
-    s, p = 1e-14, 4
-
-    println(io, "Run started: ", Dates.now())
-    println(io, "s = ", s)
-    
-    δ, δclsbd = 0.1, 0.01
-
-    dom = FL2D_small.disc(b=[1, 1, 1, 1, 1], L1=0.8, L2=0.8)
-
-    Anₚᵣ = [64, 64, 64, 128, 128, 128, 128, 128, 128]
-
-    AN = [3, 4, 5, 6, 7, 8, 9, 10, 12]
-
-    f!, uex, fv = makediscfuex(5, s)
-
-    for i in 1:9
-
-        nₚᵣ, N = Anₚᵣ[i], AN[i]
-
-        prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-            dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
-
-        opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark)
-
-        core_res = solveFL(prob; opts=opts)
-
-        println(io, SolveView(prob, opts, core_res))
-
-        flush(io)
-
-    end
-
-    # =============================================
-    dom = FL2D_small.disc(b=[2, 2, 2, 2, 2], L1=0.8, L2=0.8)
-
-    for i in 8:9
-
-        nₚᵣ, N = 128, AN[i]
-
-        prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-            dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
-
-        opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark)
-
-        core_res = solveFL(prob; opts=opts)
-
-        println(io, SolveView(prob, opts, core_res))
-
-        flush(io)
-
-    end
-    # =============================================
-    dom = FL2D_small.disc(b=[3, 3, 3, 3, 3], L1=0.8, L2=0.8)
-
-    for i in 8:9
-
-        nₚᵣ, N = 128, AN[i]
-
-        prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-            dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
-
-        opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark)
-
-        core_res = solveFL(prob; opts=opts)
-
-        println(io, SolveView(prob, opts, core_res))
-
-        flush(io)
-
-    end
-    # =============================================
-    dom = FL2D_small.disc(b=[5, 5, 5, 5, 5], a=[3, 3, 3, 3, 4], L1=0.8, L2=0.8)
-
-    for i in 8:9
-
-        nₚᵣ, N = 128, AN[i]
-
-        prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-            dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
-
-        opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark)
-
-        core_res = solveFL(prob; opts=opts)
-
-        println(io, SolveView(prob, opts, core_res))
-
-        flush(io)
-
-    end
-
-    nₚᵣ, N = 256, 12
-
-    prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-        dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
-
-    opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark)
-
-    core_res = solveFL(prob; opts=opts)
-
-    println(io, SolveView(prob, opts, core_res))
-
-    flush(io)
-
-    # =============================================
-    dom = FL2D_small.disc(b=[6, 6, 6, 6, 6], a=[3, 3, 3, 3, 5], L1=0.8, L2=0.8)
-
-    for i in 8:9
-
-        nₚᵣ, N = 256, AN[i]
-
-        prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-            dₙₕ=2, (f!)=f!, uex=uex, dom=dom)
-
-        opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark)
-
-        core_res = solveFL(prob; opts=opts)
-
-        println(io, SolveView(prob, opts, core_res))
-
-        flush(io)
-
-    end
-
-    println(io, "==End of Disc==")
-
-end
-
-open("solve_outputs1e_16_direct.txt", "w") do io
-    # =============================================
-    s, p = 1e-16, 4
-
-    println(io, "Run started: ", Dates.now())
-    println(io, "s = ", s)
-    
-    δ, δclsbd = 0.1, 0.01
-
-    dom = FL2D_small.disc(b=[1, 1, 1, 1, 1], L1=0.8, L2=0.8)
-
-    Anₚᵣ = [64, 64, 64, 128, 128, 128, 128, 128, 128]
-
-    AN = [3, 4, 5, 6, 7, 8, 9, 10, 12]
-
-    f!, uex, fv = makediscfuex(5, s)
-
-    for i in 1:9
-
-        nₚᵣ, N = Anₚᵣ[i], AN[i]
-
-        prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-            dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
-
-        opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark)
-
-        core_res = solveFL(prob; opts=opts)
-
-        println(io, SolveView(prob, opts, core_res))
-
-        flush(io)
-
-    end
-
-    # =============================================
-    dom = FL2D_small.disc(b=[2, 2, 2, 2, 2], L1=0.8, L2=0.8)
-
-    for i in 1:9
-
-        nₚᵣ, N = 128, AN[i]
-
-        prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-            dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
-
-        opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark)
-
-        core_res = solveFL(prob; opts=opts)
-
-        println(io, SolveView(prob, opts, core_res))
-
-        flush(io)
-
-    end
-    # =============================================
-    dom = FL2D_small.disc(b=[3, 3, 3, 3, 3], L1=0.8, L2=0.8)
-
-    for i in 1:9
-
-        nₚᵣ, N = 128, AN[i]
-
-        prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-            dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
-
-        opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark)
-
-        core_res = solveFL(prob; opts=opts)
-
-        println(io, SolveView(prob, opts, core_res))
-
-        flush(io)
-
-    end
-    # =============================================
-    dom = FL2D_small.disc(b=[5, 5, 5, 5, 5], a=[3, 3, 3, 3, 4], L1=0.8, L2=0.8)
-
-    for i in 1:9
-
-        nₚᵣ, N = 128, AN[i]
-
-        prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-            dₙₕ=1, (f!)=f!, uex=uex, dom=dom)
-
-        opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark)
-
-        core_res = solveFL(prob; opts=opts)
-
-        println(io, SolveView(prob, opts, core_res))
-
-        flush(io)
-
-    end
-
-    # =============================================
-    dom = FL2D_small.disc(b=[6, 6, 6, 6, 6], a=[3, 3, 3, 3, 5], L1=0.8, L2=0.8)
-
-    for i in 1:9
-
-        nₚᵣ, N = 256, AN[i]
-
-        prob = Problem(; N=N, nₚᵣ=nₚᵣ, s=s, p=p, δ=δ, δclsbd=δclsbd,
-            dₙₕ=2, (f!)=f!, uex=uex, dom=dom)
-
-        opts = Options(; plot=false, solver=:direct, cond_num=docondnum, benchmark=dobenchmark)
-
-        core_res = solveFL(prob; opts=opts)
-
-        println(io, SolveView(prob, opts, core_res))
-
-        flush(io)
-
-    end
-
-    println(io, "==End of Disc==")
-
 end
 
 #flush(io) forces Julia to write any buffered output to the actual file immediately.
