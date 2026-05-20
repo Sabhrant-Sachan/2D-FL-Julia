@@ -1,5 +1,5 @@
-s = 1.0e-16
-p = 4
+s = 0.999
+p = 500
 ================ FractionalLaplacian2D ================
 
 ----------- Domain -----------
@@ -8,30 +8,29 @@ disc with properties:
   (L₁, L₂)  = (0.8,0.8)
   Radius of disc = 1.0
   No. of holes   = 0
-  kd     = Int[1 2 3 4]
-  Npat   = 5
-  pths   = Vector{Patch} (5 patches)
-  Qpts   = 8×5 Matrix
-  Qptsbd = 8×4 Matrix
+  kd     = Int[11 12 13 … 58 59 60]
+  Npat   = 80
+  pths   = Vector{Patch} (80 patches)
+  Qpts   = 8×80 Matrix
+  Qptsbd = 8×20 Matrix
 
 
 ----------- Parameters -----------
-N=12, nₚᵣ=128, s=1e-16, p=4, δ=0.1
+N=12, nₚᵣ=512, s=0.999, p=500, δ=0.1
 Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
 
 ----------- System -----------
-Target points (Vars.) : 768
-Precomputation points : 1336
-Near-singular  points : 568
-Cond. num 2-norm: 9.26e+05
+Target points (Vars.) : 11760
+Precomputation points : 43516
+Near-singular  points : 31756
 
 ----------- Solve -----------
 Solver : direct
 
 ----------- Error -----------
-Max Error   : 4.75e-06
-Max Rel err : 5.33e-06
-L^2 error   : 2.77e-05
-Root MSE err: 1.03e-06
+Max Error   : 9.54e-10
+Max Rel err : 9.58e-10
+L^2 error   : 1.10e-08
+Root MSE err: 1.03e-10
 =====================================================
 

@@ -193,7 +193,7 @@ function precompsH(d::abstractdomain, dp::domprop, s::Float64, p::Int
     dfy = Vector{Float64}(undef, nr)
 
     #This is nt is the finest one
-    nt = n
+    nt = 2 * n
     dfYc= Matrix{Float64}(undef, nt, nr)
 
     QuadT = makeThetaQuad(nt, nr, q, s, wz1, wz2)
@@ -334,8 +334,6 @@ function precompsH(d::abstractdomain, dp::domprop, s::Float64, p::Int
             diff_rmap!(DIF, Zx, Zy, DJ, d,
                 x1, x2, y1, y2, r₃, d1, d2, k)
 
-            dfunc!(dfY, d, k, y1tmp, s)
-
             c₁ = (Dhc[k] * (-x1m / 4.0))^(s - 1.0)
 
             @. J1 = c₁ * abs(DIF)^(-2 * s) * DJ * dfYc
@@ -417,8 +415,6 @@ function precompsH(d::abstractdomain, dp::domprop, s::Float64, p::Int
         @inbounds for k in d.kd
             diff_rmap!(DIF, Zx, Zy, DJ, d,
                 x1, x2, y1, y2, r₃, d1, d2, k)
-
-            dfunc!(dfY, d, k, y1tmp, s)
 
             c₁ = (Dhc[k] * (-x1m / 4.0))^(s - 1.0)
 
@@ -1659,7 +1655,7 @@ function precompsL(d::abstractdomain, dp::domprop, s::Float64, p::Int
     dfy = Vector{Float64}(undef, nr)
 
     #This is nt is the finest one
-    nt = n
+    nt = 2 * n
     dfYc= Matrix{Float64}(undef, nt, nr)
 
     QuadT = makeThetaQuad(nt, nr, q, s, wz1, wz2)
@@ -2488,7 +2484,6 @@ function precompsL(d::abstractdomain, dp::domprop, s::Float64, p::Int
 
     I₁ = Matrix{Float64}(undef, N, N)
     I₂ = Matrix{Float64}(undef, N, N)
-    qw = Vector{Float64}(undef, n)
 
     #-------------------------------------------
     # small helpers (no allocations)

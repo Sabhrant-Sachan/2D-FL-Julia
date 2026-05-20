@@ -1,6 +1,6 @@
-Run started: 2026-05-19T10:25:48.925
-s = 0.9999
-p = 5000
+Run started: 2026-05-20T07:02:20.118
+s = 0.99
+p = 50
 ================ FractionalLaplacian2D ================
 
 ----------- Domain -----------
@@ -17,7 +17,7 @@ disc with properties:
 
 
 ----------- Parameters -----------
-N=10, nₚᵣ=128, s=0.9999, p=5000, δ=0.1
+N=10, nₚᵣ=128, s=0.99, p=50, δ=0.1
 Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
 
 ----------- System -----------
@@ -29,10 +29,10 @@ Near-singular  points : 376
 Solver : direct
 
 ----------- Error -----------
-Max Error   : 1.58e-04
-Max Rel err : 2.14e-04
-L^2 error   : 1.84e-03
-Root MSE err: 8.23e-05
+Max Error   : 1.64e-04
+Max Rel err : 2.22e-04
+L^2 error   : 1.85e-03
+Root MSE err: 8.27e-05
 =====================================================
 
 ================ FractionalLaplacian2D ================
@@ -51,7 +51,7 @@ disc with properties:
 
 
 ----------- Parameters -----------
-N=12, nₚᵣ=128, s=0.9999, p=5000, δ=0.1
+N=12, nₚᵣ=128, s=0.99, p=50, δ=0.1
 Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
 
 ----------- System -----------
@@ -63,10 +63,10 @@ Near-singular  points : 568
 Solver : direct
 
 ----------- Error -----------
-Max Error   : 1.22e-05
-Max Rel err : 1.50e-05
-L^2 error   : 5.18e-05
-Root MSE err: 1.93e-06
+Max Error   : 1.23e-06
+Max Rel err : 1.51e-06
+L^2 error   : 3.95e-06
+Root MSE err: 1.47e-07
 =====================================================
 
 ================ FractionalLaplacian2D ================
@@ -85,7 +85,7 @@ disc with properties:
 
 
 ----------- Parameters -----------
-N=12, nₚᵣ=128, s=0.9999, p=5000, δ=0.1
+N=12, nₚᵣ=128, s=0.99, p=50, δ=0.1
 Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
 
 ----------- System -----------
@@ -97,10 +97,10 @@ Near-singular  points : 4436
 Solver : direct
 
 ----------- Error -----------
-Max Error   : 2.56e-06
-Max Rel err : 2.56e-06
-L^2 error   : 1.76e-05
-Root MSE err: 3.27e-07
+Max Error   : 2.87e-08
+Max Rel err : 2.87e-08
+L^2 error   : 6.65e-08
+Root MSE err: 1.24e-09
 =====================================================
 
 ================ FractionalLaplacian2D ================
@@ -119,7 +119,7 @@ disc with properties:
 
 
 ----------- Parameters -----------
-N=12, nₚᵣ=256, s=0.9999, p=5000, δ=0.1
+N=12, nₚᵣ=256, s=0.99, p=50, δ=0.1
 Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
 
 ----------- System -----------
@@ -131,10 +131,10 @@ Near-singular  points : 4436
 Solver : direct
 
 ----------- Error -----------
-Max Error   : 1.97e-07
-Max Rel err : 1.97e-07
-L^2 error   : 1.08e-06
-Root MSE err: 2.02e-08
+Max Error   : 6.02e-11
+Max Rel err : 6.02e-11
+L^2 error   : 8.42e-10
+Root MSE err: 1.57e-11
 =====================================================
 
 ================ FractionalLaplacian2D ================
@@ -153,7 +153,7 @@ disc with properties:
 
 
 ----------- Parameters -----------
-N=12, nₚᵣ=128, s=0.9999, p=5000, δ=0.1
+N=12, nₚᵣ=128, s=0.99, p=50, δ=0.1
 Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
 
 ----------- System -----------
@@ -165,10 +165,10 @@ Near-singular  points : 7628
 Solver : direct
 
 ----------- Error -----------
-Max Error   : 4.03e-06
-Max Rel err : 4.08e-06
-L^2 error   : 3.44e-05
-Root MSE err: 5.24e-07
+Max Error   : 1.39e-08
+Max Rel err : 1.41e-08
+L^2 error   : 6.43e-08
+Root MSE err: 9.78e-10
 =====================================================
 
 ================ FractionalLaplacian2D ================
@@ -187,7 +187,7 @@ disc with properties:
 
 
 ----------- Parameters -----------
-N=12, nₚᵣ=256, s=0.9999, p=5000, δ=0.1
+N=12, nₚᵣ=256, s=0.99, p=50, δ=0.1
 Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
 
 ----------- System -----------
@@ -199,10 +199,10 @@ Near-singular  points : 7628
 Solver : direct
 
 ----------- Error -----------
-Max Error   : 2.02e-07
-Max Rel err : 2.04e-07
-L^2 error   : 1.21e-06
-Root MSE err: 1.85e-08
+Max Error   : 3.01e-11
+Max Rel err : 3.04e-11
+L^2 error   : 8.96e-10
+Root MSE err: 1.36e-11
 =====================================================
 
 ================ FractionalLaplacian2D ================
@@ -221,7 +221,7 @@ disc with properties:
 
 
 ----------- Parameters -----------
-N=12, nₚᵣ=128, s=0.9999, p=5000, δ=0.1
+N=12, nₚᵣ=128, s=0.99, p=50, δ=0.1
 Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
 
 ----------- System -----------
@@ -233,10 +233,10 @@ Near-singular  points : 31756
 Solver : direct
 
 ----------- Error -----------
-Max Error   : 2.25e-06
-Max Rel err : 2.26e-06
-L^2 error   : 2.37e-05
-Root MSE err: 2.21e-07
+Max Error   : 1.54e-08
+Max Rel err : 1.54e-08
+L^2 error   : 6.79e-08
+Root MSE err: 6.33e-10
 =====================================================
 
 ================ FractionalLaplacian2D ================
@@ -255,7 +255,7 @@ disc with properties:
 
 
 ----------- Parameters -----------
-N=12, nₚᵣ=256, s=0.9999, p=5000, δ=0.1
+N=12, nₚᵣ=256, s=0.99, p=50, δ=0.1
 Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
 
 ----------- System -----------
@@ -267,10 +267,10 @@ Near-singular  points : 31756
 Solver : direct
 
 ----------- Error -----------
-Max Error   : 1.58e-07
-Max Rel err : 1.58e-07
-L^2 error   : 1.22e-06
-Root MSE err: 1.13e-08
+Max Error   : 5.36e-13
+Max Rel err : 5.38e-13
+L^2 error   : 9.68e-12
+Root MSE err: 9.01e-14
 =====================================================
 
 ================ FractionalLaplacian2D ================
@@ -289,7 +289,7 @@ disc with properties:
 
 
 ----------- Parameters -----------
-N=12, nₚᵣ=512, s=0.9999, p=5000, δ=0.1
+N=12, nₚᵣ=512, s=0.99, p=50, δ=0.1
 Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
 
 ----------- System -----------
@@ -301,44 +301,10 @@ Near-singular  points : 31756
 Solver : direct
 
 ----------- Error -----------
-Max Error   : 9.37e-09
-Max Rel err : 9.41e-09
-L^2 error   : 3.85e-07
-Root MSE err: 3.59e-09
-=====================================================
-
-================ FractionalLaplacian2D ================
-
------------ Domain -----------
-disc with properties:
-  (A , B )  = (0.0,0.0)
-  (L₁, L₂)  = (0.8,0.8)
-  Radius of disc = 1.0
-  No. of holes   = 0
-  kd     = Int[11 12 13 … 58 59 60]
-  Npat   = 80
-  pths   = Vector{Patch} (80 patches)
-  Qpts   = 8×80 Matrix
-  Qptsbd = 8×20 Matrix
-
-
------------ Parameters -----------
-N=12, nₚᵣ=1024, s=0.9999, p=5000, δ=0.1
-Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
-
------------ System -----------
-Target points (Vars.) : 11760
-Precomputation points : 43516
-Near-singular  points : 31756
-
------------ Solve -----------
-Solver : direct
-
------------ Error -----------
-Max Error   : 9.37e-09
-Max Rel err : 9.41e-09
-L^2 error   : 3.85e-07
-Root MSE err: 3.58e-09
+Max Error   : 5.39e-13
+Max Rel err : 5.41e-13
+L^2 error   : 9.84e-12
+Root MSE err: 9.17e-14
 =====================================================
 
 ================ FractionalLaplacian2D ================
@@ -357,7 +323,7 @@ disc with properties:
 
 
 ----------- Parameters -----------
-N=12, nₚᵣ=128, s=0.9999, p=5000, δ=0.1
+N=12, nₚᵣ=128, s=0.99, p=50, δ=0.1
 Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
 
 ----------- System -----------
@@ -369,10 +335,10 @@ Near-singular  points : 46340
 Solver : direct
 
 ----------- Error -----------
-Max Error   : 2.41e-06
-Max Rel err : 2.42e-06
-L^2 error   : 2.99e-05
-Root MSE err: 2.46e-07
+Max Error   : 1.41e-08
+Max Rel err : 1.42e-08
+L^2 error   : 6.90e-08
+Root MSE err: 5.69e-10
 =====================================================
 
 ================ FractionalLaplacian2D ================
@@ -391,7 +357,7 @@ disc with properties:
 
 
 ----------- Parameters -----------
-N=12, nₚᵣ=256, s=0.9999, p=5000, δ=0.1
+N=12, nₚᵣ=256, s=0.99, p=50, δ=0.1
 Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
 
 ----------- System -----------
@@ -403,10 +369,10 @@ Near-singular  points : 46340
 Solver : direct
 
 ----------- Error -----------
-Max Error   : 1.58e-07
-Max Rel err : 1.59e-07
-L^2 error   : 1.35e-06
-Root MSE err: 1.11e-08
+Max Error   : 5.19e-13
+Max Rel err : 5.21e-13
+L^2 error   : 2.20e-11
+Root MSE err: 1.81e-13
 =====================================================
 
 ================ FractionalLaplacian2D ================
@@ -425,7 +391,7 @@ disc with properties:
 
 
 ----------- Parameters -----------
-N=12, nₚᵣ=512, s=0.9999, p=5000, δ=0.1
+N=12, nₚᵣ=512, s=0.99, p=50, δ=0.1
 Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
 
 ----------- System -----------
@@ -437,46 +403,12 @@ Near-singular  points : 46340
 Solver : direct
 
 ----------- Error -----------
-Max Error   : 1.01e-08
-Max Rel err : 1.02e-08
-L^2 error   : 2.02e-07
-Root MSE err: 1.67e-09
-=====================================================
-
-================ FractionalLaplacian2D ================
-
------------ Domain -----------
-disc with properties:
-  (A , B )  = (0.0,0.0)
-  (L₁, L₂)  = (0.8,0.8)
-  Radius of disc = 1.0
-  No. of holes   = 0
-  kd     = Int[13 14 15 … 70 71 72]
-  Npat   = 102
-  pths   = Vector{Patch} (102 patches)
-  Qpts   = 8×102 Matrix
-  Qptsbd = 8×24 Matrix
-
-
------------ Parameters -----------
-N=12, nₚᵣ=1024, s=0.9999, p=5000, δ=0.1
-Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
-
------------ System -----------
-Target points (Vars.) : 14976
-Precomputation points : 61316
-Near-singular  points : 46340
-
------------ Solve -----------
-Solver : direct
-
------------ Error -----------
-Max Error   : 1.01e-08
-Max Rel err : 1.02e-08
-L^2 error   : 2.01e-07
-Root MSE err: 1.66e-09
+Max Error   : 5.13e-13
+Max Rel err : 5.15e-13
+L^2 error   : 2.27e-11
+Root MSE err: 1.87e-13
 =====================================================
 
 
 ==End of Disc==
-Run finished: 2026-05-19T21:10:37.976
+Run finished: 2026-05-20T09:23:26.819

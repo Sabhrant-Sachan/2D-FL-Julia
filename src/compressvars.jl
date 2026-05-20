@@ -8,7 +8,7 @@ functions Axb.jl (For a matrix free iterative solver) with preallocated scratch
 arrays to avoid allocations.
 """
 function compress_vars(d::abstractdomain, dp::domprop, s::Float64,
-    p::Int; matrix_form=true)
+    p::Int; matrix_form=true, pbd::Int=2)
     # ----------------- BASIC CONSTANTS -------------------
     # Number of points per patch
     N = dp.N
@@ -119,14 +119,14 @@ function compress_vars(d::abstractdomain, dp::domprop, s::Float64,
     dwz₁ = Vector{Float64}(undef, ns_near)
     dwz₂ = Vector{Float64}(undef, ns_near)
 
-    wfunc!(wmz₁, p, z_near1; α=-1.0)
-    wfunc!(wmz₂, p, z_near2; α=-1.0)
+    wfunc!(wmz₁, pbd, z_near1; α=-1.0)
+    wfunc!(wmz₂, pbd, z_near2; α=-1.0)
 
     @. yt1 = 1.0 - 2.0 * wmz₁
     @. yt2 = -1.0 + 2.0 * wmz₂
 
-    dwfunc!(dwz₁, p, z_near1)
-    dwfunc!(dwz₂, p, z_near2)
+    dwfunc!(dwz₁, pbd, z_near1)
+    dwfunc!(dwz₂, pbd, z_near2)
 
     # Kernel-weight buffers.
     kbd_bdy = Vector{Float64}(undef, nr_bdy)

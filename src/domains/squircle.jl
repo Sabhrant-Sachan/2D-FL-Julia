@@ -2674,20 +2674,11 @@ where
 
 and derivatives are with respect to `th`.
 
-Supports:
-- P == 2
-- P >= 4
-
-The case P == 3 is intentionally omitted because fourth derivatives become
-singular in the formulas used here.
+Supports P == 2, P == 4 and P > 4. 
 """
 function gamderhigher(d::squircle, th::Float64)
 
    P = d.P
-
-   # if !(P == 2.0 || P >= 4.0)
-   #    throw(ArgumentError("gamderhigher supports P == 2 or P >= 4; got P=$P"))
-   # end
 
    st, ct = sincos(th)
 
@@ -2702,6 +2693,31 @@ function gamderhigher(d::squircle, th::Float64)
       d2gg = 2.0 * (ct^2 - st^2) * Δ
       d3gg = -8.0 * st * ct * Δ
       d4gg = -8.0 * (ct^2 - st^2) * Δ
+
+   elseif P == 4.0
+
+      A1 = 1.0 / d.R1^P
+      B1 = 1.0 / d.R2^P
+
+      st2 = st * st
+      ct2 = ct * ct
+      st4 = st2 * st2
+      ct4 = ct2 * ct2
+
+      gg = A1 * ct4 + B1 * st4
+
+      dgg = -4.0 * st * ct * (A1 * ct2 - B1 * st2)
+
+      d2gg = -4.0 * (A1 * ct4 + B1 * st4 -
+         3.0 * (A1 + B1) * st2 * ct2)
+
+      d3gg = 8.0 * st * ct * (
+                A1 * (5.0 * ct2 - 3.0 * st2) +
+                B1 * (3.0 * ct2 - 5.0 * st2))
+
+      d4gg = 8.0 * (
+         A1 * (3.0 * st4 - 24.0 * st2 * ct2 + 5.0 * ct4) +
+         B1 * (5.0 * st4 - 24.0 * st2 * ct2 + 3.0 * ct4))
 
    else
 
@@ -2720,11 +2736,11 @@ function gamderhigher(d::squircle, th::Float64)
       d2gg = P * (P - 1) * (ct2 + st2) - P^2 * gg
 
       d3gg = -P * (P - 1) * (P - 2) * st * ct * (ct1 - st1) -
-              P^2 * dgg
+             P^2 * dgg
 
       d4gg = P * (P - 1) * (P - 2) * (P - 3) * (ct1 + st1) -
-              P * (P - 1) * (P - 2)^2 * (ct2 + st2) -
-              P^2 * d2gg
+             P * (P - 1) * (P - 2)^2 * (ct2 + st2) -
+             P^2 * d2gg
 
    end
 

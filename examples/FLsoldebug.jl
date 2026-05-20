@@ -2,11 +2,11 @@ using Revise, FL2D
 
 import FL2D.FLdata as FLdata
 
-d = FL2D.disc(b=[6, 6, 6, 6, 6], a=[3, 3, 3, 3, 5])
+d = FL2D.disc(b=[5, 5, 5, 5, 5], a=[3, 3, 3, 3, 4], L1=0.8, L2=0.8)
 
-dp = FL2D.domprop(12, 0.1, 0.15, 5e-3, d; Lᵢₙ=4)
+dp = FL2D.domprop(12, 0.1, 0.15, 5e-3, d; Lᵢₙ=5)
 
-s, p, n = 0.75, 4, 128
+s, p, n = 0.999, 500, 512
 
 # precomputations
 if s >= 0.5
@@ -16,7 +16,7 @@ else
 end
 
 #Matrix free approach is not for domains with holes in it
-IV = FL2D.compress_vars(d, dp, s, p; matrix_form=false);
+IV = FL2D.compress_vars(d, dp, s, p; matrix_form=true);
 
 (; N, Np, M, Mbd) = IV.IV1;
 
