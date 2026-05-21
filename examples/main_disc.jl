@@ -46,6 +46,23 @@ function run_one!(io, case; s::Float64, p::Int, nJac::Int=5)
     return nothing
 end
 
+open("test_temp.txt", "w") do io
+
+    s, p = 0.999, 500
+
+    println(io, "s = ", s)
+    println(io, "p = ", p)
+    flush(io)
+
+    case = (dom=FL2D.disc(b=[1, 1, 1, 1, 1], L1=0.8, L2=0.8),
+            N=12, nₚᵣ=128, δ=0.1, δ_near=0.15, δ_intp=5e-3, 
+            s_small = false, benchmark = false, cond_num = false)
+
+    run_one!(io, case; s=s, p=p, nJac=5)
+
+    flush(io)
+end
+
 open("test.txt", "w") do io
 
     s, p = 0.999, 500

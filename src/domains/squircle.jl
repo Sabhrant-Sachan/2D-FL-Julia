@@ -1358,11 +1358,9 @@ end
 """
    hderhigher(d::squircle, θ::Float64)
 
-Compute h, h', h'', h⁽³⁾, h⁽⁴⁾, h⁽⁵⁾ for the squircle radial function
+Compute h, h', h'', h⁽³⁾, h⁽⁴⁾, h⁽⁵⁾, h⁽⁶⁾ for the squircle radial function
 
    h(θ) = ( |cos(θ)|^P / R1^P + |sin(θ)|^P / R2^P )^(-1/P)
-
-Supports P == 2 or P == 4 or P>=5.
 """
 function hderhigher(d::squircle, θ::Float64)
 
@@ -1385,6 +1383,7 @@ function hderhigher(d::squircle, θ::Float64)
       g3 = -8.0 * st * ct * Δ
       g4 = -8.0 * (ct^2 - st^2) * Δ
       g5 = 32.0 * st * ct * Δ
+      g6 = 32.0 * (ct^2 - st^2) * Δ
 
    elseif P == 4.0
 
@@ -1421,6 +1420,11 @@ function hderhigher(d::squircle, θ::Float64)
          B * (15.0 * ct2 - 17.0 * st2)
       )
 
+      g6 = -32.0 * (
+         A * (128.0 * st4 - 130.0 * st2 + 17.0) +
+         B * (128.0 * st4 - 126.0 * st2 + 15.0)
+      )
+
    else
 
       ct0 = abs(ct)^(P - 6) / R1P
@@ -1432,6 +1436,9 @@ function hderhigher(d::squircle, θ::Float64)
       st1 = abs(st)^(P - 4) / R2P
       st2 = st * st * st1
       st3 = st * st * st2
+
+      ct_sq = ct * ct
+      st_sq = st * st
 
       g = ct3 + st3
 
@@ -1448,9 +1455,20 @@ function hderhigher(d::squircle, θ::Float64)
 
       g5 = P * (P - 1) * (P - 2) * (P - 3) * (P - 4) *
            st * ct * (st0 - ct0) -
-           P * (P - 1) * (P - 2)^2 * (P - 2) *
+           P * (P - 1) * (P - 2)^3 *
            st * ct * (st1 - ct1) -
            P^2 * g3
+
+      C1 = P * (P - 1) * (P - 2) * (P - 3) * (P - 4)
+      C2 = P * (P - 1) * (P - 2)^3
+
+      F0 = (ct_sq - st_sq) * (st0 - ct0) +
+           (P - 6) * (ct_sq * st0 + st_sq * ct0)
+
+      F1 = (ct_sq - st_sq) * (st1 - ct1) +
+           (P - 4) * (ct_sq * st1 + st_sq * ct1)
+
+      g6 = C1 * F0 - C2 * F1 - P^2 * g4
 
    end
 
@@ -1475,7 +1493,14 @@ function hderhigher(d::squircle, θ::Float64)
           (P + 4) * h1 * g4 +
           h * g5) / (P * g)
 
-   return h, h1, h2, h3, h4, h5
+   h6 = -((5P + 1) * h5 * g1 +
+          (10P + 5) * h4 * g2 +
+          (10P + 10) * h3 * g3 +
+          (5P + 10) * h2 * g4 +
+          (P + 5) * h1 * g5 +
+          h * g6) / (P * g)
+
+   return h, h1, h2, h3, h4, h5, h6
 
 end
 
@@ -1535,7 +1560,7 @@ function DLP!(out::StridedArray{Float64}, d::squircle, t::Float64,
    tht = muladd(ak, tm, bk)
 
    # h and derivatives at theta_t.
-   ht0, ht1, ht2, ht3, ht4, ht5 = hderhigher(d, tht)
+   ht0, ht1, ht2, ht3, ht4, ht5, ht6 = hderhigher(d, tht)
 
    # dtheta / dtau
    λ = αt * ak
@@ -1560,19 +1585,24 @@ function DLP!(out::StridedArray{Float64}, d::squircle, t::Float64,
 
       sΔ, cΔ = sincos(Δ)
 
-      if abs(Δ) < 1e-4
+      #This tolerance needs to be higher if P is large
+      if abs(Δ) < 1e-3
 
          Δ2 = Δ * Δ
          Δ3 = Δ2 * Δ
+         Δ4 = Δ2 * Δ2
 
-         q = ht1 + Δ * ht2 +
+         q = ht1 +
+             Δ * ht2 +
              Δ2 * ((2 / 3) * ht3 + ht1 / 6) +
-             Δ3 * (ht4 / 3 + ht2 / 6)
+             Δ3 * (ht4 / 3 + ht2 / 6) +
+             Δ4 * ((2 / 15) * ht5 + ht3 / 9 + (7 / 360) * ht1)
 
          q2 = -ht2 +
               Δ * (-(4 / 3) * ht3 + (2 / 3) * ht1) +
               Δ2 * (-ht4 + ht2) +
-              Δ3 * (-(8 / 15) * ht5 + (8 / 9) * ht3 - (7 / 45) * ht1)
+              Δ3 * (-(8 / 15) * ht5 + (8 / 9) * ht3 + (4 / 45) * ht1) +
+              Δ4 * (-(2 / 9) * ht6 + (5 / 9) * ht4 + ht2 / 9)
 
       else
 

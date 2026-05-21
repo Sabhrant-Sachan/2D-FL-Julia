@@ -28,9 +28,9 @@ Near-singular  points : 31756
 Solver : direct
 
 ----------- Error -----------
-Max Error   : 9.54e-10
-Max Rel err : 9.58e-10
-L^2 error   : 1.10e-08
-Root MSE err: 1.03e-10
+Max Error   : 2.49e-13
+Max Rel err : 2.50e-13
+L^2 error   : 1.10e-11
+Root MSE err: 1.03e-13
 =====================================================
 

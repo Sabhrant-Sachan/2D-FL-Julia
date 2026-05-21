@@ -1228,66 +1228,68 @@ end
 end
 
 function fill_FTable!(tbl::FTable, d::ellipse, r::Int)
-  vmin, vmax, N = tbl.vmin, tbl.vmax, tbl.N
-  h = (vmax - vmin) / (N - 1)
+   vmin, vmax, N = tbl.vmin, tbl.vmax, tbl.N
+   h = (vmax - vmin) / (N - 1)
 
-  P1, P2, P3 = tbl.P1, tbl.P2, tbl.P3
+   P1, P2, P3 = tbl.P1, tbl.P2, tbl.P3
 
-  if r == 1
-    @inbounds for i in 1:N
-      v̂ = vmin + (i - 1) * h
-      Xx = d.A + d.L2 * d.Cθ / 2 - d.L1 * d.Sθ * (2 * v̂ - 1) / 2
-      Xy = d.B + d.L2 * d.Sθ / 2 + d.L1 * d.Cθ * (2 * v̂ - 1) / 2
-      s, c = sincos(π * (v̂ / 2 - 1 / 4))
-      Yx = d.A + d.R1 * d.Cθ * c - d.R2 * d.Sθ * s
-      Yy = d.B + d.R1 * d.Sθ * c + d.R2 * d.Cθ * s
-      P1[i] = Yy - Xy
-      P2[i] = Yx - Xx
-      P3[i] = Xy * Yx - Xx * Yy
-    end
+   if r == 1
+      @inbounds for i in 1:N
+         v̂ = vmin + (i - 1) * h
+         Xx = d.A + d.L2 * d.Cθ / 2 - d.L1 * d.Sθ * (2 * v̂ - 1) / 2
+         Xy = d.B + d.L2 * d.Sθ / 2 + d.L1 * d.Cθ * (2 * v̂ - 1) / 2
+         s, c = sincos(π * (v̂ / 2 - 1 / 4))
+         Yx = d.A + d.R1 * d.Cθ * c - d.R2 * d.Sθ * s
+         Yy = d.B + d.R1 * d.Sθ * c + d.R2 * d.Cθ * s
+         P1[i] = Yy - Xy
+         P2[i] = Yx - Xx
+         P3[i] = Xy * Yx - Xx * Yy
+      end
 
-  elseif r == 2
-    @inbounds for i in 1:N
-      v̂ = vmin + (i - 1) * h
-      Xx = d.A + d.L2 * d.Cθ * (1 - 2 * v̂) / 2 - d.L1 * d.Sθ / 2
-      Xy = d.B + d.L2 * d.Sθ * (1 - 2 * v̂) / 2 + d.L1 * d.Cθ / 2
-      s, c = sincos(π * (v̂ / 2 + 1 / 4))
-      Yx = d.A + d.R1 * d.Cθ * c - d.R2 * d.Sθ * s
-      Yy = d.B + d.R1 * d.Sθ * c + d.R2 * d.Cθ * s
-      P1[i] = Yy - Xy
-      P2[i] = Yx - Xx
-      P3[i] = Xy * Yx - Xx * Yy
-    end
+   elseif r == 2
+      @inbounds for i in 1:N
+         v̂ = vmin + (i - 1) * h
+         Xx = d.A + d.L2 * d.Cθ * (1 - 2 * v̂) / 2 - d.L1 * d.Sθ / 2
+         Xy = d.B + d.L2 * d.Sθ * (1 - 2 * v̂) / 2 + d.L1 * d.Cθ / 2
+         s, c = sincos(π * (v̂ / 2 + 1 / 4))
+         Yx = d.A + d.R1 * d.Cθ * c - d.R2 * d.Sθ * s
+         Yy = d.B + d.R1 * d.Sθ * c + d.R2 * d.Cθ * s
+         P1[i] = Yy - Xy
+         P2[i] = Yx - Xx
+         P3[i] = Xy * Yx - Xx * Yy
+      end
 
-  elseif r == 3
-    @inbounds for i in 1:N
-      v̂ = vmin + (i - 1) * h
-      Xx = d.A - d.L2 * d.Cθ / 2 + d.L1 * d.Sθ * (2 * v̂ - 1) / 2
-      Xy = d.B - d.L2 * d.Sθ / 2 - d.L1 * d.Cθ * (2 * v̂ - 1) / 2
-      s, c = sincos(π * (v̂ / 2 + 3 / 4))
-      Yx = d.A + d.R1 * d.Cθ * c - d.R2 * d.Sθ * s
-      Yy = d.B + d.R1 * d.Sθ * c + d.R2 * d.Cθ * s
-      P1[i] = Yy - Xy
-      P2[i] = Yx - Xx
-      P3[i] = Xy * Yx - Xx * Yy
-    end
+   elseif r == 3
+      @inbounds for i in 1:N
+         v̂ = vmin + (i - 1) * h
+         Xx = d.A - d.L2 * d.Cθ / 2 + d.L1 * d.Sθ * (2 * v̂ - 1) / 2
+         Xy = d.B - d.L2 * d.Sθ / 2 - d.L1 * d.Cθ * (2 * v̂ - 1) / 2
+         s, c = sincos(π * (v̂ / 2 + 3 / 4))
+         Yx = d.A + d.R1 * d.Cθ * c - d.R2 * d.Sθ * s
+         Yy = d.B + d.R1 * d.Sθ * c + d.R2 * d.Cθ * s
+         P1[i] = Yy - Xy
+         P2[i] = Yx - Xx
+         P3[i] = Xy * Yx - Xx * Yy
+      end
 
-  else  # r == 4
-    @inbounds for i in 1:N
-      v̂ = vmin + (i - 1) * h
-      Xx = d.A - d.L2 * d.Cθ * (1 - 2 * v̂) / 2 + d.L1 * d.Sθ / 2
-      Xy = d.B - d.L2 * d.Sθ * (1 - 2 * v̂) / 2 - d.L1 * d.Cθ / 2
-      s, c = sincos(π * (v̂ / 2 + 5 / 4))
-      Yx = d.A + d.R1 * d.Cθ * c - d.R2 * d.Sθ * s
-      Yy = d.B + d.R1 * d.Sθ * c + d.R2 * d.Cθ * s
-      P1[i] = Yy - Xy
-      P2[i] = Yx - Xx
-      P3[i] = Xy * Yx - Xx * Yy
-    end
-  end
+   elseif r == 4
+      @inbounds for i in 1:N
+         v̂ = vmin + (i - 1) * h
+         Xx = d.A - d.L2 * d.Cθ * (1 - 2 * v̂) / 2 + d.L1 * d.Sθ / 2
+         Xy = d.B - d.L2 * d.Sθ * (1 - 2 * v̂) / 2 - d.L1 * d.Cθ / 2
+         s, c = sincos(π * (v̂ / 2 + 5 / 4))
+         Yx = d.A + d.R1 * d.Cθ * c - d.R2 * d.Sθ * s
+         Yy = d.B + d.R1 * d.Sθ * c + d.R2 * d.Cθ * s
+         P1[i] = Yy - Xy
+         P2[i] = Yx - Xx
+         P3[i] = Xy * Yx - Xx * Yy
+      end
+   else
+      error("fill_FTable! expects region 1–4; got r=$r")
+   end
 
-  tbl.reg = r
-  return tbl
+   tbl.reg = r
+   return tbl
 end
 
 @inline function f1I(t::Float64, s::Float64,

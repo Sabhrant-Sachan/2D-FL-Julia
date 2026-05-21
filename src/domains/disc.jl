@@ -1055,66 +1055,70 @@ end
 end
 
 function fill_FTable!(tbl::FTable, d::disc, r::Int)
-  vmin, vmax, N = tbl.vmin, tbl.vmax, tbl.N
-  h = (vmax - vmin) / (N - 1)
+   vmin, vmax, N = tbl.vmin, tbl.vmax, tbl.N
+   h = (vmax - vmin) / (N - 1)
 
-  P1, P2, P3 = tbl.P1, tbl.P2, tbl.P3
+   P1, P2, P3 = tbl.P1, tbl.P2, tbl.P3
 
-  if r == 1
-    Xx_const = d.A + d.L2 / 2
-    @inbounds for i in 1:N
-      v̂ = vmin + (i - 1) * h
-      Xy = d.B + d.L1 * (2 * v̂ - 1) / 2
-      s, c = sincos(π * (v̂ / 2 - 1 / 4))
-      Yx = d.A + d.R * c
-      Yy = d.B + d.R * s
-      P1[i] = Yy - Xy
-      P2[i] = Yx - Xx_const
-      P3[i] = Xy * Yx - Xx_const * Yy
-    end
+   if r == 1
+      Xx_const = d.A + d.L2 / 2
+      @inbounds for i in 1:N
+         v̂ = vmin + (i - 1) * h
+         Xy = d.B + d.L1 * (2 * v̂ - 1) / 2
+         s, c = sincos(π * (v̂ / 2 - 1 / 4))
+         Yx = d.A + d.R * c
+         Yy = d.B + d.R * s
+         P1[i] = Yy - Xy
+         P2[i] = Yx - Xx_const
+         P3[i] = Xy * Yx - Xx_const * Yy
+      end
 
-  elseif r == 2
-    Xy_const = d.B + d.L1 / 2
-    @inbounds for i in 1:N
-      v̂ = vmin + (i - 1) * h
-      Xx = d.A + d.L2 * (1 - 2 * v̂) / 2
-      s, c = sincos(π * (v̂ / 2 + 1 / 4))
-      Yx = d.A + d.R * c
-      Yy = d.B + d.R * s
-      P1[i] = Yy - Xy_const
-      P2[i] = Yx - Xx
-      P3[i] = Xy_const * Yx - Xx * Yy
-    end
+   elseif r == 2
+      Xy_const = d.B + d.L1 / 2
+      @inbounds for i in 1:N
+         v̂ = vmin + (i - 1) * h
+         Xx = d.A + d.L2 * (1 - 2 * v̂) / 2
+         s, c = sincos(π * (v̂ / 2 + 1 / 4))
+         Yx = d.A + d.R * c
+         Yy = d.B + d.R * s
+         P1[i] = Yy - Xy_const
+         P2[i] = Yx - Xx
+         P3[i] = Xy_const * Yx - Xx * Yy
+      end
 
-  elseif r == 3
-    Xx_const = d.A - d.L2 / 2
-    @inbounds for i in 1:N
-      v̂ = vmin + (i - 1) * h
-      Xy = d.B - d.L1 * (2 * v̂ - 1) / 2
-      s, c = sincos(π * (v̂ / 2 + 3 / 4))
-      Yx = d.A + d.R * c
-      Yy = d.B + d.R * s
-      P1[i] = Yy - Xy
-      P2[i] = Yx - Xx_const
-      P3[i] = Xy * Yx - Xx_const * Yy
-    end
+   elseif r == 3
+      Xx_const = d.A - d.L2 / 2
+      @inbounds for i in 1:N
+         v̂ = vmin + (i - 1) * h
+         Xy = d.B - d.L1 * (2 * v̂ - 1) / 2
+         s, c = sincos(π * (v̂ / 2 + 3 / 4))
+         Yx = d.A + d.R * c
+         Yy = d.B + d.R * s
+         P1[i] = Yy - Xy
+         P2[i] = Yx - Xx_const
+         P3[i] = Xy * Yx - Xx_const * Yy
+      end
 
-  else  # r == 4
-    Xy_const = d.B - d.L1 / 2
-    @inbounds for i in 1:N
-      v̂ = vmin + (i - 1) * h
-      Xx = d.A - d.L2 * (1 - 2 * v̂) / 2
-      s, c = sincos(π * (v̂ / 2 + 5 / 4))
-      Yx = d.A + d.R * c
-      Yy = d.B + d.R * s
-      P1[i] = Yy - Xy_const
-      P2[i] = Yx - Xx
-      P3[i] = Xy_const * Yx - Xx * Yy
-    end
-  end
+   elseif r == 4
+      Xy_const = d.B - d.L1 / 2
+      @inbounds for i in 1:N
+         v̂ = vmin + (i - 1) * h
+         Xx = d.A - d.L2 * (1 - 2 * v̂) / 2
+         s, c = sincos(π * (v̂ / 2 + 5 / 4))
+         Yx = d.A + d.R * c
+         Yy = d.B + d.R * s
+         P1[i] = Yy - Xy_const
+         P2[i] = Yx - Xx
+         P3[i] = Xy_const * Yx - Xx * Yy
+      end
 
-  tbl.reg = r
-  return tbl
+   else
+      error("fill_FTable! expects region 1–4; got r=$r")
+
+   end
+
+   tbl.reg = r
+   return tbl
 end
 
 @inline function f1I(t::Float64, s::Float64,

@@ -3195,156 +3195,158 @@ end
 end
 
 function fill_FTable!(tbl::FTable, d::kite, r::Int)
-  vmin, vmax, N = tbl.vmin, tbl.vmax, tbl.N
-  h = (vmax - vmin) / (N - 1)
+   vmin, vmax, N = tbl.vmin, tbl.vmax, tbl.N
+   h = (vmax - vmin) / (N - 1)
 
-  P1, P2, P3 = tbl.P1, tbl.P2, tbl.P3
+   P1, P2, P3 = tbl.P1, tbl.P2, tbl.P3
 
-  ex = d.RP.e₁x
-  nme = d.RP.nme
-  qx = d.RP.q₁x
-  αx = d.RP.α₁x
-  ey  = d.RP.e₁y
-  qy  = d.RP.q₁y          
-  α1y = d.RP.α₁y
-  α2y = d.RP.α₂y
+   ex = d.RP.e₁x
+   nme = d.RP.nme
+   qx = d.RP.q₁x
+   αx = d.RP.α₁x
+   ey = d.RP.e₁y
+   qy = d.RP.q₁y
+   α1y = d.RP.α₁y
+   α2y = d.RP.α₂y
 
-  if r == 1
-    @inbounds for i in 1:N
-      v̂ = vmin + (i - 1) * h
-      Xx = d.A + αx + (2 * v̂ - 1) * d.L1 * ex / (2 * nme) + d.L2 * qx / nme
-      Xy = d.B + α1y + (2 * v̂ - 1) * d.L1 * (-ey) / (2 * nme) + d.L2 * (-qy) / nme
-      th = v̂ * (d.tht4 - d.tht3) - d.tht4
-      s, c = sincos(th)
-      Yx = d.A + d.R1 * c - d.P * s * s
-      Yy = d.B + d.R2 * s
-      P1[i] = Yy - Xy
-      P2[i] = Yx - Xx
-      P3[i] = Xy * Yx - Xx * Yy
-    end
-  elseif r == 2
-    @inbounds for i in 1:N
-      v̂ = vmin + (i - 1) * h
-      Xx = d.A + αx + d.L1 * ex / (2 * nme) + (1 - v̂) * d.L2 * qx / nme
-      Xy = d.B + α1y + d.L1 * (-ey) / (2 * nme) + (1 - v̂) * d.L2 * (-qy) / nme
-      th = v̂ * (d.tht3 - d.tht1) - d.tht3
-      s, c = sincos(th)
-      Yx = d.A + d.R1 * c - d.P * s * s
-      Yy = d.B + d.R2 * s
-      P1[i] = Yy - Xy
-      P2[i] = Yx - Xx
-      P3[i] = Xy * Yx - Xx * Yy
-    end
+   if r == 1
+      @inbounds for i in 1:N
+         v̂ = vmin + (i - 1) * h
+         Xx = d.A + αx + (2 * v̂ - 1) * d.L1 * ex / (2 * nme) + d.L2 * qx / nme
+         Xy = d.B + α1y + (2 * v̂ - 1) * d.L1 * (-ey) / (2 * nme) + d.L2 * (-qy) / nme
+         th = v̂ * (d.tht4 - d.tht3) - d.tht4
+         s, c = sincos(th)
+         Yx = d.A + d.R1 * c - d.P * s * s
+         Yy = d.B + d.R2 * s
+         P1[i] = Yy - Xy
+         P2[i] = Yx - Xx
+         P3[i] = Xy * Yx - Xx * Yy
+      end
+   elseif r == 2
+      @inbounds for i in 1:N
+         v̂ = vmin + (i - 1) * h
+         Xx = d.A + αx + d.L1 * ex / (2 * nme) + (1 - v̂) * d.L2 * qx / nme
+         Xy = d.B + α1y + d.L1 * (-ey) / (2 * nme) + (1 - v̂) * d.L2 * (-qy) / nme
+         th = v̂ * (d.tht3 - d.tht1) - d.tht3
+         s, c = sincos(th)
+         Yx = d.A + d.R1 * c - d.P * s * s
+         Yy = d.B + d.R2 * s
+         P1[i] = Yy - Xy
+         P2[i] = Yx - Xx
+         P3[i] = Xy * Yx - Xx * Yy
+      end
 
-  elseif r == 3
-    @inbounds for i in 1:N
-      v̂ = vmin + (i - 1) * h
-      Xx = d.A + (1 - v̂) * αx
-      Xy = d.B + (1 - v̂) * α1y
-      th = v̂ * d.tht1 - d.tht1
-      s, c = sincos(th)
-      Yx = d.A + d.R1 * c - d.P * s * s
-      Yy = d.B + d.R2 * s
-      P1[i] = Yy - Xy
-      P2[i] = Yx - Xx
-      P3[i] = Xy * Yx - Xx * Yy
-    end
+   elseif r == 3
+      @inbounds for i in 1:N
+         v̂ = vmin + (i - 1) * h
+         Xx = d.A + (1 - v̂) * αx
+         Xy = d.B + (1 - v̂) * α1y
+         th = v̂ * d.tht1 - d.tht1
+         s, c = sincos(th)
+         Yx = d.A + d.R1 * c - d.P * s * s
+         Yy = d.B + d.R2 * s
+         P1[i] = Yy - Xy
+         P2[i] = Yx - Xx
+         P3[i] = Xy * Yx - Xx * Yy
+      end
 
-  elseif r == 4
-    @inbounds for i in 1:N
-      v̂ = vmin + (i - 1) * h
-      Xx = d.A + v̂ * αx
-      Xy = d.B + v̂ * α2y
-      th = v̂ * d.tht1
-      s, c = sincos(th)
-      Yx = d.A + d.R1 * c - d.P * s * s
-      Yy = d.B + d.R2 * s
-      P1[i] = Yy - Xy
-      P2[i] = Yx - Xx
-      P3[i] = Xy * Yx - Xx * Yy
-    end
-  elseif r == 5
-    @inbounds for i in 1:N
-      v̂ = vmin + (i - 1) * h
-      Xx = d.A + αx + d.L1 * ex / (2 * nme) + v̂ * d.L2 * qx / nme
-      Xy = d.B + α2y + d.L1 * ey / (2 * nme) + v̂ * d.L2 * qy / nme
-      th = v̂ * (d.tht3 - d.tht1) + d.tht1
-      s, c = sincos(th)
-      Yx = d.A + d.R1 * c - d.P * s * s
-      Yy = d.B + d.R2 * s
-      P1[i] = Yy - Xy
-      P2[i] = Yx - Xx
-      P3[i] = Xy * Yx - Xx * Yy
-    end
-  elseif r == 6
-    @inbounds for i in 1:N
-      v̂ = vmin + (i - 1) * h
-      Xx = d.A + αx - (2 * v̂ - 1) * d.L1 * ex / (2 * nme) + d.L2 * qx / nme
-      Xy = d.B + α2y - (2 * v̂ - 1) * d.L1 * ey / (2 * nme) + d.L2 * qy / nme
-      th = v̂ * (d.tht4 - d.tht3) + d.tht3
-      s, c = sincos(th)
-      Yx = d.A + d.R1 * c - d.P * s * s
-      Yy = d.B + d.R2 * s
-      P1[i] = Yy - Xy
-      P2[i] = Yx - Xx
-      P3[i] = Xy * Yx - Xx * Yy
-    end
-  elseif r == 7
-    @inbounds for i in 1:N
-      v̂ = vmin + (i - 1) * h
-      Xx = d.A + αx - d.L1 * ex / (2 * nme) + (1 - v̂) * d.L2 * qx / nme
-      Xy = d.B + α2y - d.L1 * ey / (2 * nme) + (1 - v̂) * d.L2 * qy / nme
-      th = v̂ * (π - d.tht2 - d.tht4) + d.tht4
-      s, c = sincos(th)
-      Yx = d.A + d.R1 * c - d.P * s * s
-      Yy = d.B + d.R2 * s
-      P1[i] = Yy - Xy
-      P2[i] = Yx - Xx
-      P3[i] = Xy * Yx - Xx * Yy
-    end
-  elseif r == 8
-    @inbounds for i in 1:N
-      v̂ = vmin + (i - 1) * h
-      Xx = d.A + (1 - v̂) * αx
-      Xy = d.B + (1 - v̂) * α2y
-      th = v̂ * d.tht2 + π - d.tht2
-      s, c = sincos(th)
-      Yx = d.A + d.R1 * c - d.P * s * s
-      Yy = d.B + d.R2 * s
-      P1[i] = Yy - Xy
-      P2[i] = Yx - Xx
-      P3[i] = Xy * Yx - Xx * Yy
-    end
-  elseif r == 9
-    @inbounds for i in 1:N
-      v̂ = vmin + (i - 1) * h
-      Xx = d.A + v̂ * αx
-      Xy = d.B + v̂ * α1y
-      th = v̂ * d.tht2 + π
-      s, c = sincos(th)
-      Yx = d.A + d.R1 * c - d.P * s * s
-      Yy = d.B + d.R2 * s
-      P1[i] = Yy - Xy
-      P2[i] = Yx - Xx
-      P3[i] = Xy * Yx - Xx * Yy
-    end
-  elseif r == 10
-    @inbounds for i in 1:N
-      v̂ = vmin + (i - 1) * h
-      Xx = d.A + αx - d.L1 * ex / (2 * nme) + d.L2 * v̂ * qx / nme
-      Xy = d.B + α1y - d.L1 * (-ey) / (2 * nme) + d.L2 * v̂ * (-qy) / nme
-      th = v̂ * (π - d.tht2 - d.tht4) + π + d.tht2
-      s, c = sincos(th)
-      Yx = d.A + d.R1 * c - d.P * s * s
-      Yy = d.B + d.R2 * s
-      P1[i] = Yy - Xy
-      P2[i] = Yx - Xx
-      P3[i] = Xy * Yx - Xx * Yy
-    end
-  end
+   elseif r == 4
+      @inbounds for i in 1:N
+         v̂ = vmin + (i - 1) * h
+         Xx = d.A + v̂ * αx
+         Xy = d.B + v̂ * α2y
+         th = v̂ * d.tht1
+         s, c = sincos(th)
+         Yx = d.A + d.R1 * c - d.P * s * s
+         Yy = d.B + d.R2 * s
+         P1[i] = Yy - Xy
+         P2[i] = Yx - Xx
+         P3[i] = Xy * Yx - Xx * Yy
+      end
+   elseif r == 5
+      @inbounds for i in 1:N
+         v̂ = vmin + (i - 1) * h
+         Xx = d.A + αx + d.L1 * ex / (2 * nme) + v̂ * d.L2 * qx / nme
+         Xy = d.B + α2y + d.L1 * ey / (2 * nme) + v̂ * d.L2 * qy / nme
+         th = v̂ * (d.tht3 - d.tht1) + d.tht1
+         s, c = sincos(th)
+         Yx = d.A + d.R1 * c - d.P * s * s
+         Yy = d.B + d.R2 * s
+         P1[i] = Yy - Xy
+         P2[i] = Yx - Xx
+         P3[i] = Xy * Yx - Xx * Yy
+      end
+   elseif r == 6
+      @inbounds for i in 1:N
+         v̂ = vmin + (i - 1) * h
+         Xx = d.A + αx - (2 * v̂ - 1) * d.L1 * ex / (2 * nme) + d.L2 * qx / nme
+         Xy = d.B + α2y - (2 * v̂ - 1) * d.L1 * ey / (2 * nme) + d.L2 * qy / nme
+         th = v̂ * (d.tht4 - d.tht3) + d.tht3
+         s, c = sincos(th)
+         Yx = d.A + d.R1 * c - d.P * s * s
+         Yy = d.B + d.R2 * s
+         P1[i] = Yy - Xy
+         P2[i] = Yx - Xx
+         P3[i] = Xy * Yx - Xx * Yy
+      end
+   elseif r == 7
+      @inbounds for i in 1:N
+         v̂ = vmin + (i - 1) * h
+         Xx = d.A + αx - d.L1 * ex / (2 * nme) + (1 - v̂) * d.L2 * qx / nme
+         Xy = d.B + α2y - d.L1 * ey / (2 * nme) + (1 - v̂) * d.L2 * qy / nme
+         th = v̂ * (π - d.tht2 - d.tht4) + d.tht4
+         s, c = sincos(th)
+         Yx = d.A + d.R1 * c - d.P * s * s
+         Yy = d.B + d.R2 * s
+         P1[i] = Yy - Xy
+         P2[i] = Yx - Xx
+         P3[i] = Xy * Yx - Xx * Yy
+      end
+   elseif r == 8
+      @inbounds for i in 1:N
+         v̂ = vmin + (i - 1) * h
+         Xx = d.A + (1 - v̂) * αx
+         Xy = d.B + (1 - v̂) * α2y
+         th = v̂ * d.tht2 + π - d.tht2
+         s, c = sincos(th)
+         Yx = d.A + d.R1 * c - d.P * s * s
+         Yy = d.B + d.R2 * s
+         P1[i] = Yy - Xy
+         P2[i] = Yx - Xx
+         P3[i] = Xy * Yx - Xx * Yy
+      end
+   elseif r == 9
+      @inbounds for i in 1:N
+         v̂ = vmin + (i - 1) * h
+         Xx = d.A + v̂ * αx
+         Xy = d.B + v̂ * α1y
+         th = v̂ * d.tht2 + π
+         s, c = sincos(th)
+         Yx = d.A + d.R1 * c - d.P * s * s
+         Yy = d.B + d.R2 * s
+         P1[i] = Yy - Xy
+         P2[i] = Yx - Xx
+         P3[i] = Xy * Yx - Xx * Yy
+      end
+   elseif r == 10
+      @inbounds for i in 1:N
+         v̂ = vmin + (i - 1) * h
+         Xx = d.A + αx - d.L1 * ex / (2 * nme) + d.L2 * v̂ * qx / nme
+         Xy = d.B + α1y - d.L1 * (-ey) / (2 * nme) + d.L2 * v̂ * (-qy) / nme
+         th = v̂ * (π - d.tht2 - d.tht4) + π + d.tht2
+         s, c = sincos(th)
+         Yx = d.A + d.R1 * c - d.P * s * s
+         Yy = d.B + d.R2 * s
+         P1[i] = Yy - Xy
+         P2[i] = Yx - Xx
+         P3[i] = Xy * Yx - Xx * Yy
+      end
+   else
+      error("fill_FTable! expects region 1–10; got r=$r")
+   end
 
-  tbl.reg = r
-  return tbl
+   tbl.reg = r
+   return tbl
 end
 
 @inline function f1I(t::Float64, s::Float64,

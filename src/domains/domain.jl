@@ -45,6 +45,14 @@ include(joinpath(@__DIR__, "ellipse.jl"));
 include(joinpath(@__DIR__, "kite.jl")); 
 include(joinpath(@__DIR__, "annulus.jl")); 
 include(joinpath(@__DIR__, "squircle.jl")); 
+include(joinpath(@__DIR__, "peanut.jl")); 
+
+ftable_regions(::disc) = 1:4
+ftable_regions(::squircle) = 1:4
+ftable_regions(::ellipse) = 1:4
+ftable_regions(::kite) = 1:10
+ftable_regions(::peanut) = 1:10
+ftable_regions(::annulus) = 1:8
 
 """
     find_roots!(roots, tbl, d, p, u, v;

@@ -4551,255 +4551,255 @@ function Yy(s::Float64, d::annulus, r::Int)
 end
 
 function fill_FTable!(tbl::FTable, d::annulus, r::Int)
-  vmin, vmax, N = tbl.vmin, tbl.vmax, tbl.N
-  h = (vmax - vmin) / (N - 1)
+   vmin, vmax, N = tbl.vmin, tbl.vmax, tbl.N
+   h = (vmax - vmin) / (N - 1)
 
-  P1, P2, P3 = tbl.P1, tbl.P2, tbl.P3
+   P1, P2, P3 = tbl.P1, tbl.P2, tbl.P3
 
-  @inbounds begin
+   @inbounds begin
 
-    c₁ = d.RP.Cθ₁
-    s₁ = d.RP.Sθ₁
-    c₂ = d.RP.Cθ₂
-    s₂ = d.RP.Sθ₂
+      c₁ = d.RP.Cθ₁
+      s₁ = d.RP.Sθ₁
+      c₂ = d.RP.Cθ₂
+      s₂ = d.RP.Sθ₂
 
-    if r == 1
-      th₀1, Δth1 = d.T1[1], d.T1[2] - d.T1[1]
-      th₀5, Δth5 = d.T2[1], d.T2[2] - d.T2[1]
+      if r == 1
+         th₀1, Δth1 = d.T1[1], d.T1[2] - d.T1[1]
+         th₀5, Δth5 = d.T2[1], d.T2[2] - d.T2[1]
 
-      @inbounds for i in 1:N
-        v̂ = vmin + (i - 1) * h
-        th1 = muladd(Δth1, v̂, th₀1)
-        th5 = muladd(Δth5, v̂, th₀5)
+         @inbounds for i in 1:N
+            v̂ = vmin + (i - 1) * h
+            th1 = muladd(Δth1, v̂, th₀1)
+            th5 = muladd(Δth5, v̂, th₀5)
 
-        st1, ct1 = sincos(th1)
-        st5, ct5 = sincos(th5)
+            st1, ct1 = sincos(th1)
+            st5, ct5 = sincos(th5)
 
-        y1x = d.A + d.R11 * ct1 * c₁ - d.R12 * st1 * s₁
-        y1y = d.B + d.R11 * ct1 * s₁ + d.R12 * st1 * c₁
-        y5x = d.A + d.R21 * ct5 * c₂ - d.R22 * st5 * s₂
-        y5y = d.B + d.R21 * ct5 * s₂ + d.R22 * st5 * c₂
+            y1x = d.A + d.R11 * ct1 * c₁ - d.R12 * st1 * s₁
+            y1y = d.B + d.R11 * ct1 * s₁ + d.R12 * st1 * c₁
+            y5x = d.A + d.R21 * ct5 * c₂ - d.R22 * st5 * s₂
+            y5y = d.B + d.R21 * ct5 * s₂ + d.R22 * st5 * c₂
 
-        Xx = (y1x + y5x) / 2
-        Xy = (y1y + y5y) / 2
+            Xx = (y1x + y5x) / 2
+            Xy = (y1y + y5y) / 2
 
-        Yx = y1x
-        Yy = y1y
+            Yx = y1x
+            Yy = y1y
 
-        P1[i] = Yy - Xy
-        P2[i] = Yx - Xx
-        P3[i] = Xy * Yx - Xx * Yy
+            P1[i] = Yy - Xy
+            P2[i] = Yx - Xx
+            P3[i] = Xy * Yx - Xx * Yy
+         end
+
+      elseif r == 5
+         th₀1, Δth1 = d.T1[1], d.T1[2] - d.T1[1]
+         th₀5, Δth5 = d.T2[1], d.T2[2] - d.T2[1]
+
+         @inbounds for i in 1:N
+            v̂ = vmin + (i - 1) * h
+            th1 = muladd(Δth1, v̂, th₀1)
+            th5 = muladd(Δth5, v̂, th₀5)
+
+            st1, ct1 = sincos(th1)
+            st5, ct5 = sincos(th5)
+
+            y1x = d.A + d.R11 * ct1 * c₁ - d.R12 * st1 * s₁
+            y1y = d.B + d.R11 * ct1 * s₁ + d.R12 * st1 * c₁
+            y5x = d.A + d.R21 * ct5 * c₂ - d.R22 * st5 * s₂
+            y5y = d.B + d.R21 * ct5 * s₂ + d.R22 * st5 * c₂
+
+            Xx = (y5x + y1x) / 2
+            Xy = (y5y + y1y) / 2
+
+            Yx = y5x
+            Yy = y5y
+
+            P1[i] = Yy - Xy
+            P2[i] = Yx - Xx
+            P3[i] = Xy * Yx - Xx * Yy
+         end
+
+      elseif r == 2
+         th₀2, Δth2 = d.T1[2], d.T1[3] - d.T1[2]
+         th₀6, Δth6 = d.T2[2], d.T2[3] - d.T2[2]
+
+         @inbounds for i in 1:N
+            v̂ = vmin + (i - 1) * h
+
+            th2 = muladd(Δth2, v̂, th₀2)
+            th6 = muladd(Δth6, v̂, th₀6)
+
+            st2, ct2 = sincos(th2)
+            st6, ct6 = sincos(th6)
+
+            y2x = d.A + d.R11 * ct2 * c₁ - d.R12 * st2 * s₁
+            y2y = d.B + d.R11 * ct2 * s₁ + d.R12 * st2 * c₁
+            y6x = d.A + d.R21 * ct6 * c₂ - d.R22 * st6 * s₂
+            y6y = d.B + d.R21 * ct6 * s₂ + d.R22 * st6 * c₂
+
+            Xx = (y2x + y6x) / 2
+            Xy = (y2y + y6y) / 2
+
+            Yx = y2x
+            Yy = y2y
+
+            P1[i] = Yy - Xy
+            P2[i] = Yx - Xx
+            P3[i] = Xy * Yx - Xx * Yy
+         end
+
+      elseif r == 6
+         th₀2, Δth2 = d.T1[2], d.T1[3] - d.T1[2]
+         th₀6, Δth6 = d.T2[2], d.T2[3] - d.T2[2]
+
+         @inbounds for i in 1:N
+            v̂ = vmin + (i - 1) * h
+
+            th2 = muladd(Δth2, v̂, th₀2)
+            th6 = muladd(Δth6, v̂, th₀6)
+
+            st2, ct2 = sincos(th2)
+            st6, ct6 = sincos(th6)
+
+            y2x = d.A + d.R11 * ct2 * c₁ - d.R12 * st2 * s₁
+            y2y = d.B + d.R11 * ct2 * s₁ + d.R12 * st2 * c₁
+            y6x = d.A + d.R21 * ct6 * c₂ - d.R22 * st6 * s₂
+            y6y = d.B + d.R21 * ct6 * s₂ + d.R22 * st6 * c₂
+
+            Xx = (y6x + y2x) / 2
+            Xy = (y6y + y2y) / 2
+
+            Yx = y6x
+            Yy = y6y
+
+            P1[i] = Yy - Xy
+            P2[i] = Yx - Xx
+            P3[i] = Xy * Yx - Xx * Yy
+         end
+
+      elseif r == 3
+         th₀3, Δth3 = d.T1[3], d.T1[4] - d.T1[3]
+         th₀7, Δth7 = d.T2[3], d.T2[4] - d.T2[3]
+
+         @inbounds for i in 1:N
+            v̂ = vmin + (i - 1) * h
+
+            th3 = muladd(Δth3, v̂, th₀3)
+            th7 = muladd(Δth7, v̂, th₀7)
+
+            st3, ct3 = sincos(th3)
+            st7, ct7 = sincos(th7)
+
+            y3x = d.A + d.R11 * ct3 * c₁ - d.R12 * st3 * s₁
+            y3y = d.B + d.R11 * ct3 * s₁ + d.R12 * st3 * c₁
+            y7x = d.A + d.R21 * ct7 * c₂ - d.R22 * st7 * s₂
+            y7y = d.B + d.R21 * ct7 * s₂ + d.R22 * st7 * c₂
+
+            Xx = (y3x + y7x) / 2
+            Xy = (y3y + y7y) / 2
+
+            Yx = y3x
+            Yy = y3y
+
+            P1[i] = Yy - Xy
+            P2[i] = Yx - Xx
+            P3[i] = Xy * Yx - Xx * Yy
+         end
+
+      elseif r == 7
+         th₀3, Δth3 = d.T1[3], d.T1[4] - d.T1[3]
+         th₀7, Δth7 = d.T2[3], d.T2[4] - d.T2[3]
+
+         @inbounds for i in 1:N
+            v̂ = vmin + (i - 1) * h
+
+            th3 = muladd(Δth3, v̂, th₀3)
+            th7 = muladd(Δth7, v̂, th₀7)
+
+            st3, ct3 = sincos(th3)
+            st7, ct7 = sincos(th7)
+
+            y3x = d.A + d.R11 * ct3 * c₁ - d.R12 * st3 * s₁
+            y3y = d.B + d.R11 * ct3 * s₁ + d.R12 * st3 * c₁
+            y7x = d.A + d.R21 * ct7 * c₂ - d.R22 * st7 * s₂
+            y7y = d.B + d.R21 * ct7 * s₂ + d.R22 * st7 * c₂
+
+            Xx = (y7x + y3x) / 2
+            Xy = (y7y + y3y) / 2
+
+            Yx = y7x
+            Yy = y7y
+
+            P1[i] = Yy - Xy
+            P2[i] = Yx - Xx
+            P3[i] = Xy * Yx - Xx * Yy
+         end
+      elseif r == 4
+         th₀4, Δth4 = d.T1[4], d.T1[1] - d.T1[4] + 2.0 * pi
+         th₀8, Δth8 = d.T2[4], d.T2[1] - d.T2[4] + 2.0 * pi
+
+         @inbounds for i in 1:N
+            v̂ = vmin + (i - 1) * h
+
+            th4 = muladd(Δth4, v̂, th₀4)
+            th8 = muladd(Δth8, v̂, th₀8)
+
+            st4, ct4 = sincos(th4)
+            st8, ct8 = sincos(th8)
+
+            y4x = d.A + d.R11 * ct4 * c₁ - d.R12 * st4 * s₁
+            y4y = d.B + d.R11 * ct4 * s₁ + d.R12 * st4 * c₁
+            y8x = d.A + d.R21 * ct8 * c₂ - d.R22 * st8 * s₂
+            y8y = d.B + d.R21 * ct8 * s₂ + d.R22 * st8 * c₂
+
+            Xx = (y8x + y4x) / 2
+            Xy = (y8y + y4y) / 2
+
+            Yx = y4x
+            Yy = y4y
+
+            P1[i] = Yy - Xy
+            P2[i] = Yx - Xx
+            P3[i] = Xy * Yx - Xx * Yy
+         end
+
+      elseif r == 8
+         th₀4, Δth4 = d.T1[4], d.T1[1] - d.T1[4] + 2.0 * pi
+         th₀8, Δth8 = d.T2[4], d.T2[1] - d.T2[4] + 2.0 * pi
+
+         @inbounds for i in 1:N
+            v̂ = vmin + (i - 1) * h
+
+            th4 = muladd(Δth4, v̂, th₀4)
+            th8 = muladd(Δth8, v̂, th₀8)
+
+            st4, ct4 = sincos(th4)
+            st8, ct8 = sincos(th8)
+
+            y4x = d.A + d.R11 * ct4 * c₁ - d.R12 * st4 * s₁
+            y4y = d.B + d.R11 * ct4 * s₁ + d.R12 * st4 * c₁
+            y8x = d.A + d.R21 * ct8 * c₂ - d.R22 * st8 * s₂
+            y8y = d.B + d.R21 * ct8 * s₂ + d.R22 * st8 * c₂
+
+            Xx = (y4x + y8x) / 2
+            Xy = (y4y + y8y) / 2
+
+            Yx = y8x
+            Yy = y8y
+
+            P1[i] = Yy - Xy
+            P2[i] = Yx - Xx
+            P3[i] = Xy * Yx - Xx * Yy
+         end
+
+      else
+         throw(ArgumentError("fill_FTable! is defined only for regions 1–8; got reg=$(p.reg)"))
+
       end
+   end
 
-    elseif r == 5
-      th₀1, Δth1 = d.T1[1], d.T1[2] - d.T1[1]
-      th₀5, Δth5 = d.T2[1], d.T2[2] - d.T2[1]
-
-      @inbounds for i in 1:N
-        v̂ = vmin + (i - 1) * h
-        th1 = muladd(Δth1, v̂, th₀1)
-        th5 = muladd(Δth5, v̂, th₀5)
-
-        st1, ct1 = sincos(th1)
-        st5, ct5 = sincos(th5)
-
-        y1x = d.A + d.R11 * ct1 * c₁ - d.R12 * st1 * s₁
-        y1y = d.B + d.R11 * ct1 * s₁ + d.R12 * st1 * c₁
-        y5x = d.A + d.R21 * ct5 * c₂ - d.R22 * st5 * s₂
-        y5y = d.B + d.R21 * ct5 * s₂ + d.R22 * st5 * c₂
-
-        Xx = (y5x + y1x) / 2
-        Xy = (y5y + y1y) / 2
-
-        Yx = y5x
-        Yy = y5y
-
-        P1[i] = Yy - Xy
-        P2[i] = Yx - Xx
-        P3[i] = Xy * Yx - Xx * Yy
-      end
-
-    elseif r == 2
-      th₀2, Δth2 = d.T1[2], d.T1[3] - d.T1[2]
-      th₀6, Δth6 = d.T2[2], d.T2[3] - d.T2[2]
-
-      @inbounds for i in 1:N
-        v̂ = vmin + (i - 1) * h
-
-        th2 = muladd(Δth2, v̂, th₀2)
-        th6 = muladd(Δth6, v̂, th₀6)
-
-        st2, ct2 = sincos(th2)
-        st6, ct6 = sincos(th6)
-
-        y2x = d.A + d.R11 * ct2 * c₁ - d.R12 * st2 * s₁
-        y2y = d.B + d.R11 * ct2 * s₁ + d.R12 * st2 * c₁
-        y6x = d.A + d.R21 * ct6 * c₂ - d.R22 * st6 * s₂
-        y6y = d.B + d.R21 * ct6 * s₂ + d.R22 * st6 * c₂
-
-        Xx = (y2x + y6x) / 2
-        Xy = (y2y + y6y) / 2
-
-        Yx = y2x
-        Yy = y2y
-
-        P1[i] = Yy - Xy
-        P2[i] = Yx - Xx
-        P3[i] = Xy * Yx - Xx * Yy
-      end
-
-    elseif r == 6
-      th₀2, Δth2 = d.T1[2], d.T1[3] - d.T1[2]
-      th₀6, Δth6 = d.T2[2], d.T2[3] - d.T2[2]
-
-      @inbounds for i in 1:N
-        v̂ = vmin + (i - 1) * h
-
-        th2 = muladd(Δth2, v̂, th₀2)
-        th6 = muladd(Δth6, v̂, th₀6)
-
-        st2, ct2 = sincos(th2)
-        st6, ct6 = sincos(th6)
-
-        y2x = d.A + d.R11 * ct2 * c₁ - d.R12 * st2 * s₁
-        y2y = d.B + d.R11 * ct2 * s₁ + d.R12 * st2 * c₁
-        y6x = d.A + d.R21 * ct6 * c₂ - d.R22 * st6 * s₂
-        y6y = d.B + d.R21 * ct6 * s₂ + d.R22 * st6 * c₂
-
-        Xx = (y6x + y2x) / 2
-        Xy = (y6y + y2y) / 2
-
-        Yx = y6x
-        Yy = y6y
-
-        P1[i] = Yy - Xy
-        P2[i] = Yx - Xx
-        P3[i] = Xy * Yx - Xx * Yy
-      end
-
-    elseif r == 3
-      th₀3, Δth3 = d.T1[3], d.T1[4] - d.T1[3]
-      th₀7, Δth7 = d.T2[3], d.T2[4] - d.T2[3]
-
-      @inbounds for i in 1:N
-        v̂ = vmin + (i - 1) * h
-
-        th3 = muladd(Δth3, v̂, th₀3)
-        th7 = muladd(Δth7, v̂, th₀7)
-
-        st3, ct3 = sincos(th3)
-        st7, ct7 = sincos(th7)
-
-        y3x = d.A + d.R11 * ct3 * c₁ - d.R12 * st3 * s₁
-        y3y = d.B + d.R11 * ct3 * s₁ + d.R12 * st3 * c₁
-        y7x = d.A + d.R21 * ct7 * c₂ - d.R22 * st7 * s₂
-        y7y = d.B + d.R21 * ct7 * s₂ + d.R22 * st7 * c₂
-
-        Xx = (y3x + y7x) / 2
-        Xy = (y3y + y7y) / 2
-
-        Yx = y3x
-        Yy = y3y
-
-        P1[i] = Yy - Xy
-        P2[i] = Yx - Xx
-        P3[i] = Xy * Yx - Xx * Yy
-      end
-
-    elseif r == 7
-      th₀3, Δth3 = d.T1[3], d.T1[4] - d.T1[3]
-      th₀7, Δth7 = d.T2[3], d.T2[4] - d.T2[3]
-
-      @inbounds for i in 1:N
-        v̂ = vmin + (i - 1) * h
-
-        th3 = muladd(Δth3, v̂, th₀3)
-        th7 = muladd(Δth7, v̂, th₀7)
-
-        st3, ct3 = sincos(th3)
-        st7, ct7 = sincos(th7)
-
-        y3x = d.A + d.R11 * ct3 * c₁ - d.R12 * st3 * s₁
-        y3y = d.B + d.R11 * ct3 * s₁ + d.R12 * st3 * c₁
-        y7x = d.A + d.R21 * ct7 * c₂ - d.R22 * st7 * s₂
-        y7y = d.B + d.R21 * ct7 * s₂ + d.R22 * st7 * c₂
-
-        Xx = (y7x + y3x) / 2
-        Xy = (y7y + y3y) / 2
-
-        Yx = y7x
-        Yy = y7y
-
-        P1[i] = Yy - Xy
-        P2[i] = Yx - Xx
-        P3[i] = Xy * Yx - Xx * Yy
-      end
-    elseif r == 4
-      th₀4, Δth4 = d.T1[4], d.T1[1] - d.T1[4] + 2.0 * pi
-      th₀8, Δth8 = d.T2[4], d.T2[1] - d.T2[4] + 2.0 * pi
-
-      @inbounds for i in 1:N
-        v̂ = vmin + (i - 1) * h
-
-        th4 = muladd(Δth4, v̂, th₀4)
-        th8 = muladd(Δth8, v̂, th₀8)
-
-        st4, ct4 = sincos(th4)
-        st8, ct8 = sincos(th8)
-
-        y4x = d.A + d.R11 * ct4 * c₁ - d.R12 * st4 * s₁
-        y4y = d.B + d.R11 * ct4 * s₁ + d.R12 * st4 * c₁
-        y8x = d.A + d.R21 * ct8 * c₂ - d.R22 * st8 * s₂
-        y8y = d.B + d.R21 * ct8 * s₂ + d.R22 * st8 * c₂
-
-        Xx = (y8x + y4x) / 2
-        Xy = (y8y + y4y) / 2
-
-        Yx = y4x
-        Yy = y4y
-
-        P1[i] = Yy - Xy
-        P2[i] = Yx - Xx
-        P3[i] = Xy * Yx - Xx * Yy
-      end
-
-    elseif r == 8
-      th₀4, Δth4 = d.T1[4], d.T1[1] - d.T1[4] + 2.0 * pi
-      th₀8, Δth8 = d.T2[4], d.T2[1] - d.T2[4] + 2.0 * pi
-
-      @inbounds for i in 1:N
-        v̂ = vmin + (i - 1) * h
-
-        th4 = muladd(Δth4, v̂, th₀4)
-        th8 = muladd(Δth8, v̂, th₀8)
-
-        st4, ct4 = sincos(th4)
-        st8, ct8 = sincos(th8)
-
-        y4x = d.A + d.R11 * ct4 * c₁ - d.R12 * st4 * s₁
-        y4y = d.B + d.R11 * ct4 * s₁ + d.R12 * st4 * c₁
-        y8x = d.A + d.R21 * ct8 * c₂ - d.R22 * st8 * s₂
-        y8y = d.B + d.R21 * ct8 * s₂ + d.R22 * st8 * c₂
-
-        Xx = (y4x + y8x) / 2
-        Xy = (y4y + y8y) / 2
-
-        Yx = y8x
-        Yy = y8y
-
-        P1[i] = Yy - Xy
-        P2[i] = Yx - Xx
-        P3[i] = Xy * Yx - Xx * Yy
-      end
-
-    else
-      throw(ArgumentError("fill_FTable! is defined only for regions 1–8; got reg=$(p.reg)"))
-
-    end
-  end
-
-  tbl.reg = r
-  return tbl
+   tbl.reg = r
+   return tbl
 end
 
 @inline function f1I(t::Float64, s::Float64,

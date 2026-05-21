@@ -2,6 +2,19 @@ using Revise, FL2D
 
 import FL2D.FLdata as FLdata
 
+d = FL2D.squircle(b=[5, 5, 5, 5, 5], a=[3, 3, 3, 3, 4], L1=0.8, L2=0.8, P=12.0);
+
+dp = FL2D.domprop(12, 0.1, 0.15, 5e-3, d; Lᵢₙ=5);
+
+FL2D.chk_map(d);
+
+FL2D.draw(d,1)
+
+FL2D.drawbd(d)
+
+FL2D.testDLP(d, dp; nr=64)
+
+
 d = FL2D.disc(b=[5, 5, 5, 5, 5], a=[3, 3, 3, 3, 4], L1=0.8, L2=0.8)
 
 dp = FL2D.domprop(12, 0.1, 0.15, 5e-3, d; Lᵢₙ=5)
