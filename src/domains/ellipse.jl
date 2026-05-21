@@ -1345,6 +1345,7 @@ end
   return u * (Yyv - Xyv) - v * (Yxv - Xxv) + (Xyv*Yxv - Xxv*Yyv)
 end
 
+
 function mapinv(tbl::FTable, d::ellipse, u::Float64, 
   v::Float64, k::Int)::Tuple{Float64,Float64}
 
@@ -1428,6 +1429,24 @@ function mapinv(tbl::FTable, d::ellipse, u::Float64,
 
   return t, s
 
+end
+
+function mapinv(d::ellipse, u::Float64,
+   v::Float64, k::Int)::Tuple{Float64,Float64}
+
+   p = d.pths[k]
+
+   # central rectangle (affine inverse; watch axis swap per your map)
+
+   if d.L2 >= d.L1
+      Z1 = xi_inv((((u - d.A) * d.Cθ + (v - d.B) * d.Sθ + d.L2 / 2) / d.L2), p.tk0, p.tk1)
+      Z2 = xi_inv((((v - d.B) * d.Cθ - (u - d.A) * d.Sθ + d.L1 / 2) / d.L1), p.ck0, p.ck1)
+   else
+      Z1 = xi_inv((((u - d.A) * d.Cθ + (v - d.B) * d.Sθ + d.L2 / 2) / d.L2), p.ck0, p.ck1)
+      Z2 = xi_inv((((v - d.B) * d.Cθ - (u - d.A) * d.Sθ + d.L1 / 2) / d.L1), p.tk0, p.tk1)
+   end
+
+   return Z1, Z2
 end
 
 """

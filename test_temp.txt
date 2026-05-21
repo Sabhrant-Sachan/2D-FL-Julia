@@ -3,13 +3,11 @@ p = 5
 ================ FractionalLaplacian2D ================
 
 ----------- Domain -----------
-squircle with properties:
-  (A, B)   = (0.0, 0.0)
-  P        = 4.0
-  tht1     = 0.7853981633974483
-  (R1, R2) = (1.0, 1.0)
-  (L1, L2) = (1.0, 1.0)
-  No. of holes = 0
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
   kd     = Int[1 2 3 4]
   Npat   = 5
   pths   = Vector{Patch} (5 patches)
@@ -18,18 +16,21 @@ squircle with properties:
 
 
 ----------- Parameters -----------
-N=10, nₚᵣ=128, s=0.2, p=5, δ=0.1
+N=12, nₚᵣ=128, s=0.2, p=5, δ=0.1
 Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
 
 ----------- System -----------
-Target points (Vars.) : 540
-Precomputation points : 900
-Near-singular  points : 360
+Target points (Vars.) : 768
+Precomputation points : 1336
+Near-singular  points : 568
 
 ----------- Solve -----------
 Solver : direct
 
 ----------- Error -----------
-(No exact solution provided; errors not computed.)
+Max Error   : 4.51e-06
+Max Rel err : 5.39e-06
+L^2 error   : 2.67e-05
+Root MSE err: 9.93e-07
 =====================================================
 

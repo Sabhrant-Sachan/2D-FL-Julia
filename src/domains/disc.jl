@@ -1148,108 +1148,116 @@ end
 
 #Used in find_roots! function
 @inline function f_cont(v̂::Float64,
-  d::disc, u::Float64, v::Float64, r::Int)
+   d::disc, u::Float64, v::Float64, r::Int)
 
-  Xxv, Xyv = if r == 1
-    d.A + d.L2 / 2, d.B + d.L1 * (2 * v̂ - 1) / 2
-  elseif r == 2
-    d.A + d.L2 * (1 - 2 * v̂) / 2, d.B + d.L1 / 2
-  elseif r == 3
-    d.A - d.L2 / 2, d.B - d.L1 * (2 * v̂ - 1) / 2
-  else
-    d.A - d.L2 * (1 - 2 * v̂) / 2, d.B - d.L1 / 2
-  end
+   Xxv, Xyv = if r == 1
+      d.A + d.L2 / 2, d.B + d.L1 * (2 * v̂ - 1) / 2
+   elseif r == 2
+      d.A + d.L2 * (1 - 2 * v̂) / 2, d.B + d.L1 / 2
+   elseif r == 3
+      d.A - d.L2 / 2, d.B - d.L1 * (2 * v̂ - 1) / 2
+   else
+      d.A - d.L2 * (1 - 2 * v̂) / 2, d.B - d.L1 / 2
+   end
 
-  phase = π * (v̂ / 2 + (2 * r - 3) / 4)
+   phase = π * (v̂ / 2 + (2 * r - 3) / 4)
 
-  Yxv = d.A + d.R * cos(phase)
-  Yyv = d.B + d.R * sin(phase)
+   Yxv = d.A + d.R * cos(phase)
+   Yyv = d.B + d.R * sin(phase)
 
-  return u * (Yyv - Xyv) - v * (Yxv - Xxv) + (Xyv*Yxv - Xxv*Yyv)
+   return u * (Yyv - Xyv) - v * (Yxv - Xxv) + (Xyv * Yxv - Xxv * Yyv)
 end
 
-function mapinv(tbl::FTable, d::disc, u::Float64, 
-  v::Float64, k::Int)::Tuple{Float64,Float64}
+function mapinv(tbl::FTable, d::disc, u::Float64,
+   v::Float64, k::Int)::Tuple{Float64,Float64}
 
-  p = d.pths[k]
+   p = d.pths[k]
 
-  r = p.reg
+   r = p.reg
 
-  # central rectangle (affine inverse; watch axis swap per your map)
-  if r == 5
-    if d.L2 >= d.L1
+   # ----- curved patches reg = 1..4 -----
+   # --- Stage 1: 2D Newton via Subroutines ---
+   tN, sN = newtonR2D(f1I, f2I, JinvI,
+      0.0, 0.0, 4, d, u, v, r; tol=1e-15)
+
+   if tN !== :max
+
+      x = xi_inv((1 + tN) / 2, p.ck0, p.ck1)
+      y = xi_inv((1 + sN) / 2, p.tk0, p.tk1)
+
+      return x, y
+
+   end
+
+   #--- Stage 2: BIS method inversion ---
+
+   # ensure the table is filled for this region
+   if tbl.reg != r
+      display("hi")
+      fill_FTable!(tbl, d, r)
+   end
+
+   rmi = tbl.rmi
+   zxi = tbl.zxi
+
+   n = find_roots!(rmi, tbl, d, u, v, r)
+
+   @inbounds for i in 1:n
+      v̂ = rmi[i]
+      Xxv = Xx(v̂, d, r)
+      Xyv = Xy(v̂, d, r)
+      Yxv = Yx(v̂, d, r)
+      Yyv = Yy(v̂, d, r)
+
+      if abs(v - Xyv) < abs(u - Xxv)
+         zxi[i] = (u - Xxv) / (Yxv - Xxv)
+      else
+         zxi[i] = (v - Xyv) / (Yyv - Xyv)
+      end
+   end
+
+   # choose best candidate by cost
+   best_cost = Inf
+   best_idx = 0
+
+   @inbounds for i in 1:n
+      zy_norm = xi_inv(rmi[i], p.tk0, p.tk1)
+      zx_norm = xi_inv(zxi[i], p.ck0, p.ck1)
+      cost = max(abs(zy_norm), abs(zx_norm))
+      if cost < best_cost
+         best_cost = cost
+         best_idx = i
+      end
+   end
+
+   za = rmi[best_idx]
+   zx = zxi[best_idx]
+
+   # final reference coords in [-1,1]
+   t = xi_inv(zx, p.ck0, p.ck1)   # from zx
+   s = xi_inv(za, p.tk0, p.tk1)   # from v̂ (root)
+
+   return t, s
+
+end
+
+#A sepreate inverse just for the rectangular region
+function mapinv(d::disc, u::Float64,
+   v::Float64, k::Int)::Tuple{Float64,Float64}
+
+   p = d.pths[k]
+
+   # central rectangle (affine inverse; watch axis swap per your map)
+
+   if d.L2 >= d.L1
       Z1 = xi_inv(((u - d.A + d.L2 / 2) / d.L2), p.tk0, p.tk1)
       Z2 = xi_inv(((v - d.B + d.L1 / 2) / d.L1), p.ck0, p.ck1)
-    else
+   else
       Z1 = xi_inv(((u - d.A + d.L2 / 2) / d.L2), p.ck0, p.ck1)
       Z2 = xi_inv(((v - d.B + d.L1 / 2) / d.L1), p.tk0, p.tk1)
-    end
-    return Z1, Z2
-  end
+   end
 
-  # ----- curved patches reg = 1..4 -----
-  # --- Stage 1: 2D Newton via Subroutines ---
-  tN, sN = newtonR2D(f1I, f2I, JinvI,
-    0.0, 0.0, 4, d, u, v, r; tol=1e-15)
-
-  if tN !== :max
-
-    x = xi_inv((1 + tN) / 2, p.ck0, p.ck1)
-    y = xi_inv((1 + sN) / 2, p.tk0, p.tk1)
-
-    return x, y
-
-  end
-
-  #--- Stage 2: BIS method inversion ---
-
-  # ensure the table is filled for this region
-  if tbl.reg != r
-    display("hi")
-    fill_FTable!(tbl, d, r)
-  end
-
-  rmi = tbl.rmi 
-  zxi = tbl.zxi
-
-  n = find_roots!(rmi, tbl, d, u, v, r)
-
-  @inbounds for i in 1:n
-    v̂ = rmi[i]
-    Xxv = Xx(v̂, d, r)
-    Xyv = Xy(v̂, d, r)
-    Yxv = Yx(v̂, d, r)
-    Yyv = Yy(v̂, d, r)
-
-    if abs(v - Xyv) < abs(u - Xxv)
-      zxi[i] = (u - Xxv) / (Yxv - Xxv)
-    else
-      zxi[i] = (v - Xyv) / (Yyv - Xyv)
-    end
-  end
-
-  # choose best candidate by cost
-  best_cost = Inf
-  best_idx = 0
-
-  @inbounds for i in 1:n
-    zy_norm = xi_inv(rmi[i], p.tk0, p.tk1)
-    zx_norm = xi_inv(zxi[i], p.ck0, p.ck1)
-    cost = max(abs(zy_norm), abs(zx_norm))
-    if cost < best_cost
-      best_cost = cost
-      best_idx = i
-    end
-  end
-
-  za = rmi[best_idx]
-  zx = zxi[best_idx]
-
-  # final reference coords in [-1,1]
-  t = xi_inv(zx, p.ck0, p.ck1)   # from zx
-  s = xi_inv(za, p.tk0, p.tk1)   # from v̂ (root)
-
-  return t, s
+   return Z1, Z2
 
 end
 

@@ -3446,67 +3446,6 @@ function mapinv(tbl::FTable, d::kite, u::Float64,v::Float64, k::Int)::Tuple{Floa
   p = d.pths[k]
   r = p.reg
 
-  # rectangles
-  if r == 11 
-    # Precomputed geometry params
-    e2x = d.RP.e₂x
-    e2y = d.RP.e₂y
-    nme = d.RP.nme        
-    q2x = d.RP.q₂x
-    q2y = d.RP.q₂y
-    α1x = d.RP.α₁x
-    α1y = d.RP.α₁y
-
-    wx = u - d.A - α1x
-    wy = v - d.B - α1y
-
-    invn = inv(nme)
-
-    t_q2 = (wx*q2x + wy*q2y) * (invn / d.L2)
-
-    t_e2 = muladd(wx*e2x + wy*e2y, invn / d.L1, 0.5)
-
-    if d.L2 >= d.L1
-        Z1 = xi_inv(t_q2, p.tk0, p.tk1)
-        Z2 = xi_inv(t_e2, p.ck0, p.ck1)
-    else
-        Z1 = xi_inv(t_q2, p.ck0, p.ck1)
-        Z2 = xi_inv(t_e2, p.tk0, p.tk1)
-    end
-
-    return Z1, Z2
-
-  elseif r == 12
-
-    e1x = d.RP.e₁x
-    e1y = d.RP.e₁y
-    q1x = d.RP.q₁x
-    q1y = d.RP.q₁y
-    nme = d.RP.nme       
-    α2x = d.RP.α₂x      
-    α2y = d.RP.α₂y     
-
-    wx = u - d.A - α2x
-    wy = v - d.B - α2y
-
-    invn = inv(nme)
-
-    t_q1 = (wx*q1x + wy*q1y) * (invn / d.L2)
-
-    t_e1 = muladd((wx*e1x + wy*e1y), invn / d.L1, 0.5)
-
-    if d.L2 >= d.L1
-        Z1 = xi_inv(t_q1, p.tk0, p.tk1)
-        Z2 = xi_inv(t_e1, p.ck0, p.ck1)
-    else
-        Z1 = xi_inv(t_q1, p.ck0, p.ck1)
-        Z2 = xi_inv(t_e1, p.tk0, p.tk1)
-    end
-
-    return Z1, Z2
-
-  end
-
   # ----- curved patches reg = 1..10 -----
   # --- Stage 1: 2D Newton via Subroutines ---
   tN, sN = newtonR2D(f1I, f2I, JinvI,
@@ -3561,6 +3500,73 @@ function mapinv(tbl::FTable, d::kite, u::Float64,v::Float64, k::Int)::Tuple{Floa
   s = xi_inv(za, p.tk0, p.tk1)   # from v̂ (root)
 
   return t, s
+
+end
+
+function mapinv(d::kite, u::Float64,v::Float64, k::Int)::Tuple{Float64,Float64}
+   p = d.pths[k]
+   r = p.reg
+
+   # rectangles
+   if r == 11
+      # Precomputed geometry params
+      e2x = d.RP.e₂x
+      e2y = d.RP.e₂y
+      nme = d.RP.nme
+      q2x = d.RP.q₂x
+      q2y = d.RP.q₂y
+      α1x = d.RP.α₁x
+      α1y = d.RP.α₁y
+
+      wx = u - d.A - α1x
+      wy = v - d.B - α1y
+
+      invn = inv(nme)
+
+      t_q2 = (wx * q2x + wy * q2y) * (invn / d.L2)
+
+      t_e2 = muladd(wx * e2x + wy * e2y, invn / d.L1, 0.5)
+
+      if d.L2 >= d.L1
+         Z1 = xi_inv(t_q2, p.tk0, p.tk1)
+         Z2 = xi_inv(t_e2, p.ck0, p.ck1)
+      else
+         Z1 = xi_inv(t_q2, p.ck0, p.ck1)
+         Z2 = xi_inv(t_e2, p.tk0, p.tk1)
+      end
+
+      return Z1, Z2
+
+   elseif r == 12
+
+      e1x = d.RP.e₁x
+      e1y = d.RP.e₁y
+      q1x = d.RP.q₁x
+      q1y = d.RP.q₁y
+      nme = d.RP.nme
+      α2x = d.RP.α₂x
+      α2y = d.RP.α₂y
+
+      wx = u - d.A - α2x
+      wy = v - d.B - α2y
+
+      invn = inv(nme)
+
+      t_q1 = (wx * q1x + wy * q1y) * (invn / d.L2)
+
+      t_e1 = muladd((wx * e1x + wy * e1y), invn / d.L1, 0.5)
+
+      if d.L2 >= d.L1
+         Z1 = xi_inv(t_q1, p.tk0, p.tk1)
+         Z2 = xi_inv(t_e1, p.ck0, p.ck1)
+      else
+         Z1 = xi_inv(t_q1, p.ck0, p.ck1)
+         Z2 = xi_inv(t_e1, p.tk0, p.tk1)
+      end
+
+      return Z1, Z2
+
+   end
 
 end
 

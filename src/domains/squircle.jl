@@ -2445,25 +2445,6 @@ function mapinv(tbl::FTable, d::squircle, u::Float64,
    p = d.pths[k]
    r = p.reg
 
-   # central rectangle
-   if r == 5
-
-      if d.L2 >= d.L1
-
-         Z1 = xi_inv((u - d.A + d.L2 / 2) / d.L2, p.tk0, p.tk1)
-         Z2 = xi_inv((v - d.B + d.L1 / 2) / d.L1, p.ck0, p.ck1)
-
-      else
-
-         Z1 = xi_inv((u - d.A + d.L2 / 2) / d.L2, p.ck0, p.ck1)
-         Z2 = xi_inv((v - d.B + d.L1 / 2) / d.L1, p.tk0, p.tk1)
-
-      end
-
-      return Z1, Z2
-
-   end
-
    # ----- curved patches reg = 1..4 -----
    # Stage 1: 2D Newton via subroutines.
    tN, sN = newtonR2D(f1I, f2I, JinvI,
@@ -2535,6 +2516,25 @@ function mapinv(tbl::FTable, d::squircle, u::Float64,
 
 end
 
+function mapinv(d::squircle, u::Float64,
+   v::Float64, k::Int)::Tuple{Float64,Float64}
+
+   p = d.pths[k]
+
+   if d.L2 >= d.L1
+
+      Z1 = xi_inv((u - d.A + d.L2 / 2) / d.L2, p.tk0, p.tk1)
+      Z2 = xi_inv((v - d.B + d.L1 / 2) / d.L1, p.ck0, p.ck1)
+
+   else
+
+      Z1 = xi_inv((u - d.A + d.L2 / 2) / d.L2, p.ck0, p.ck1)
+      Z2 = xi_inv((v - d.B + d.L1 / 2) / d.L1, p.tk0, p.tk1)
+
+   end
+
+   return Z1, Z2
+end
 """
     ptconv(d::squircle,  t1::Float64, t2::Float64, idx::Int, ptdest::String)
 
@@ -2713,7 +2713,6 @@ function gamderhigher(d::squircle, th::Float64)
    st, ct = sincos(th)
 
    if P == 2.0
-
       A1 = 1.0 / d.R1^P
       B1 = 1.0 / d.R2^P
       Δ = B1 - A1
@@ -2725,7 +2724,6 @@ function gamderhigher(d::squircle, th::Float64)
       d4gg = -8.0 * (ct^2 - st^2) * Δ
 
    elseif P == 4.0
-
       A1 = 1.0 / d.R1^P
       B1 = 1.0 / d.R2^P
 
@@ -2750,7 +2748,6 @@ function gamderhigher(d::squircle, th::Float64)
          B1 * (5.0 * st4 - 24.0 * st2 * ct2 + 3.0 * ct4))
 
    else
-
       ct1 = abs(ct)^(P - 4) / d.R1^P
       ct2 = ct * ct * ct1
       ct3 = ct * ct * ct2
@@ -2835,6 +2832,8 @@ function diff_map!(out::Matrix{Float64},
    αc = (p.ck1 - p.ck0) / 2
    αt = (p.tk1 - p.tk0) / 2
 
+   mapxy_Dmap!(Zx, Zy, DJ, d, u2, v2, k)
+
    if p.reg == 5
 
       if d.L2 >= d.L1
@@ -2842,8 +2841,6 @@ function diff_map!(out::Matrix{Float64},
       else
          cDx, cDy = d.L2 * αc, d.L1 * αt
       end
-
-      fill!(DJ, cDx * cDy)
 
       @inbounds for j in 1:nd_v
          dvj = dv[j]
@@ -2855,8 +2852,6 @@ function diff_map!(out::Matrix{Float64},
       return nothing
 
    end
-
-   mapxy_Dmap!(Zx, Zy, DJ, d, u2, v2, k)
 
    uhat = muladd(αc, u, p.ck0 + αc)
    vhat = muladd(αt, v, p.tk0 + αt)
@@ -2900,10 +2895,6 @@ function diff_map!(out::Matrix{Float64},
       Xy = -d.L1 / 2
       dXx = d.L2
       dXy = 0.0
-
-   else
-
-      throw(ArgumentError("diff_map! expects region 1–5; got reg=$(p.reg)"))
 
    end
 

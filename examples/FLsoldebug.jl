@@ -2,9 +2,20 @@ using Revise, FL2D
 
 import FL2D.FLdata as FLdata
 
-d = FL2D.squircle(b=[5, 5, 5, 5, 5], a=[3, 3, 3, 3, 4], L1=0.8, L2=0.8, P=12.0);
+d = FL2D.kite(b=[4, 5, 9, 9, 5, 4, 5, 5, 5, 5, 4, 4],
+a=[4, 3, 7, 7, 3, 4, 3, 6, 6, 3, 3, 3])
 
-dp = FL2D.domprop(12, 0.1, 0.15, 5e-3, d; Lᵢₙ=5);
+FL2D.refine!(d, 1, 2, [9, 12, 13, 16, 181, 184, 185, 188])
+
+d = FL2D.squircle(b=[5, 5, 5, 5, 5], a=[3, 3, 3, 3, 4], L1=0.8, L2=0.8, P=4.0);
+
+d = FL2D.squircle(b=[1, 1, 1, 1, 1], P=4.0)
+
+d = FL2D.disc(b=[1, 1, 1, 1, 1])
+
+dp = FL2D.domprop(12, 0.1, 0.15, 5e-3, d; Lᵢₙ=5)
+
+FL2D.plotns(dp, d, 1)
 
 FL2D.chk_map(d);
 
@@ -12,8 +23,19 @@ FL2D.draw(d,1)
 
 FL2D.drawbd(d)
 
+FL2D.chkinvpts(dp,d)
+
 FL2D.testDLP(d, dp; nr=64)
 
+f!, uex, fv = FLdata.makesquirclefuex(5, 0.1, 4);
+
+f!, uex, fv = FLdata.makediscfuex(0, 0.2);
+
+FL2D.plotfunc(dp, d, f!)
+
+b = FL2D.bvec(d, dp, 0.2, f!);
+
+FL2D.plotfunc(dp,d,b)
 
 d = FL2D.disc(b=[5, 5, 5, 5, 5], a=[3, 3, 3, 3, 4], L1=0.8, L2=0.8)
 
@@ -108,8 +130,6 @@ N = 12; Np = N*N;
 
 dp = FL2D.domprop(N, δ, δclsbd, d)
  
-FL2D.plotbm(dp,d)
-
 FL2D.chkinvpts(dp,d)
 #FL2D.draw(d)
 

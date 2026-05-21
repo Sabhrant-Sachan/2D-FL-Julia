@@ -340,14 +340,24 @@ mutable struct domprop
       # ---------------------------------------------------------------------
       # 4. Inversion tables
       # ---------------------------------------------------------------------
-      regs = ftable_regions(dom)
-      
-      ftbs = Vector{FTable}(undef, maximum(regs))
+      # Build compact FTables only for regions that need them.
+      # `regs` stores the actual region numbers with FTable-based inversion.
+      regs = collect(ftable_regions(dom))
 
-      @inbounds for r in regs
+      # `ftbs[j]` stores the table for region `regs[j]`.
+      ftbs = Vector{FTable}(undef, length(regs))
+
+      # `reg_to_ftb[r] == 0` means region r has no FTable
+      # and should use the direct/rectangular `mapinv(dom, ...)`.
+      # Otherwise, `reg_to_ftb[r]` gives the index into `ftbs`
+      maxreg = maximum(p.reg for p in dom.pths)
+      reg_to_ftb = zeros(Int, maxreg)
+
+      @inbounds for (j, r) in enumerate(regs)
          tbl = inFTable(10_001)
          fill_FTable!(tbl, dom, r)
-         ftbs[r] = tbl
+         ftbs[j] = tbl
+         reg_to_ftb[r] = j
       end
 
       # ---------------------------------------------------------------------
@@ -376,7 +386,7 @@ mutable struct domprop
 
          ptinqua!(in_i, Xi, P1x, P1y, P2x, P2y, P3x, P3y, P4x, P4y)
 
-         for i in 1:Ni
+         @inbounds for i in 1:Ni
             kt = cld(i, Np)
 
             if in_i[i] && kt != k
@@ -392,8 +402,18 @@ mutable struct domprop
                      q, r = divrem(ip - 1, N)
                      Zx, Zy = mapinv2(dom, z[r+1], z[q+1], kt, k)
                   else
-                     ftb = ftbs[src_reg]
-                     Zx, Zy = mapinv(ftb, dom, tgtpts[1, i], tgtpts[2, i], k)
+
+                     j = reg_to_ftb[src_reg]
+
+                     if j != 0
+                        # Curved/FTable region.
+                        ftb = ftbs[j]
+                        Zx, Zy = mapinv(ftb, dom, tgtpts[1, i], tgtpts[2, i], k)
+                     else
+                        # Rectangular or otherwise direct-inversion region.
+                        Zx, Zy = mapinv(dom, tgtpts[1, i], tgtpts[2, i], k)
+                     end
+
                   end
 
                   invpts[1, coli] = snap1(Zx)
@@ -446,8 +466,16 @@ mutable struct domprop
                      ip = ib - (ibp - 1) * N
                      Zx, Zy = mapinv2(dom, 1.0, z[ip], kt, k)
                   else
-                     ftb = ftbs[src_reg]
-                     Zx, Zy = mapinv(ftb, dom, tgtpts[1, i], tgtpts[2, i], k)
+                     j = reg_to_ftb[src_reg]
+
+                     if j != 0
+                        # Curved/FTable region.
+                        ftb = ftbs[j]
+                        Zx, Zy = mapinv(ftb, dom, tgtpts[1, i], tgtpts[2, i], k)
+                     else
+                        # Rectangular or otherwise direct-inversion region.
+                        Zx, Zy = mapinv(dom, tgtpts[1, i], tgtpts[2, i], k)
+                     end
                   end
 
                   invpts[1, coli] = snap1(Zx)
