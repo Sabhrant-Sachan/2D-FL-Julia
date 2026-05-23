@@ -1,5 +1,3 @@
-@inline packkey(i::Int, k::Int) = (UInt64(i) << 32) | UInt64(k)
-
 mutable struct domprop
    N::Int
    del::Float64
@@ -14,12 +12,6 @@ mutable struct domprop
    #     full-boundary normal interpolation.
    del_near::Float64
    del_intp::Float64
-
-   # hmap[packkey(i,k)] = colp
-   # i = global target column in tgtpts
-   # k = actual volume integration patch index
-   # colp = column in prepts
-   hmap::Dict{UInt64,Int}
 
    # Nb is number of boundary targets
    # 2 × (Ni + Nb)
@@ -50,9 +42,25 @@ mutable struct domprop
    # row 2 = actual integration patch k
    prepts::Matrix{Int}
 
-   # 2 × Tnsp, inverse local coordinates
-   # for near-singular volume interactions
+   # Volume near/close classification.
+   # volmode[row,k] gives the volume interaction type between target row
+   # and integration patch k.
+   #
+   # 0 = regular/far
+   # 1 = near: invpts stores projected boundary point (u0,v0)
+   # 2 = close: invpts stores true inverse point (α1,α2)
+   volmode::Matrix{UInt8}
+
+   # invgo[k] : invgo[k+1]-1 gives the block in invpts for patch k.
+   # Entries are stored in row-scan order over row = 1:Nt.
+   invgo::Vector{Int}
+
+   # 2 × (invgo[M+1]-1)
+   # For mode 1, stores projection point on ∂([-1,1]^2).
+   # For mode 2, stores true inverse point.
    invpts::Matrix{Float64}
+
+   #TODO
 
    #========== Boundary-DLP target classification ==========
    bdmode[i], i = 1:Ni:
@@ -168,10 +176,6 @@ mutable struct domprop
    # pthgo[k] = first column in prepts for actual volume patch k
    # pthgo[M+1] = first column of the regular boundary-target block in prepts
    pthgo::Vector{Int}
-
-   # nspsz[k] = number of interior targets near volume patch k
-   # nspsz[M+1] = total number of boundary targets near volume patches
-   nspsz::Vector{Int}
 
    function domprop(N::Integer, del::Float64, del_near::Float64,
       del_intp::Float64, dom::D; Lᵢₙ=5) where {D<:abstractdomain}

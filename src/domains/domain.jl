@@ -1036,7 +1036,7 @@ If the maximum iteration count is reached, returns `(:max, :max)`.
 - `t0, s0  :: Float64`     — initial guess
 - `maxi    :: Int`      — max iterations
 - `tol     :: Float64`     — convergence tolerance on component residuals 
-                          (default 1e-14)
+   (default 1e-14)
 
 # Notes: Convergence test : it checks `|f1(x,y)|`and `|f2(x,y)|` are less
 than the given tolerance.
