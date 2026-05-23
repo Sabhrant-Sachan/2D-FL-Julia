@@ -6,9 +6,9 @@ function getfield_default(x, name::Symbol, default)
     return name in propertynames(x) ? getproperty(x, name) : default
 end
 
-function run_one_squricle!(io, case; s::Float64, p::Int, nJac::Int=5)
+function run_one_peanut!(io, case; s::Float64, p::Int, nJac::Int=5)
 
-    f!, uex, _ = makesquirclefuex(nJac, s, 4)
+    f!, uex, _ = makepeanutfuex(nJac, s)
 
     # Per-case controls, with defaults
     δ        = getfield_default(case, :δ, 0.1)
@@ -64,20 +64,19 @@ function run_one_squricle!(io, case; s::Float64, p::Int, nJac::Int=5)
     return nothing
 end
 
-open("test.txt", "w") do io
+open("test_temp.txt", "w") do io
 
-    s, p = 0.2, 5
+    s, p = 0.75, 4
 
     println(io, "s = ", s)
     println(io, "p = ", p)
     flush(io)
 
-    case = (dom=FL2D.squircle(b=[1, 1, 1, 1, 1], P=4.0),
-            N=10, nₚᵣ=128, δ=0.1, δ_near=0.15, δ_intp=5e-3, 
-            s_small = false, benchmark = false, cond_num = false)
+    case = (dom = FL2D.peanut(b=[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]),
+            N=12, nₚᵣ=512, δ=0.5, δ_near=0.15, δ_intp=5e-3, nr = 32,
+            plot = true, s_small = false, benchmark = false, cond_num = false)
 
-    run_one_squircle!(io, case; s=s, p=p, nJac=5)
+    run_one_peanut!(io, case; s=s, p=p, nJac=0)
 
     flush(io)
 end
-

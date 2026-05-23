@@ -1,6 +1,6 @@
-Run started: 2026-05-21T23:47:07.665
-s = 0.9999
-p = 5000
+Run started: 2026-05-22T01:41:12.066
+s = 0.999
+p = 500
 ============ FractionalLaplacian2D ============
 
 ----------- Domain -----------
@@ -17,7 +17,7 @@ disc with properties:
 
 
 ----------- Parameters -----------
-N=10, nₚᵣ=128, s=0.9999, p=5000, δ=0.1,
+N=10, nₚᵣ=128, s=0.999, p=500, δ=0.1,
 Precomps nodes: r = nₚᵣ, θ = 2nₚᵣ,
 Lᵢₙ=5, δ_near=0.15, δ_intp=0.005.
 
@@ -30,10 +30,10 @@ Near-singular  points : 376
 Solver : direct
 
 ----------- Error -----------
-Max Error   : 1.57e-04
+Max Error   : 1.58e-04
 Max Rel err : 2.14e-04
-L^2 error   : 1.84e-03
-Root MSE err: 8.22e-05
+L^2 error   : 1.83e-03
+Root MSE err: 8.18e-05
 ===============================================
 
 ============ FractionalLaplacian2D ============
@@ -52,7 +52,7 @@ disc with properties:
 
 
 ----------- Parameters -----------
-N=12, nₚᵣ=128, s=0.9999, p=5000, δ=0.1,
+N=12, nₚᵣ=128, s=0.999, p=500, δ=0.1,
 Precomps nodes: r = nₚᵣ, θ = 2nₚᵣ,
 Lᵢₙ=5, δ_near=0.15, δ_intp=0.005.
 
@@ -65,10 +65,10 @@ Near-singular  points : 568
 Solver : direct
 
 ----------- Error -----------
-Max Error   : 1.23e-05
-Max Rel err : 1.51e-05
-L^2 error   : 5.20e-05
-Root MSE err: 1.94e-06
+Max Error   : 9.28e-06
+Max Rel err : 1.14e-05
+L^2 error   : 2.88e-05
+Root MSE err: 1.07e-06
 ===============================================
 
 ============ FractionalLaplacian2D ============
@@ -87,7 +87,7 @@ disc with properties:
 
 
 ----------- Parameters -----------
-N=12, nₚᵣ=128, s=0.9999, p=5000, δ=0.1,
+N=12, nₚᵣ=128, s=0.999, p=500, δ=0.1,
 Precomps nodes: r = nₚᵣ, θ = 2nₚᵣ,
 Lᵢₙ=5, δ_near=0.15, δ_intp=0.005.
 
@@ -100,10 +100,10 @@ Near-singular  points : 4436
 Solver : direct
 
 ----------- Error -----------
-Max Error   : 2.57e-06
-Max Rel err : 2.57e-06
-L^2 error   : 1.76e-05
-Root MSE err: 3.29e-07
+Max Error   : 6.61e-07
+Max Rel err : 6.61e-07
+L^2 error   : 3.63e-06
+Root MSE err: 6.77e-08
 ===============================================
 
 ============ FractionalLaplacian2D ============
@@ -122,7 +122,7 @@ disc with properties:
 
 
 ----------- Parameters -----------
-N=12, nₚᵣ=256, s=0.9999, p=5000, δ=0.1,
+N=12, nₚᵣ=256, s=0.999, p=500, δ=0.1,
 Precomps nodes: r = nₚᵣ, θ = 2nₚᵣ,
 Lᵢₙ=5, δ_near=0.15, δ_intp=0.005.
 
@@ -135,10 +135,10 @@ Near-singular  points : 4436
 Solver : direct
 
 ----------- Error -----------
-Max Error   : 2.04e-07
-Max Rel err : 2.04e-07
-L^2 error   : 1.04e-06
-Root MSE err: 1.94e-08
+Max Error   : 2.61e-09
+Max Rel err : 2.61e-09
+L^2 error   : 1.34e-08
+Root MSE err: 2.50e-10
 ===============================================
 
 ============ FractionalLaplacian2D ============
@@ -157,7 +157,7 @@ disc with properties:
 
 
 ----------- Parameters -----------
-N=12, nₚᵣ=128, s=0.9999, p=5000, δ=0.1,
+N=12, nₚᵣ=128, s=0.999, p=500, δ=0.1,
 Precomps nodes: r = nₚᵣ, θ = 2nₚᵣ,
 Lᵢₙ=5, δ_near=0.15, δ_intp=0.005.
 
@@ -170,10 +170,10 @@ Near-singular  points : 7628
 Solver : direct
 
 ----------- Error -----------
-Max Error   : 4.04e-06
-Max Rel err : 4.08e-06
-L^2 error   : 3.45e-05
-Root MSE err: 5.25e-07
+Max Error   : 1.99e-06
+Max Rel err : 2.01e-06
+L^2 error   : 1.14e-05
+Root MSE err: 1.73e-07
 ===============================================
 
 ============ FractionalLaplacian2D ============
@@ -192,7 +192,7 @@ disc with properties:
 
 
 ----------- Parameters -----------
-N=12, nₚᵣ=256, s=0.9999, p=5000, δ=0.1,
+N=12, nₚᵣ=256, s=0.999, p=500, δ=0.1,
 Precomps nodes: r = nₚᵣ, θ = 2nₚᵣ,
 Lᵢₙ=5, δ_near=0.15, δ_intp=0.005.
 
@@ -205,10 +205,10 @@ Near-singular  points : 7628
 Solver : direct
 
 ----------- Error -----------
-Max Error   : 2.08e-07
-Max Rel err : 2.10e-07
-L^2 error   : 1.17e-06
-Root MSE err: 1.78e-08
+Max Error   : 6.92e-09
+Max Rel err : 7.00e-09
+L^2 error   : 4.25e-08
+Root MSE err: 6.47e-10
 ===============================================
 
 ============ FractionalLaplacian2D ============
@@ -227,7 +227,7 @@ disc with properties:
 
 
 ----------- Parameters -----------
-N=12, nₚᵣ=128, s=0.9999, p=5000, δ=0.1,
+N=12, nₚᵣ=128, s=0.999, p=500, δ=0.1,
 Precomps nodes: r = nₚᵣ, θ = 2nₚᵣ,
 Lᵢₙ=5, δ_near=0.15, δ_intp=0.005.
 
@@ -240,10 +240,10 @@ Near-singular  points : 31756
 Solver : direct
 
 ----------- Error -----------
-Max Error   : 2.25e-06
-Max Rel err : 2.26e-06
-L^2 error   : 2.36e-05
-Root MSE err: 2.20e-07
+Max Error   : 8.05e-07
+Max Rel err : 8.08e-07
+L^2 error   : 6.29e-06
+Root MSE err: 5.86e-08
 ===============================================
 
 ============ FractionalLaplacian2D ============
@@ -262,7 +262,7 @@ disc with properties:
 
 
 ----------- Parameters -----------
-N=12, nₚᵣ=256, s=0.9999, p=5000, δ=0.1,
+N=12, nₚᵣ=256, s=0.999, p=500, δ=0.1,
 Precomps nodes: r = nₚᵣ, θ = 2nₚᵣ,
 Lᵢₙ=5, δ_near=0.15, δ_intp=0.005.
 
@@ -275,10 +275,10 @@ Near-singular  points : 31756
 Solver : direct
 
 ----------- Error -----------
-Max Error   : 1.61e-07
-Max Rel err : 1.62e-07
-L^2 error   : 1.21e-06
-Root MSE err: 1.13e-08
+Max Error   : 4.07e-09
+Max Rel err : 4.09e-09
+L^2 error   : 2.83e-08
+Root MSE err: 2.64e-10
 ===============================================
 
 ============ FractionalLaplacian2D ============
@@ -297,7 +297,7 @@ disc with properties:
 
 
 ----------- Parameters -----------
-N=12, nₚᵣ=512, s=0.9999, p=5000, δ=0.1,
+N=12, nₚᵣ=512, s=0.999, p=500, δ=0.1,
 Precomps nodes: r = nₚᵣ, θ = 2nₚᵣ,
 Lᵢₙ=5, δ_near=0.15, δ_intp=0.005.
 
@@ -310,12 +310,12 @@ Near-singular  points : 31756
 Solver : direct
 
 ----------- Error -----------
-Max Error   : 1.19e-09
-Max Rel err : 1.20e-09
-L^2 error   : 6.98e-09
-Root MSE err: 6.50e-11
+Max Error   : 2.49e-13
+Max Rel err : 2.50e-13
+L^2 error   : 1.10e-11
+Root MSE err: 1.03e-13
 ===============================================
 
 
 ==End of Disc==
-Run finished: 2026-05-22T01:41:11.960
+Run finished: 2026-05-22T03:35:47.834

@@ -1,6 +1,6 @@
-s = 0.2
+s = 0.9
 p = 5
-================ FractionalLaplacian2D ================
+============ FractionalLaplacian2D ============
 
 ----------- Domain -----------
 disc with properties:
@@ -8,29 +8,37 @@ disc with properties:
   (L₁, L₂)  = (0.8,0.8)
   Radius of disc = 1.0
   No. of holes   = 0
-  kd     = Int[1 2 3 4]
-  Npat   = 5
-  pths   = Vector{Patch} (5 patches)
-  Qpts   = 8×5 Matrix
-  Qptsbd = 8×4 Matrix
+  kd     = Int[11 12 13 … 58 59 60]
+  Npat   = 80
+  pths   = Vector{Patch} (80 patches)
+  Qpts   = 8×80 Matrix
+  Qptsbd = 8×20 Matrix
 
 
 ----------- Parameters -----------
-N=12, nₚᵣ=128, s=0.2, p=5, δ=0.1
-Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
+N=12, nₚᵣ=256, s=0.9, p=5, δ=0.02,
+Precomps nodes: r = nₚᵣ, θ = 2nₚᵣ,
+Lᵢₙ=5, δ_near=0.15, δ_intp=0.005.
+
+----------- Quadrature -----------
+Vol. regular patches  : nr = 128  (128×128 grid)
+Vol. boundary patches : nbd = 128 (128×128 grid)
+Boundary DLP mode-0   : nr_bdy = 64
+Boundary DLP mode-1   : ns_near = 128
+Boundary DLP smoothing: pbd = 2
 
 ----------- System -----------
-Target points (Vars.) : 768
-Precomputation points : 1336
-Near-singular  points : 568
+Target points (Vars.) : 11760
+Precomputation points : 22044
+Near-singular  points : 10284
 
 ----------- Solve -----------
 Solver : direct
 
 ----------- Error -----------
-Max Error   : 4.51e-06
-Max Rel err : 5.39e-06
-L^2 error   : 2.67e-05
-Root MSE err: 9.93e-07
-=====================================================
+Max Error   : 4.08e-13
+Max Rel err : 4.09e-13
+L^2 error   : 1.12e-11
+Root MSE err: 1.05e-13
+===============================================
 

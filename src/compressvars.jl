@@ -8,7 +8,8 @@ functions Axb.jl (For a matrix free iterative solver) with preallocated scratch
 arrays to avoid allocations.
 """
 function compress_vars(d::abstractdomain, dp::domprop, s::Float64,
-    p::Int; matrix_form=true, pbd::Int=2)
+    p::Int; matrix_form=true, nr::Int=32, nbd::Int=128,
+    nr_bdy::Int=64, ns_near::Int=128, pbd::Int=2)
     # ----------------- BASIC CONSTANTS -------------------
     # Number of points per patch
     N = dp.N
@@ -20,7 +21,6 @@ function compress_vars(d::abstractdomain, dp::domprop, s::Float64,
 
     # ----------------- REGULAR INTEGRALS -------------------
     # Define nr, number of nodes for regular integral, with weights
-    nr = 32
     fwr = getF1W(nr)
 
     # Number of regular nodes per patch
@@ -47,7 +47,6 @@ function compress_vars(d::abstractdomain, dp::domprop, s::Float64,
 
     # ----------------- BOUNDARY PATCH INTEGRALS ------------
     # For boundary patches, which have singularity on boundary
-    nbd = 128
     fwbd = getF1W(nbd)
 
     # z1 = cospi((2*(1:nbd)-1)/(4*nbd)).^2
@@ -84,9 +83,6 @@ function compress_vars(d::abstractdomain, dp::domprop, s::Float64,
     ChebyTN!(Tz, N, zr)         
 
     # ----------------- Boundary DLP quadrature -------------------
-    nr_bdy = 64
-    ns_near = 128
-
     fwr_bdy = getF1W(nr_bdy)
     fw_near = getF1W(ns_near)
 

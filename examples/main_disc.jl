@@ -15,28 +15,46 @@ function run_one_disc!(io, case; s::Float64, p::Int, nJac::Int=5)
     δ_near   = getfield_default(case, :δ_near, 0.15)
     δ_intp   = getfield_default(case, :δ_intp, 5e-3)
 
+    plot_u     = getfield_default(case, :plot, false)
     solver     = getfield_default(case, :solver, :direct)
     matrixfree = getfield_default(case, :matrixfree, false)
     s_small    = getfield_default(case, :s_small, false)
     benchmark  = getfield_default(case, :benchmark, false)
     cond_num   = getfield_default(case, :cond_num, false)
 
+    # Quadrature controls
+    nr        = getfield_default(case, :nr, 32)
+    nbd       = getfield_default(case, :nbd, 128)
+    nr_bdy    = getfield_default(case, :nr_bdy, 64)
+    ns_near   = getfield_default(case, :ns_near, 128)
+    pbd       = getfield_default(case, :pbd, 2)
+
     prob = Problem(;
         N = case.N,
         nₚᵣ = case.nₚᵣ,
-        s = s, p = p, δ = δ,
+        s = s,
+        p = p,
+        δ = δ,
         δ_near = δ_near,
         δ_intp = δ_intp,
-        f! = f!, uex = uex,
-        dom = case.dom)
+        f! = f!,
+        uex = uex,
+        dom = case.dom
+    )
 
     opts = Options(;
-        plot = false,
+        plot = plot_u,
         solver = solver,
         cond_num = cond_num,
         benchmark = benchmark,
         matrixfree = matrixfree,
-        s_small = s_small)
+        s_small = s_small,
+        nr = nr,
+        nbd = nbd,
+        nr_bdy = nr_bdy,
+        ns_near = ns_near,
+        pbd = pbd
+    )
 
     core = solveFL(prob; opts=opts)
 
@@ -48,15 +66,21 @@ end
 
 open("test_temp.txt", "w") do io
 
-    s, p = 0.2, 5
+    s, p = 0.9, 5
 
     println(io, "s = ", s)
     println(io, "p = ", p)
     flush(io)
 
-    case = (dom=FL2D.disc(b=[1, 1, 1, 1, 1], L1=0.8, L2=0.8),
-            N=12, nₚᵣ=128, δ=0.1, δ_near=0.15, δ_intp=5e-3, 
-            s_small = false, benchmark = false, cond_num = false)
+   #  case = (dom=FL2D.disc(b=[1, 1, 1, 1, 1], L1=0.8, L2=0.8),
+   #          N=12, nₚᵣ=128, δ=0.02, δ_near=0.15, δ_intp=5e-3, nr=128,
+   #          s_small = false, benchmark = false, cond_num = false,
+   #          plot = true)
+
+   case = (dom=FL2D.disc(b=[5, 5, 5, 5, 5], a=[3, 3, 3, 3, 4], L1=0.8, L2=0.8),
+      N=12, nₚᵣ=256, δ=0.02, δ_near=0.15, δ_intp=5e-3, nr=128,
+      s_small=false, benchmark=false, cond_num=false,
+      plot=true)
 
     run_one_disc!(io, case; s=s, p=p, nJac=5)
 
@@ -215,7 +239,6 @@ open("solve_outputs9999_direct.txt", "w") do io
         (dom=d5, N=12, nₚᵣ=128),
         (dom=d5, N=12, nₚᵣ=256),
         (dom=d5, N=12, nₚᵣ=512),
-        (dom=d5, N=12, nₚᵣ=1024),
     ]
 
     for case in cases
@@ -249,7 +272,6 @@ open("solve_outputs0999_direct.txt", "w") do io
         (dom=d5, N=12, nₚᵣ=128),
         (dom=d5, N=12, nₚᵣ=256),
         (dom=d5, N=12, nₚᵣ=512),
-        (dom=d5, N=12, nₚᵣ=1024),
     ]
 
     for case in cases

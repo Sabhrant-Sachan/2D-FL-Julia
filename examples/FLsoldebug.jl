@@ -2,6 +2,8 @@ using Revise, FL2D
 
 import FL2D.FLdata as FLdata
 
+d = FL2D.peanut(b=[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1])
+
 d = FL2D.kite(b=[4, 5, 9, 9, 5, 4, 5, 5, 5, 5, 4, 4],
 a=[4, 3, 7, 7, 3, 4, 3, 6, 6, 3, 3, 3])
 
@@ -15,7 +17,9 @@ d = FL2D.disc(b=[1, 1, 1, 1, 1])
 
 dp = FL2D.domprop(12, 0.1, 0.15, 5e-3, d; Lᵢₙ=5)
 
-FL2D.plotns(dp, d, 1)
+fig, ax = FL2D.plotns(dp, d, 1)
+
+FL2D.drawextregion(fig, ax, d, 1, 1.221)
 
 FL2D.chk_map(d);
 
@@ -31,9 +35,11 @@ f!, uex, fv = FLdata.makesquirclefuex(5, 0.1, 4);
 
 f!, uex, fv = FLdata.makediscfuex(0, 0.2);
 
+f!, uex, fv = FLdata.makepeanutfuex(0, 0.75);
+
 FL2D.plotfunc(dp, d, f!)
 
-b = FL2D.bvec(d, dp, 0.2, f!);
+b = FL2D.bvec(d, dp, 0.75, f!);
 
 FL2D.plotfunc(dp,d,b)
 

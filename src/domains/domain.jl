@@ -40,19 +40,35 @@ end
     return (x - mid)/half
 end
 
+#-----------------------------------------
+#For these two domains, exact solutions of FL is known
 include(joinpath(@__DIR__, "disc.jl")); 
-include(joinpath(@__DIR__, "ellipse.jl")); 
+include(joinpath(@__DIR__, "ellipse.jl"));
+ 
+#Simply connected domains over which FL sol is unknown
 include(joinpath(@__DIR__, "kite.jl")); 
-include(joinpath(@__DIR__, "annulus.jl")); 
-include(joinpath(@__DIR__, "squircle.jl")); 
+include(joinpath(@__DIR__, "bean.jl"));
+include(joinpath(@__DIR__, "star.jl"));   
 include(joinpath(@__DIR__, "peanut.jl")); 
+include(joinpath(@__DIR__, "squircle.jl"));
 
+#Domains which holes over which FL sol is unknown
+include(joinpath(@__DIR__, "annulus.jl"));
+include(joinpath(@__DIR__, "ellipseNh.jl"));
+
+#All regions in the domains which are non-rectangular
 ftable_regions(::disc) = 1:4
-ftable_regions(::squircle) = 1:4
 ftable_regions(::ellipse) = 1:4
+
 ftable_regions(::kite) = 1:10
+ftable_regions(::bean) = 1:10
+#ftable_regions(d::star) = 1:(7*d.P+4)
 ftable_regions(::peanut) = 1:10
+ftable_regions(::squircle) = 1:4
+
 ftable_regions(::annulus) = 1:8
+#ftable_regions(d::ellipseNh) = 1:(8*d.nh)
+#-----------------------------------------
 
 """
     find_roots!(roots, tbl, d, p, u, v;
@@ -1054,4 +1070,78 @@ function newtonR2D(f1::F1, f2::F2, Jinv::FJ, t0::Float64, s0::Float64, maxi::Int
     end
 
     return :max, :max  
+end
+
+"""
+    drawextregion(d::abstractdomain, r::Int, s::Float64; L::Int = 81)
+
+Draw the domain `d`, then overlay the image of the extended region-level map
+
+    τᵣ([-s,s]²)
+
+for a single region `r`.
+"""
+function drawextregion(fig, ax, d::abstractdomain, k::Int, s::Float64; L::Int = 81)
+
+   @assert s > 1.0 "s must be > 1"
+   @assert L ≥ 2 "L must be at least 2"
+
+   z = collect(range(-s, s; length=L))
+
+   # Draw u-lines.
+   for u0 in z
+      xs = Vector{Float64}(undef, L)
+      ys = Vector{Float64}(undef, L)
+
+      @inbounds for j in 1:L
+         xs[j], ys[j] = mapxy(d, u0, z[j], k)
+      end
+
+      lines!(ax, xs, ys)
+   end
+
+   # Draw v-lines.
+   for v0 in z
+      xs = Vector{Float64}(undef, L)
+      ys = Vector{Float64}(undef, L)
+
+      @inbounds for i in 1:L
+         xs[i], ys[i] = mapxy(d, z[i], v0, k)
+      end
+
+      lines!(ax, xs, ys)
+   end
+
+   # Draw boundary of extended square.
+   xb = Vector{Float64}(undef, 4L)
+   yb = Vector{Float64}(undef, 4L)
+
+   idx = 1
+
+   @inbounds for i in 1:L
+      xb[idx], yb[idx] = mapxy(d, z[i], -s, k)
+      idx += 1
+   end
+
+   @inbounds for j in 1:L
+      xb[idx], yb[idx] = mapxy(d, s, z[j], k)
+      idx += 1
+   end
+
+   @inbounds for i in L:-1:1
+      xb[idx], yb[idx] = mapxy(d, z[i], s, k)
+      idx += 1
+   end
+
+   @inbounds for j in L:-1:1
+      xb[idx], yb[idx] = mapxy(d, -s, z[j], k)
+      idx += 1
+   end
+
+   lines!(ax, xb, yb; linewidth=3)
+
+   display(fig)
+
+   return fig, ax
+
 end

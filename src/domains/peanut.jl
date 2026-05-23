@@ -1911,15 +1911,14 @@ function DLP!(out::StridedArray{Float64}, d::peanut, t::Float64,
       Δ = 0.5 * (thτ - tht)
 
       sΔ, cΔ = sincos(Δ)
-
+      # (2e-3)^5 = 3.2e-14
       if abs(Δ) < 2e-3
 
          Δ2 = Δ * Δ
          Δ3 = Δ2 * Δ
          Δ4 = Δ2 * Δ2
 
-         q = ht1 +
-             Δ * ht2 +
+         q = ht1 + Δ * ht2 +
              Δ2 * ((2 / 3) * ht3 + ht1 / 6) +
              Δ3 * (ht4 / 3 + ht2 / 6) +
              Δ4 * ((2 / 15) * ht5 + ht3 / 9 + (7 / 360) * ht1)
@@ -1948,3 +1947,3046 @@ function DLP!(out::StridedArray{Float64}, d::peanut, t::Float64,
 
 end
 #-----------------------
+
+"""
+   gamder(d::peanut, θ::Float64)
+
+Return centered peanut boundary values and first derivatives with respect to `θ`.
+
+Returns gx, gy, dgx, dgy
+
+where gx(θ) = R*h(θ)*cos(θ), gy(θ) = R*h(θ)*sin(θ)
+
+and h(θ) = sqrt(cos(2θ) + sqrt(P + cos(2θ)^2)).
+"""
+function gamder(d::peanut, θ::Float64)::Tuple{Float64,Float64,Float64,Float64}
+
+   st, ct = sincos(θ)
+
+   f = cos(2 * θ)
+   q = sqrt(d.P + f^2)
+   h = sqrt(f + q)
+
+   dh = -2.0 * st * ct * h / q
+
+   gx = d.R * h * ct
+   gy = d.R * h * st
+
+   dgx = d.R * (dh * ct - h * st)
+   dgy = d.R * (dh * st + h * ct)
+
+   return gx, gy, dgx, dgy
+
+end
+
+"""
+    Dmap!(DJ::StridedArray{Float64}, d::peanut,
+          u::StridedArray{Float64}, v::StridedArray{Float64}, k::Int)
+
+Fill `DJ` with the absolute determinant of the Jacobian of the patch map.
+
+No allocations. `u`, `v`, and `DJ` must have compatible indexing.
+"""
+function Dmap!(DJ::StridedArray{Float64}, d::peanut,
+   u::StridedArray{Float64}, v::StridedArray{Float64}, k::Int)
+
+   p = d.pths[k]
+
+   hc = p.ck1 - p.ck0
+   ht = p.tk1 - p.tk0
+
+   αc = hc / 2
+   αt = ht / 2
+   βc = p.ck0 + αc
+   βt = p.tk0 + αt
+
+   r = p.reg
+
+   if r == 11 || r == 12
+
+      fill!(DJ, d.L1 * d.L2 * hc * ht / 4)
+
+      return nothing
+
+   end
+
+   Rα = d.R * d.alpha
+   L1h = d.L1 / 2
+   L2h = d.L2 / 2
+
+   if r == 1
+
+      ak = 2 * d.tht1
+      bk = -d.tht1
+
+      @inbounds for I in eachindex(u, v, DJ)
+
+         uhat = muladd(αc, u[I], βc)
+         vhat = muladd(αt, v[I], βt)
+
+         Xx = Rα + L2h
+         Xy = d.L1 * (2vhat - 1) / 2
+
+         dXx = 0.0
+         dXy = d.L1
+
+         th = muladd(ak, vhat, bk)
+
+         st, ct = sincos(th)
+         f = cos(2 * th)
+         q = sqrt(d.P + f^2)
+         h = sqrt(f + q)
+
+         f1 = -2.0 * sin(2 * th)
+         dh = f1 * h / (2.0 * q)
+
+         gx = d.R * h * ct
+         gy = d.R * h * st
+         dgx = d.R * (dh * ct - h * st)
+         dgy = d.R * (dh * st + h * ct)
+
+         dux = αc * (gx - Xx)
+         duy = αc * (gy - Xy)
+
+         dvx = (1 - uhat) * αt * dXx + uhat * αt * ak * dgx
+         dvy = (1 - uhat) * αt * dXy + uhat * αt * ak * dgy
+
+         DJ[I] = abs(dux * dvy - dvx * duy)
+
+      end
+
+   elseif r == 2
+
+      ak = d.tht2 - d.tht1
+      bk = d.tht1
+
+      @inbounds for I in eachindex(u, v, DJ)
+
+         uhat = muladd(αc, u[I], βc)
+         vhat = muladd(αt, v[I], βt)
+
+         Xx = Rα + d.L2 * (1 - 2vhat) / 2
+         Xy = L1h
+
+         dXx = -d.L2
+         dXy = 0.0
+
+         th = muladd(ak, vhat, bk)
+
+         st, ct = sincos(th)
+         f = cos(2 * th)
+         q = sqrt(d.P + f^2)
+         h = sqrt(f + q)
+
+         f1 = -2.0 * sin(2 * th)
+         dh = f1 * h / (2.0 * q)
+
+         gx = d.R * h * ct
+         gy = d.R * h * st
+         dgx = d.R * (dh * ct - h * st)
+         dgy = d.R * (dh * st + h * ct)
+
+         dux = αc * (gx - Xx)
+         duy = αc * (gy - Xy)
+
+         dvx = (1 - uhat) * αt * dXx + uhat * αt * ak * dgx
+         dvy = (1 - uhat) * αt * dXy + uhat * αt * ak * dgy
+
+         DJ[I] = abs(dux * dvy - dvx * duy)
+
+      end
+
+   elseif r == 3
+
+      ak = π / 2 - d.tht2
+      bk = d.tht2
+      Cx = Rα - L2h
+
+      @inbounds for I in eachindex(u, v, DJ)
+
+         uhat = muladd(αc, u[I], βc)
+         vhat = muladd(αt, v[I], βt)
+
+         Xx = (1 - vhat) * Cx
+         Xy = 0.0
+
+         dXx = -Cx
+         dXy = 0.0
+
+         th = muladd(ak, vhat, bk)
+
+         st, ct = sincos(th)
+         f = cos(2 * th)
+         q = sqrt(d.P + f^2)
+         h = sqrt(f + q)
+
+         f1 = -2.0 * sin(2 * th)
+         dh = f1 * h / (2.0 * q)
+
+         gx = d.R * h * ct
+         gy = d.R * h * st
+         dgx = d.R * (dh * ct - h * st)
+         dgy = d.R * (dh * st + h * ct)
+
+         dux = αc * (gx - Xx)
+         duy = αc * (gy - Xy)
+
+         dvx = (1 - uhat) * αt * dXx + uhat * αt * ak * dgx
+         dvy = (1 - uhat) * αt * dXy + uhat * αt * ak * dgy
+
+         DJ[I] = abs(dux * dvy - dvx * duy)
+
+      end
+
+   elseif r == 4
+
+      ak = π / 2 - d.tht2
+      bk = π / 2
+      Cx = L2h - Rα
+
+      @inbounds for I in eachindex(u, v, DJ)
+
+         uhat = muladd(αc, u[I], βc)
+         vhat = muladd(αt, v[I], βt)
+
+         Xx = vhat * Cx
+         Xy = 0.0
+
+         dXx = Cx
+         dXy = 0.0
+
+         th = muladd(ak, vhat, bk)
+
+         st, ct = sincos(th)
+         f = cos(2 * th)
+         q = sqrt(d.P + f^2)
+         h = sqrt(f + q)
+
+         f1 = -2.0 * sin(2 * th)
+         dh = f1 * h / (2.0 * q)
+
+         gx = d.R * h * ct
+         gy = d.R * h * st
+         dgx = d.R * (dh * ct - h * st)
+         dgy = d.R * (dh * st + h * ct)
+
+         dux = αc * (gx - Xx)
+         duy = αc * (gy - Xy)
+
+         dvx = (1 - uhat) * αt * dXx + uhat * αt * ak * dgx
+         dvy = (1 - uhat) * αt * dXy + uhat * αt * ak * dgy
+
+         DJ[I] = abs(dux * dvy - dvx * duy)
+
+      end
+
+   elseif r == 5
+
+      ak = d.tht2 - d.tht1
+      bk = π - d.tht2
+
+      @inbounds for I in eachindex(u, v, DJ)
+
+         uhat = muladd(αc, u[I], βc)
+         vhat = muladd(αt, v[I], βt)
+
+         Xx = -Rα + d.L2 * (1 - 2vhat) / 2
+         Xy = L1h
+
+         dXx = -d.L2
+         dXy = 0.0
+
+         th = muladd(ak, vhat, bk)
+
+         st, ct = sincos(th)
+         f = cos(2 * th)
+         q = sqrt(d.P + f^2)
+         h = sqrt(f + q)
+
+         f1 = -2.0 * sin(2 * th)
+         dh = f1 * h / (2.0 * q)
+
+         gx = d.R * h * ct
+         gy = d.R * h * st
+         dgx = d.R * (dh * ct - h * st)
+         dgy = d.R * (dh * st + h * ct)
+
+         dux = αc * (gx - Xx)
+         duy = αc * (gy - Xy)
+
+         dvx = (1 - uhat) * αt * dXx + uhat * αt * ak * dgx
+         dvy = (1 - uhat) * αt * dXy + uhat * αt * ak * dgy
+
+         DJ[I] = abs(dux * dvy - dvx * duy)
+
+      end
+
+   elseif r == 6
+
+      ak = 2 * d.tht1
+      bk = π - d.tht1
+
+      @inbounds for I in eachindex(u, v, DJ)
+
+         uhat = muladd(αc, u[I], βc)
+         vhat = muladd(αt, v[I], βt)
+
+         Xx = -Rα - L2h
+         Xy = -d.L1 * (2vhat - 1) / 2
+
+         dXx = 0.0
+         dXy = -d.L1
+
+         th = muladd(ak, vhat, bk)
+
+         st, ct = sincos(th)
+         f = cos(2 * th)
+         q = sqrt(d.P + f^2)
+         h = sqrt(f + q)
+
+         f1 = -2.0 * sin(2 * th)
+         dh = f1 * h / (2.0 * q)
+
+         gx = d.R * h * ct
+         gy = d.R * h * st
+         dgx = d.R * (dh * ct - h * st)
+         dgy = d.R * (dh * st + h * ct)
+
+         dux = αc * (gx - Xx)
+         duy = αc * (gy - Xy)
+
+         dvx = (1 - uhat) * αt * dXx + uhat * αt * ak * dgx
+         dvy = (1 - uhat) * αt * dXy + uhat * αt * ak * dgy
+
+         DJ[I] = abs(dux * dvy - dvx * duy)
+
+      end
+
+   elseif r == 7
+
+      ak = d.tht2 - d.tht1
+      bk = π + d.tht1
+
+      @inbounds for I in eachindex(u, v, DJ)
+
+         uhat = muladd(αc, u[I], βc)
+         vhat = muladd(αt, v[I], βt)
+
+         Xx = -Rα - d.L2 * (1 - 2vhat) / 2
+         Xy = -L1h
+
+         dXx = d.L2
+         dXy = 0.0
+
+         th = muladd(ak, vhat, bk)
+
+         st, ct = sincos(th)
+         f = cos(2 * th)
+         q = sqrt(d.P + f^2)
+         h = sqrt(f + q)
+
+         f1 = -2.0 * sin(2 * th)
+         dh = f1 * h / (2.0 * q)
+
+         gx = d.R * h * ct
+         gy = d.R * h * st
+         dgx = d.R * (dh * ct - h * st)
+         dgy = d.R * (dh * st + h * ct)
+
+         dux = αc * (gx - Xx)
+         duy = αc * (gy - Xy)
+
+         dvx = (1 - uhat) * αt * dXx + uhat * αt * ak * dgx
+         dvy = (1 - uhat) * αt * dXy + uhat * αt * ak * dgy
+
+         DJ[I] = abs(dux * dvy - dvx * duy)
+
+      end
+
+   elseif r == 8
+
+      ak = π / 2 - d.tht2
+      bk = π + d.tht2
+      Cx = L2h - Rα
+
+      @inbounds for I in eachindex(u, v, DJ)
+
+         uhat = muladd(αc, u[I], βc)
+         vhat = muladd(αt, v[I], βt)
+
+         Xx = (1 - vhat) * Cx
+         Xy = 0.0
+
+         dXx = -Cx
+         dXy = 0.0
+
+         th = muladd(ak, vhat, bk)
+
+         st, ct = sincos(th)
+         f = cos(2 * th)
+         q = sqrt(d.P + f^2)
+         h = sqrt(f + q)
+
+         f1 = -2.0 * sin(2 * th)
+         dh = f1 * h / (2.0 * q)
+
+         gx = d.R * h * ct
+         gy = d.R * h * st
+         dgx = d.R * (dh * ct - h * st)
+         dgy = d.R * (dh * st + h * ct)
+
+         dux = αc * (gx - Xx)
+         duy = αc * (gy - Xy)
+
+         dvx = (1 - uhat) * αt * dXx + uhat * αt * ak * dgx
+         dvy = (1 - uhat) * αt * dXy + uhat * αt * ak * dgy
+
+         DJ[I] = abs(dux * dvy - dvx * duy)
+
+      end
+
+   elseif r == 9
+
+      ak = π / 2 - d.tht2
+      bk = -π / 2
+      Cx = Rα - L2h
+
+      @inbounds for I in eachindex(u, v, DJ)
+
+         uhat = muladd(αc, u[I], βc)
+         vhat = muladd(αt, v[I], βt)
+
+         Xx = vhat * Cx
+         Xy = 0.0
+
+         dXx = Cx
+         dXy = 0.0
+
+         th = muladd(ak, vhat, bk)
+
+         st, ct = sincos(th)
+         f = cos(2 * th)
+         q = sqrt(d.P + f^2)
+         h = sqrt(f + q)
+
+         f1 = -2.0 * sin(2 * th)
+         dh = f1 * h / (2.0 * q)
+
+         gx = d.R * h * ct
+         gy = d.R * h * st
+         dgx = d.R * (dh * ct - h * st)
+         dgy = d.R * (dh * st + h * ct)
+
+         dux = αc * (gx - Xx)
+         duy = αc * (gy - Xy)
+
+         dvx = (1 - uhat) * αt * dXx + uhat * αt * ak * dgx
+         dvy = (1 - uhat) * αt * dXy + uhat * αt * ak * dgy
+
+         DJ[I] = abs(dux * dvy - dvx * duy)
+
+      end
+
+   elseif r == 10
+
+      ak = d.tht2 - d.tht1
+      bk = -d.tht2
+
+      @inbounds for I in eachindex(u, v, DJ)
+
+         uhat = muladd(αc, u[I], βc)
+         vhat = muladd(αt, v[I], βt)
+
+         Xx = Rα - d.L2 * (1 - 2vhat) / 2
+         Xy = -L1h
+
+         dXx = d.L2
+         dXy = 0.0
+
+         th = muladd(ak, vhat, bk)
+
+         st, ct = sincos(th)
+         f = cos(2 * th)
+         q = sqrt(d.P + f^2)
+         h = sqrt(f + q)
+
+         f1 = -2.0 * sin(2 * th)
+         dh = f1 * h / (2.0 * q)
+
+         gx = d.R * h * ct
+         gy = d.R * h * st
+         dgx = d.R * (dh * ct - h * st)
+         dgy = d.R * (dh * st + h * ct)
+
+         dux = αc * (gx - Xx)
+         duy = αc * (gy - Xy)
+
+         dvx = (1 - uhat) * αt * dXx + uhat * αt * ak * dgx
+         dvy = (1 - uhat) * αt * dXy + uhat * αt * ak * dgy
+
+         DJ[I] = abs(dux * dvy - dvx * duy)
+
+      end
+
+   else
+
+      throw(ArgumentError("Dmap! for peanut expects region 1–12; got reg=$r"))
+
+   end
+
+   return nothing
+
+end
+
+"""
+A combination of mapxy! and Dmap! function (No allocations!)
+
+The purpose of this function is to reduce repeated computations related
+to cosine, sine, hP, and hP'.
+"""
+function mapxy_Dmap!(Zx::StridedArray{Float64}, Zy::StridedArray{Float64},
+   DJ::StridedArray{Float64}, d::peanut, u::StridedArray{Float64},
+   v::StridedArray{Float64}, k::Int)
+
+   p = d.pths[k]
+
+   hc = p.ck1 - p.ck0
+   ht = p.tk1 - p.tk0
+
+   αc = hc / 2
+   αt = ht / 2
+   βc = p.ck0 + αc
+   βt = p.tk0 + αt
+
+   r = p.reg
+
+   Rα = d.R * d.alpha
+   L1h = d.L1 / 2
+   L2h = d.L2 / 2
+
+   if r == 11 || r == 12
+
+      if d.L2 >= d.L1
+         αu = αt
+         βu = βt
+         αv = αc
+         βv = βc
+      else
+         αu = αc
+         βu = βc
+         αv = αt
+         βv = βt
+      end
+
+      x0 = if r == 11
+         d.A + Rα - L2h
+      else
+         d.A - Rα - L2h
+      end
+
+      y0 = d.B - L1h
+      detJ = d.L1 * d.L2 * hc * ht / 4
+
+      @inbounds for I in eachindex(u, v, Zx, Zy, DJ)
+         xi1 = muladd(αu, u[I], βu)
+         xi2 = muladd(αv, v[I], βv)
+
+         Zx[I] = muladd(d.L2, xi1, x0)
+         Zy[I] = muladd(d.L1, xi2, y0)
+         DJ[I] = detJ
+      end
+
+      return nothing
+   end
+
+   if r == 1
+
+      ak = 2 * d.tht1
+      bk = -d.tht1
+      Xxc = Rα + L2h
+
+      @inbounds for I in eachindex(u, v, Zx, Zy, DJ)
+         uhat = muladd(αc, u[I], βc)
+         vhat = muladd(αt, v[I], βt)
+
+         Xyc = d.L1 * (2vhat - 1) / 2
+
+         th = muladd(ak, vhat, bk)
+         st, ct = sincos(th)
+
+         f = cos(2 * th)
+         q = sqrt(d.P + f^2)
+         h = sqrt(f + q)
+         dh = -2.0 * st * ct * h / q
+
+         Yxc = d.R * h * ct
+         Yyc = d.R * h * st
+
+         dgx = d.R * (dh * ct - h * st)
+         dgy = d.R * (dh * st + h * ct)
+
+         Zx[I] = d.A + muladd(uhat, Yxc - Xxc, Xxc)
+         Zy[I] = d.B + muladd(uhat, Yyc - Xyc, Xyc)
+
+         dux = αc * (Yxc - Xxc)
+         duy = αc * (Yyc - Xyc)
+
+         dvx = uhat * αt * ak * dgx
+         dvy = (1 - uhat) * αt * d.L1 + uhat * αt * ak * dgy
+
+         DJ[I] = abs(dux * dvy - dvx * duy)
+      end
+
+   elseif r == 2
+
+      ak = d.tht2 - d.tht1
+      bk = d.tht1
+      Xyc = L1h
+
+      @inbounds for I in eachindex(u, v, Zx, Zy, DJ)
+         uhat = muladd(αc, u[I], βc)
+         vhat = muladd(αt, v[I], βt)
+
+         Xxc = Rα + d.L2 * (1 - 2vhat) / 2
+
+         th = muladd(ak, vhat, bk)
+         st, ct = sincos(th)
+
+         f = cos(2 * th)
+         q = sqrt(d.P + f^2)
+         h = sqrt(f + q)
+         dh = -2.0 * st * ct * h / q
+
+         Yxc = d.R * h * ct
+         Yyc = d.R * h * st
+
+         dgx = d.R * (dh * ct - h * st)
+         dgy = d.R * (dh * st + h * ct)
+
+         Zx[I] = d.A + muladd(uhat, Yxc - Xxc, Xxc)
+         Zy[I] = d.B + muladd(uhat, Yyc - Xyc, Xyc)
+
+         dux = αc * (Yxc - Xxc)
+         duy = αc * (Yyc - Xyc)
+
+         dvx = -(1 - uhat) * αt * d.L2 + uhat * αt * ak * dgx
+         dvy = uhat * αt * ak * dgy
+
+         DJ[I] = abs(dux * dvy - dvx * duy)
+      end
+
+   elseif r == 3
+
+      ak = π / 2 - d.tht2
+      bk = d.tht2
+      Cx = Rα - L2h
+
+      @inbounds for I in eachindex(u, v, Zx, Zy, DJ)
+         uhat = muladd(αc, u[I], βc)
+         vhat = muladd(αt, v[I], βt)
+
+         Xxc = (1 - vhat) * Cx
+
+         th = muladd(ak, vhat, bk)
+         st, ct = sincos(th)
+
+         f = cos(2 * th)
+         q = sqrt(d.P + f^2)
+         h = sqrt(f + q)
+         dh = -2.0 * st * ct * h / q
+
+         Yxc = d.R * h * ct
+         Yyc = d.R * h * st
+
+         dgx = d.R * (dh * ct - h * st)
+         dgy = d.R * (dh * st + h * ct)
+
+         Zx[I] = d.A + muladd(uhat, Yxc - Xxc, Xxc)
+         Zy[I] = d.B + uhat * Yyc
+
+         dux = αc * (Yxc - Xxc)
+         duy = αc * Yyc
+
+         dvx = -(1 - uhat) * αt * Cx + uhat * αt * ak * dgx
+         dvy = uhat * αt * ak * dgy
+
+         DJ[I] = abs(dux * dvy - dvx * duy)
+      end
+
+   elseif r == 4
+
+      ak = π / 2 - d.tht2
+      bk = π / 2
+      Cx = L2h - Rα
+
+      @inbounds for I in eachindex(u, v, Zx, Zy, DJ)
+         uhat = muladd(αc, u[I], βc)
+         vhat = muladd(αt, v[I], βt)
+
+         Xxc = vhat * Cx
+
+         th = muladd(ak, vhat, bk)
+         st, ct = sincos(th)
+
+         f = cos(2 * th)
+         q = sqrt(d.P + f^2)
+         h = sqrt(f + q)
+         dh = -2.0 * st * ct * h / q
+
+         Yxc = d.R * h * ct
+         Yyc = d.R * h * st
+
+         dgx = d.R * (dh * ct - h * st)
+         dgy = d.R * (dh * st + h * ct)
+
+         Zx[I] = d.A + muladd(uhat, Yxc - Xxc, Xxc)
+         Zy[I] = d.B + uhat * Yyc
+
+         dux = αc * (Yxc - Xxc)
+         duy = αc * Yyc
+
+         dvx = (1 - uhat) * αt * Cx + uhat * αt * ak * dgx
+         dvy = uhat * αt * ak * dgy
+
+         DJ[I] = abs(dux * dvy - dvx * duy)
+      end
+
+   elseif r == 5
+
+      ak = d.tht2 - d.tht1
+      bk = π - d.tht2
+      Xyc = L1h
+
+      @inbounds for I in eachindex(u, v, Zx, Zy, DJ)
+         uhat = muladd(αc, u[I], βc)
+         vhat = muladd(αt, v[I], βt)
+
+         Xxc = -Rα + d.L2 * (1 - 2vhat) / 2
+
+         th = muladd(ak, vhat, bk)
+         st, ct = sincos(th)
+
+         f = cos(2 * th)
+         q = sqrt(d.P + f^2)
+         h = sqrt(f + q)
+         dh = -2.0 * st * ct * h / q
+
+         Yxc = d.R * h * ct
+         Yyc = d.R * h * st
+
+         dgx = d.R * (dh * ct - h * st)
+         dgy = d.R * (dh * st + h * ct)
+
+         Zx[I] = d.A + muladd(uhat, Yxc - Xxc, Xxc)
+         Zy[I] = d.B + muladd(uhat, Yyc - Xyc, Xyc)
+
+         dux = αc * (Yxc - Xxc)
+         duy = αc * (Yyc - Xyc)
+
+         dvx = -(1 - uhat) * αt * d.L2 + uhat * αt * ak * dgx
+         dvy = uhat * αt * ak * dgy
+
+         DJ[I] = abs(dux * dvy - dvx * duy)
+      end
+
+   elseif r == 6
+
+      ak = 2 * d.tht1
+      bk = π - d.tht1
+      Xxc = -Rα - L2h
+
+      @inbounds for I in eachindex(u, v, Zx, Zy, DJ)
+         uhat = muladd(αc, u[I], βc)
+         vhat = muladd(αt, v[I], βt)
+
+         Xyc = -d.L1 * (2vhat - 1) / 2
+
+         th = muladd(ak, vhat, bk)
+         st, ct = sincos(th)
+
+         f = cos(2 * th)
+         q = sqrt(d.P + f^2)
+         h = sqrt(f + q)
+         dh = -2.0 * st * ct * h / q
+
+         Yxc = d.R * h * ct
+         Yyc = d.R * h * st
+
+         dgx = d.R * (dh * ct - h * st)
+         dgy = d.R * (dh * st + h * ct)
+
+         Zx[I] = d.A + muladd(uhat, Yxc - Xxc, Xxc)
+         Zy[I] = d.B + muladd(uhat, Yyc - Xyc, Xyc)
+
+         dux = αc * (Yxc - Xxc)
+         duy = αc * (Yyc - Xyc)
+
+         dvx = uhat * αt * ak * dgx
+         dvy = -(1 - uhat) * αt * d.L1 + uhat * αt * ak * dgy
+
+         DJ[I] = abs(dux * dvy - dvx * duy)
+      end
+
+   elseif r == 7
+
+      ak = d.tht2 - d.tht1
+      bk = π + d.tht1
+      Xyc = -L1h
+
+      @inbounds for I in eachindex(u, v, Zx, Zy, DJ)
+         uhat = muladd(αc, u[I], βc)
+         vhat = muladd(αt, v[I], βt)
+
+         Xxc = -Rα - d.L2 * (1 - 2vhat) / 2
+
+         th = muladd(ak, vhat, bk)
+         st, ct = sincos(th)
+
+         f = cos(2 * th)
+         q = sqrt(d.P + f^2)
+         h = sqrt(f + q)
+         dh = -2.0 * st * ct * h / q
+
+         Yxc = d.R * h * ct
+         Yyc = d.R * h * st
+
+         dgx = d.R * (dh * ct - h * st)
+         dgy = d.R * (dh * st + h * ct)
+
+         Zx[I] = d.A + muladd(uhat, Yxc - Xxc, Xxc)
+         Zy[I] = d.B + muladd(uhat, Yyc - Xyc, Xyc)
+
+         dux = αc * (Yxc - Xxc)
+         duy = αc * (Yyc - Xyc)
+
+         dvx = (1 - uhat) * αt * d.L2 + uhat * αt * ak * dgx
+         dvy = uhat * αt * ak * dgy
+
+         DJ[I] = abs(dux * dvy - dvx * duy)
+      end
+
+   elseif r == 8
+
+      ak = π / 2 - d.tht2
+      bk = π + d.tht2
+      Cx = L2h - Rα
+
+      @inbounds for I in eachindex(u, v, Zx, Zy, DJ)
+         uhat = muladd(αc, u[I], βc)
+         vhat = muladd(αt, v[I], βt)
+
+         Xxc = (1 - vhat) * Cx
+
+         th = muladd(ak, vhat, bk)
+         st, ct = sincos(th)
+
+         f = cos(2 * th)
+         q = sqrt(d.P + f^2)
+         h = sqrt(f + q)
+         dh = -2.0 * st * ct * h / q
+
+         Yxc = d.R * h * ct
+         Yyc = d.R * h * st
+
+         dgx = d.R * (dh * ct - h * st)
+         dgy = d.R * (dh * st + h * ct)
+
+         Zx[I] = d.A + muladd(uhat, Yxc - Xxc, Xxc)
+         Zy[I] = d.B + uhat * Yyc
+
+         dux = αc * (Yxc - Xxc)
+         duy = αc * Yyc
+
+         dvx = -(1 - uhat) * αt * Cx + uhat * αt * ak * dgx
+         dvy = uhat * αt * ak * dgy
+
+         DJ[I] = abs(dux * dvy - dvx * duy)
+      end
+
+   elseif r == 9
+
+      ak = π / 2 - d.tht2
+      bk = -π / 2
+      Cx = Rα - L2h
+
+      @inbounds for I in eachindex(u, v, Zx, Zy, DJ)
+         uhat = muladd(αc, u[I], βc)
+         vhat = muladd(αt, v[I], βt)
+
+         Xxc = vhat * Cx
+
+         th = muladd(ak, vhat, bk)
+         st, ct = sincos(th)
+
+         f = cos(2 * th)
+         q = sqrt(d.P + f^2)
+         h = sqrt(f + q)
+         dh = -2.0 * st * ct * h / q
+
+         Yxc = d.R * h * ct
+         Yyc = d.R * h * st
+
+         dgx = d.R * (dh * ct - h * st)
+         dgy = d.R * (dh * st + h * ct)
+
+         Zx[I] = d.A + muladd(uhat, Yxc - Xxc, Xxc)
+         Zy[I] = d.B + uhat * Yyc
+
+         dux = αc * (Yxc - Xxc)
+         duy = αc * Yyc
+
+         dvx = (1 - uhat) * αt * Cx + uhat * αt * ak * dgx
+         dvy = uhat * αt * ak * dgy
+
+         DJ[I] = abs(dux * dvy - dvx * duy)
+      end
+
+   elseif r == 10
+
+      ak = d.tht2 - d.tht1
+      bk = -d.tht2
+      Xyc = -L1h
+
+      @inbounds for I in eachindex(u, v, Zx, Zy, DJ)
+         uhat = muladd(αc, u[I], βc)
+         vhat = muladd(αt, v[I], βt)
+
+         Xxc = Rα - d.L2 * (1 - 2vhat) / 2
+
+         th = muladd(ak, vhat, bk)
+         st, ct = sincos(th)
+
+         f = cos(2 * th)
+         q = sqrt(d.P + f^2)
+         h = sqrt(f + q)
+         dh = -2.0 * st * ct * h / q
+
+         Yxc = d.R * h * ct
+         Yyc = d.R * h * st
+
+         dgx = d.R * (dh * ct - h * st)
+         dgy = d.R * (dh * st + h * ct)
+
+         Zx[I] = d.A + muladd(uhat, Yxc - Xxc, Xxc)
+         Zy[I] = d.B + muladd(uhat, Yyc - Xyc, Xyc)
+
+         dux = αc * (Yxc - Xxc)
+         duy = αc * (Yyc - Xyc)
+
+         dvx = (1 - uhat) * αt * d.L2 + uhat * αt * ak * dgx
+         dvy = uhat * αt * ak * dgy
+
+         DJ[I] = abs(dux * dvy - dvx * duy)
+      end
+
+   else
+
+      throw(ArgumentError("mapxy_Dmap! for peanut expects region 1–12; got reg=$r"))
+
+   end
+
+   return nothing
+
+end
+
+function chk_map(d::peanut; n::Int=32, tol::Float64=5e-14)
+   Iex = d.R^2 * (π * d.R^2 * (1 + d.P) / 2 + 2 * (d.A^2 + d.B^2) *
+         sqrt(1 + d.P) * ellipe(1 / (1 + d.P)))
+   return chkmap_geom(d, Iex; n=n, tol=tol)
+end
+
+"""
+    jinvmap(d::peanut, u::Float64, v::Float64, r::Int)
+
+Inverse Jacobian of the peanut region mapping at a single reference point
+`(u,v) ∈ [-1,1]^2`.
+
+Returns `(J11, J12, J21, J22)`, the entries of `J⁻¹`.
+
+Only the region index `r` is needed because this is used on the region-level
+map, so `hc = ht = 1`.
+"""
+function jinvmap(d::peanut, u::Float64, v::Float64, r::Int)
+
+   uhat = (u + 1) / 2
+   vhat = (v + 1) / 2
+
+   Rα = d.R * d.alpha
+   L1h = d.L1 / 2
+   L2h = d.L2 / 2
+
+   if r == 1
+
+      ak = 2 * d.tht1
+      th = muladd(ak, vhat, -d.tht1)
+
+      st, ct = sincos(th)
+      f = cos(2 * th)
+      q = sqrt(d.P + f^2)
+      h = sqrt(f + q)
+      dh = -2.0 * st * ct * h / q
+
+      gx = d.R * h * ct
+      gy = d.R * h * st
+      dgx = d.R * (dh * ct - h * st)
+      dgy = d.R * (dh * st + h * ct)
+
+      dux = (gx - Rα - L2h) / 2
+      duy = (gy - d.L1 * (2vhat - 1) / 2) / 2
+
+      dvx = uhat * ak * dgx / 2
+      dvy = (1 - uhat) * d.L1 / 2 + uhat * ak * dgy / 2
+
+   elseif r == 2
+
+      ak = d.tht2 - d.tht1
+      th = muladd(ak, vhat, d.tht1)
+
+      st, ct = sincos(th)
+      f = cos(2 * th)
+      q = sqrt(d.P + f^2)
+      h = sqrt(f + q)
+      dh = -2.0 * st * ct * h / q
+
+      gx = d.R * h * ct
+      gy = d.R * h * st
+      dgx = d.R * (dh * ct - h * st)
+      dgy = d.R * (dh * st + h * ct)
+
+      dux = (gx - Rα - d.L2 * (1 - 2vhat) / 2) / 2
+      duy = (gy - L1h) / 2
+
+      dvx = -(1 - uhat) * d.L2 / 2 + uhat * ak * dgx / 2
+      dvy = uhat * ak * dgy / 2
+
+   elseif r == 3
+
+      ak = π / 2 - d.tht2
+      Cx = Rα - L2h
+      th = muladd(ak, vhat, d.tht2)
+
+      st, ct = sincos(th)
+      f = cos(2 * th)
+      q = sqrt(d.P + f^2)
+      h = sqrt(f + q)
+      dh = -2.0 * st * ct * h / q
+
+      gx = d.R * h * ct
+      gy = d.R * h * st
+      dgx = d.R * (dh * ct - h * st)
+      dgy = d.R * (dh * st + h * ct)
+
+      dux = (gx - (1 - vhat) * Cx) / 2
+      duy = gy / 2
+
+      dvx = -(1 - uhat) * Cx / 2 + uhat * ak * dgx / 2
+      dvy = uhat * ak * dgy / 2
+
+   elseif r == 4
+
+      ak = π / 2 - d.tht2
+      Cx = L2h - Rα
+      th = muladd(ak, vhat, π / 2)
+
+      st, ct = sincos(th)
+      f = cos(2 * th)
+      q = sqrt(d.P + f^2)
+      h = sqrt(f + q)
+      dh = -2.0 * st * ct * h / q
+
+      gx = d.R * h * ct
+      gy = d.R * h * st
+      dgx = d.R * (dh * ct - h * st)
+      dgy = d.R * (dh * st + h * ct)
+
+      dux = (gx - vhat * Cx) / 2
+      duy = gy / 2
+
+      dvx = (1 - uhat) * Cx / 2 + uhat * ak * dgx / 2
+      dvy = uhat * ak * dgy / 2
+
+   elseif r == 5
+
+      ak = d.tht2 - d.tht1
+      th = muladd(ak, vhat, π - d.tht2)
+
+      st, ct = sincos(th)
+      f = cos(2 * th)
+      q = sqrt(d.P + f^2)
+      h = sqrt(f + q)
+      dh = -2.0 * st * ct * h / q
+
+      gx = d.R * h * ct
+      gy = d.R * h * st
+      dgx = d.R * (dh * ct - h * st)
+      dgy = d.R * (dh * st + h * ct)
+
+      dux = (gx + Rα - d.L2 * (1 - 2vhat) / 2) / 2
+      duy = (gy - L1h) / 2
+
+      dvx = -(1 - uhat) * d.L2 / 2 + uhat * ak * dgx / 2
+      dvy = uhat * ak * dgy / 2
+
+   elseif r == 6
+
+      ak = 2 * d.tht1
+      th = muladd(ak, vhat, π - d.tht1)
+
+      st, ct = sincos(th)
+      f = cos(2 * th)
+      q = sqrt(d.P + f^2)
+      h = sqrt(f + q)
+      dh = -2.0 * st * ct * h / q
+
+      gx = d.R * h * ct
+      gy = d.R * h * st
+      dgx = d.R * (dh * ct - h * st)
+      dgy = d.R * (dh * st + h * ct)
+
+      dux = (gx + Rα + L2h) / 2
+      duy = (gy + d.L1 * (2vhat - 1) / 2) / 2
+
+      dvx = uhat * ak * dgx / 2
+      dvy = -(1 - uhat) * d.L1 / 2 + uhat * ak * dgy / 2
+
+   elseif r == 7
+
+      ak = d.tht2 - d.tht1
+      th = muladd(ak, vhat, π + d.tht1)
+
+      st, ct = sincos(th)
+      f = cos(2 * th)
+      q = sqrt(d.P + f^2)
+      h = sqrt(f + q)
+      dh = -2.0 * st * ct * h / q
+
+      gx = d.R * h * ct
+      gy = d.R * h * st
+      dgx = d.R * (dh * ct - h * st)
+      dgy = d.R * (dh * st + h * ct)
+
+      dux = (gx + Rα + d.L2 * (1 - 2vhat) / 2) / 2
+      duy = (gy + L1h) / 2
+
+      dvx = (1 - uhat) * d.L2 / 2 + uhat * ak * dgx / 2
+      dvy = uhat * ak * dgy / 2
+
+   elseif r == 8
+
+      ak = π / 2 - d.tht2
+      Cx = L2h - Rα
+      th = muladd(ak, vhat, π + d.tht2)
+
+      st, ct = sincos(th)
+      f = cos(2 * th)
+      q = sqrt(d.P + f^2)
+      h = sqrt(f + q)
+      dh = -2.0 * st * ct * h / q
+
+      gx = d.R * h * ct
+      gy = d.R * h * st
+      dgx = d.R * (dh * ct - h * st)
+      dgy = d.R * (dh * st + h * ct)
+
+      dux = (gx - (1 - vhat) * Cx) / 2
+      duy = gy / 2
+
+      dvx = -(1 - uhat) * Cx / 2 + uhat * ak * dgx / 2
+      dvy = uhat * ak * dgy / 2
+
+   elseif r == 9
+
+      ak = π / 2 - d.tht2
+      Cx = Rα - L2h
+      th = muladd(ak, vhat, -π / 2)
+
+      st, ct = sincos(th)
+      f = cos(2 * th)
+      q = sqrt(d.P + f^2)
+      h = sqrt(f + q)
+      dh = -2.0 * st * ct * h / q
+
+      gx = d.R * h * ct
+      gy = d.R * h * st
+      dgx = d.R * (dh * ct - h * st)
+      dgy = d.R * (dh * st + h * ct)
+
+      dux = (gx - vhat * Cx) / 2
+      duy = gy / 2
+
+      dvx = (1 - uhat) * Cx / 2 + uhat * ak * dgx / 2
+      dvy = uhat * ak * dgy / 2
+
+   elseif r == 10
+
+      ak = d.tht2 - d.tht1
+      th = muladd(ak, vhat, -d.tht2)
+
+      st, ct = sincos(th)
+      f = cos(2 * th)
+      q = sqrt(d.P + f^2)
+      h = sqrt(f + q)
+      dh = -2.0 * st * ct * h / q
+
+      gx = d.R * h * ct
+      gy = d.R * h * st
+      dgx = d.R * (dh * ct - h * st)
+      dgy = d.R * (dh * st + h * ct)
+
+      dux = (gx - Rα + d.L2 * (1 - 2vhat) / 2) / 2
+      duy = (gy + L1h) / 2
+
+      dvx = (1 - uhat) * d.L2 / 2 + uhat * ak * dgx / 2
+      dvy = uhat * ak * dgy / 2
+
+   else
+
+      throw(ArgumentError("jinvmap for peanut expects region 1–10; got reg=$r"))
+
+   end
+
+   detJ = dux * dvy - dvx * duy
+   invdet = 1.0 / detJ
+
+   J11 =  invdet * dvy
+   J12 = -invdet * dvx
+   J21 = -invdet * duy
+   J22 =  invdet * dux
+
+   return J11, J12, J21, J22
+
+end
+
+"""
+  mapinv(d::peanut, u::Float64, v::Float64, k::Int) -> Tuple{Float64,Float64}
+
+Inverse mapping: given a physical point `(u,v)` on patch `k`, return
+the reference coordinates `[t; s]` in `[-1,1]^2` such that `mapxy(d, t, s, k) = (u,v)`.
+"""
+@inline function Xx(s::Float64, d::peanut, r::Int)
+
+   Rα = d.R * d.alpha
+
+   if r == 1
+      return d.A + Rα + d.L2 / 2
+
+   elseif r == 2
+      return d.A + Rα + d.L2 * (1 - 2s) / 2
+
+   elseif r == 3
+      return d.A + (1 - s) * (Rα - d.L2 / 2)
+
+   elseif r == 4
+      return d.A + s * (d.L2 / 2 - Rα)
+
+   elseif r == 5
+      return d.A - Rα + d.L2 * (1 - 2s) / 2
+
+   elseif r == 6
+      return d.A - Rα - d.L2 / 2
+
+   elseif r == 7
+      return d.A - Rα - d.L2 * (1 - 2s) / 2
+
+   elseif r == 8
+      return d.A + (1 - s) * (d.L2 / 2 - Rα)
+
+   elseif r == 9
+      return d.A + s * (Rα - d.L2 / 2)
+
+   elseif r == 10
+      return d.A + Rα - d.L2 * (1 - 2s) / 2
+
+   else
+      throw(ArgumentError("Xx for peanut expects region 1–10; got r=$r"))
+   end
+
+end
+
+@inline function Xy(s::Float64, d::peanut, r::Int)
+
+   if r == 1
+      return d.B + d.L1 * (2s - 1) / 2
+
+   elseif r == 2
+      return d.B + d.L1 / 2
+
+   elseif r == 3
+      return d.B
+
+   elseif r == 4
+      return d.B
+
+   elseif r == 5
+      return d.B + d.L1 / 2
+
+   elseif r == 6
+      return d.B - d.L1 * (2s - 1) / 2
+
+   elseif r == 7
+      return d.B - d.L1 / 2
+
+   elseif r == 8
+      return d.B
+
+   elseif r == 9
+      return d.B
+
+   elseif r == 10
+      return d.B - d.L1 / 2
+
+   else
+      throw(ArgumentError("Xy for peanut expects region 1–10; got r=$r"))
+   end
+
+end
+
+@inline function Yx(s::Float64, d::peanut, r::Int)
+
+   th = if r == 1
+      (2s - 1) * d.tht1
+
+   elseif r == 2
+      s * (d.tht2 - d.tht1) + d.tht1
+
+   elseif r == 3
+      s * (π / 2 - d.tht2) + d.tht2
+
+   elseif r == 4
+      s * (π / 2 - d.tht2) + π / 2
+
+   elseif r == 5
+      s * (d.tht2 - d.tht1) + π - d.tht2
+
+   elseif r == 6
+      2s * d.tht1 + π - d.tht1
+
+   elseif r == 7
+      s * (d.tht2 - d.tht1) + π + d.tht1
+
+   elseif r == 8
+      s * (π / 2 - d.tht2) + π + d.tht2
+
+   elseif r == 9
+      s * (π / 2 - d.tht2) - π / 2
+
+   elseif r == 10
+      s * (d.tht2 - d.tht1) - d.tht2
+
+   else
+      throw(ArgumentError("Yx for peanut expects region 1–10; got r=$r"))
+   end
+
+   st, ct = sincos(th)
+
+   f = cos(2 * th)
+   hP = sqrt(f + sqrt(d.P + f^2))
+
+   return d.A + d.R * hP * ct
+
+end
+
+@inline function Yy(s::Float64, d::peanut, r::Int)
+
+   th = if r == 1
+      (2s - 1) * d.tht1
+
+   elseif r == 2
+      s * (d.tht2 - d.tht1) + d.tht1
+
+   elseif r == 3
+      s * (π / 2 - d.tht2) + d.tht2
+
+   elseif r == 4
+      s * (π / 2 - d.tht2) + π / 2
+
+   elseif r == 5
+      s * (d.tht2 - d.tht1) + π - d.tht2
+
+   elseif r == 6
+      2s * d.tht1 + π - d.tht1
+
+   elseif r == 7
+      s * (d.tht2 - d.tht1) + π + d.tht1
+
+   elseif r == 8
+      s * (π / 2 - d.tht2) + π + d.tht2
+
+   elseif r == 9
+      s * (π / 2 - d.tht2) - π / 2
+
+   elseif r == 10
+      s * (d.tht2 - d.tht1) - d.tht2
+
+   else
+      throw(ArgumentError("Yy for peanut expects region 1–10; got r=$r"))
+   end
+
+   st, ct = sincos(th)
+
+   f = cos(2 * th)
+   hP = sqrt(f + sqrt(d.P + f^2))
+
+   return d.B + d.R * hP * st
+
+end
+
+function fill_FTable!(tbl::FTable, d::peanut, r::Int)
+
+   vmin, vmax, N = tbl.vmin, tbl.vmax, tbl.N
+   h = (vmax - vmin) / (N - 1)
+
+   P1, P2, P3 = tbl.P1, tbl.P2, tbl.P3
+
+   Rα = d.R * d.alpha
+   L1h = d.L1 / 2
+   L2h = d.L2 / 2
+
+   if r == 1
+
+      ak = 2 * d.tht1
+      bk = -d.tht1
+      Xxv = d.A + Rα + L2h
+
+      @inbounds for i in 1:N
+         v̂ = vmin + (i - 1) * h
+
+         Xyv = d.B + d.L1 * (2v̂ - 1) / 2
+
+         th = muladd(ak, v̂, bk)
+         st, ct = sincos(th)
+         f = cos(2 * th)
+         hP = sqrt(f + sqrt(d.P + f^2))
+
+         Yxv = d.A + d.R * hP * ct
+         Yyv = d.B + d.R * hP * st
+
+         P1[i] = Yyv - Xyv
+         P2[i] = Yxv - Xxv
+         P3[i] = Xyv * Yxv - Xxv * Yyv
+      end
+
+   elseif r == 2
+
+      ak = d.tht2 - d.tht1
+      bk = d.tht1
+      Xyv = d.B + L1h
+
+      @inbounds for i in 1:N
+         v̂ = vmin + (i - 1) * h
+
+         Xxv = d.A + Rα + d.L2 * (1 - 2v̂) / 2
+
+         th = muladd(ak, v̂, bk)
+         st, ct = sincos(th)
+         f = cos(2 * th)
+         hP = sqrt(f + sqrt(d.P + f^2))
+
+         Yxv = d.A + d.R * hP * ct
+         Yyv = d.B + d.R * hP * st
+
+         P1[i] = Yyv - Xyv
+         P2[i] = Yxv - Xxv
+         P3[i] = Xyv * Yxv - Xxv * Yyv
+      end
+
+   elseif r == 3
+
+      ak = π / 2 - d.tht2
+      bk = d.tht2
+      Cx = Rα - L2h
+      Xyv = d.B
+
+      @inbounds for i in 1:N
+         v̂ = vmin + (i - 1) * h
+
+         Xxv = d.A + (1 - v̂) * Cx
+
+         th = muladd(ak, v̂, bk)
+         st, ct = sincos(th)
+         f = cos(2 * th)
+         hP = sqrt(f + sqrt(d.P + f^2))
+
+         Yxv = d.A + d.R * hP * ct
+         Yyv = d.B + d.R * hP * st
+
+         P1[i] = Yyv - Xyv
+         P2[i] = Yxv - Xxv
+         P3[i] = Xyv * Yxv - Xxv * Yyv
+      end
+
+   elseif r == 4
+
+      ak = π / 2 - d.tht2
+      bk = π / 2
+      Cx = L2h - Rα
+      Xyv = d.B
+
+      @inbounds for i in 1:N
+         v̂ = vmin + (i - 1) * h
+
+         Xxv = d.A + v̂ * Cx
+
+         th = muladd(ak, v̂, bk)
+         st, ct = sincos(th)
+         f = cos(2 * th)
+         hP = sqrt(f + sqrt(d.P + f^2))
+
+         Yxv = d.A + d.R * hP * ct
+         Yyv = d.B + d.R * hP * st
+
+         P1[i] = Yyv - Xyv
+         P2[i] = Yxv - Xxv
+         P3[i] = Xyv * Yxv - Xxv * Yyv
+      end
+
+   elseif r == 5
+
+      ak = d.tht2 - d.tht1
+      bk = π - d.tht2
+      Xyv = d.B + L1h
+
+      @inbounds for i in 1:N
+         v̂ = vmin + (i - 1) * h
+
+         Xxv = d.A - Rα + d.L2 * (1 - 2v̂) / 2
+
+         th = muladd(ak, v̂, bk)
+         st, ct = sincos(th)
+         f = cos(2 * th)
+         hP = sqrt(f + sqrt(d.P + f^2))
+
+         Yxv = d.A + d.R * hP * ct
+         Yyv = d.B + d.R * hP * st
+
+         P1[i] = Yyv - Xyv
+         P2[i] = Yxv - Xxv
+         P3[i] = Xyv * Yxv - Xxv * Yyv
+      end
+
+   elseif r == 6
+
+      ak = 2 * d.tht1
+      bk = π - d.tht1
+      Xxv = d.A - Rα - L2h
+
+      @inbounds for i in 1:N
+         v̂ = vmin + (i - 1) * h
+
+         Xyv = d.B - d.L1 * (2v̂ - 1) / 2
+
+         th = muladd(ak, v̂, bk)
+         st, ct = sincos(th)
+         f = cos(2 * th)
+         hP = sqrt(f + sqrt(d.P + f^2))
+
+         Yxv = d.A + d.R * hP * ct
+         Yyv = d.B + d.R * hP * st
+
+         P1[i] = Yyv - Xyv
+         P2[i] = Yxv - Xxv
+         P3[i] = Xyv * Yxv - Xxv * Yyv
+      end
+
+   elseif r == 7
+
+      ak = d.tht2 - d.tht1
+      bk = π + d.tht1
+      Xyv = d.B - L1h
+
+      @inbounds for i in 1:N
+         v̂ = vmin + (i - 1) * h
+
+         Xxv = d.A - Rα - d.L2 * (1 - 2v̂) / 2
+
+         th = muladd(ak, v̂, bk)
+         st, ct = sincos(th)
+         f = cos(2 * th)
+         hP = sqrt(f + sqrt(d.P + f^2))
+
+         Yxv = d.A + d.R * hP * ct
+         Yyv = d.B + d.R * hP * st
+
+         P1[i] = Yyv - Xyv
+         P2[i] = Yxv - Xxv
+         P3[i] = Xyv * Yxv - Xxv * Yyv
+      end
+
+   elseif r == 8
+
+      ak = π / 2 - d.tht2
+      bk = π + d.tht2
+      Cx = L2h - Rα
+      Xyv = d.B
+
+      @inbounds for i in 1:N
+         v̂ = vmin + (i - 1) * h
+
+         Xxv = d.A + (1 - v̂) * Cx
+
+         th = muladd(ak, v̂, bk)
+         st, ct = sincos(th)
+         f = cos(2 * th)
+         hP = sqrt(f + sqrt(d.P + f^2))
+
+         Yxv = d.A + d.R * hP * ct
+         Yyv = d.B + d.R * hP * st
+
+         P1[i] = Yyv - Xyv
+         P2[i] = Yxv - Xxv
+         P3[i] = Xyv * Yxv - Xxv * Yyv
+      end
+
+   elseif r == 9
+
+      ak = π / 2 - d.tht2
+      bk = -π / 2
+      Cx = Rα - L2h
+      Xyv = d.B
+
+      @inbounds for i in 1:N
+         v̂ = vmin + (i - 1) * h
+
+         Xxv = d.A + v̂ * Cx
+
+         th = muladd(ak, v̂, bk)
+         st, ct = sincos(th)
+         f = cos(2 * th)
+         hP = sqrt(f + sqrt(d.P + f^2))
+
+         Yxv = d.A + d.R * hP * ct
+         Yyv = d.B + d.R * hP * st
+
+         P1[i] = Yyv - Xyv
+         P2[i] = Yxv - Xxv
+         P3[i] = Xyv * Yxv - Xxv * Yyv
+      end
+
+   elseif r == 10
+
+      ak = d.tht2 - d.tht1
+      bk = -d.tht2
+      Xyv = d.B - L1h
+
+      @inbounds for i in 1:N
+         v̂ = vmin + (i - 1) * h
+
+         Xxv = d.A + Rα - d.L2 * (1 - 2v̂) / 2
+
+         th = muladd(ak, v̂, bk)
+         st, ct = sincos(th)
+         f = cos(2 * th)
+         hP = sqrt(f + sqrt(d.P + f^2))
+
+         Yxv = d.A + d.R * hP * ct
+         Yyv = d.B + d.R * hP * st
+
+         P1[i] = Yyv - Xyv
+         P2[i] = Yxv - Xxv
+         P3[i] = Xyv * Yxv - Xxv * Yyv
+      end
+
+   else
+
+      throw(ArgumentError("fill_FTable! for peanut expects region 1–10; got r=$r"))
+
+   end
+
+   tbl.reg = r
+   return tbl
+
+end
+
+@inline function f1I(t::Float64, s::Float64,
+   d::peanut, u::Float64, v::Float64, r::Int)
+
+   t̂ = (t + 1) / 2
+   ŝ = (s + 1) / 2
+
+   Xxv = Xx(ŝ, d, r)
+   Yxv = Yx(ŝ, d, r)
+
+   return (1 - t̂) * Xxv + t̂ * Yxv - u
+
+end
+
+@inline function f2I(t::Float64, s::Float64,
+   d::peanut, u::Float64, v::Float64, r::Int)
+
+   t̂ = (t + 1) / 2
+   ŝ = (s + 1) / 2
+
+   Xyv = Xy(ŝ, d, r)
+   Yyv = Yy(ŝ, d, r)
+
+   return (1 - t̂) * Xyv + t̂ * Yyv - v
+
+end
+
+@inline function JinvI(t::Float64, s::Float64,
+   d::peanut, u::Float64, v::Float64, r::Int)
+
+   return jinvmap(d, t, s, r)
+
+end
+
+@inline function f_cont(v̂::Float64, d::peanut,
+   u::Float64, v::Float64, r::Int)
+
+   Rα = d.R * d.alpha
+   L1h = d.L1 / 2
+   L2h = d.L2 / 2
+
+   if r == 1
+
+      Xxv = d.A + Rα + L2h
+      Xyv = d.B + d.L1 * (2v̂ - 1) / 2
+      th = (2v̂ - 1) * d.tht1
+
+   elseif r == 2
+
+      Xxv = d.A + Rα + d.L2 * (1 - 2v̂) / 2
+      Xyv = d.B + L1h
+      th = v̂ * (d.tht2 - d.tht1) + d.tht1
+
+   elseif r == 3
+
+      Xxv = d.A + (1 - v̂) * (Rα - L2h)
+      Xyv = d.B
+      th = v̂ * (π / 2 - d.tht2) + d.tht2
+
+   elseif r == 4
+
+      Xxv = d.A + v̂ * (L2h - Rα)
+      Xyv = d.B
+      th = v̂ * (π / 2 - d.tht2) + π / 2
+
+   elseif r == 5
+
+      Xxv = d.A - Rα + d.L2 * (1 - 2v̂) / 2
+      Xyv = d.B + L1h
+      th = v̂ * (d.tht2 - d.tht1) + π - d.tht2
+
+   elseif r == 6
+
+      Xxv = d.A - Rα - L2h
+      Xyv = d.B - d.L1 * (2v̂ - 1) / 2
+      th = 2v̂ * d.tht1 + π - d.tht1
+
+   elseif r == 7
+
+      Xxv = d.A - Rα - d.L2 * (1 - 2v̂) / 2
+      Xyv = d.B - L1h
+      th = v̂ * (d.tht2 - d.tht1) + π + d.tht1
+
+   elseif r == 8
+
+      Xxv = d.A + (1 - v̂) * (L2h - Rα)
+      Xyv = d.B
+      th = v̂ * (π / 2 - d.tht2) + π + d.tht2
+
+   elseif r == 9
+
+      Xxv = d.A + v̂ * (Rα - L2h)
+      Xyv = d.B
+      th = v̂ * (π / 2 - d.tht2) - π / 2
+
+   elseif r == 10
+
+      Xxv = d.A + Rα - d.L2 * (1 - 2v̂) / 2
+      Xyv = d.B - L1h
+      th = v̂ * (d.tht2 - d.tht1) - d.tht2
+
+   else
+
+      throw(ArgumentError("f_cont for peanut expects region 1–10; got r=$r"))
+
+   end
+
+   st, ct = sincos(th)
+   f = cos(2 * th)
+   hP = sqrt(f + sqrt(d.P + f^2))
+
+   Yxv = d.A + d.R * hP * ct
+   Yyv = d.B + d.R * hP * st
+
+   dx = Yxv - Xxv
+   dy = Yyv - Xyv
+
+   term1 = muladd(u, dy, -v * dx)
+   term2 = muladd(Xyv, Yxv, -Xxv * Yyv)
+
+   return term1 + term2
+
+end
+
+function mapinv(tbl::FTable, d::peanut, u::Float64,
+   v::Float64, k::Int)::Tuple{Float64,Float64}
+
+   p = d.pths[k]
+   r = p.reg
+
+   # ----- Stage 1: 2D Newton -----
+   tN, sN = newtonR2D(f1I, f2I, JinvI,
+      0.0, 0.0, 4, d, u, v, r; tol = 1e-15)
+
+   if tN !== :max
+
+      x = xi_inv((1 + tN) / 2, p.ck0, p.ck1)
+      y = xi_inv((1 + sN) / 2, p.tk0, p.tk1)
+
+      return x, y
+
+   end
+
+   # ----- Stage 2: BIS / FTable method -----
+   rmi = tbl.rmi
+   zxi = tbl.zxi
+
+   n = find_roots!(rmi, tbl, d, u, v, r)
+
+   @inbounds for i in 1:n
+      v̂ = rmi[i]
+
+      Xxv = Xx(v̂, d, r)
+      Xyv = Xy(v̂, d, r)
+      Yxv = Yx(v̂, d, r)
+      Yyv = Yy(v̂, d, r)
+
+      if abs(v - Xyv) < abs(u - Xxv)
+         zxi[i] = (u - Xxv) / (Yxv - Xxv)
+      else
+         zxi[i] = (v - Xyv) / (Yyv - Xyv)
+      end
+   end
+
+   best_cost = Inf
+   best_idx = 0
+
+   @inbounds for i in 1:n
+      zy_norm = xi_inv(rmi[i], p.tk0, p.tk1)
+      zx_norm = xi_inv(zxi[i], p.ck0, p.ck1)
+
+      cost = max(abs(zy_norm), abs(zx_norm))
+
+      if cost < best_cost
+         best_cost = cost
+         best_idx = i
+      end
+   end
+
+   za = rmi[best_idx]
+   zx = zxi[best_idx]
+
+   t = xi_inv(zx, p.ck0, p.ck1)
+   s = xi_inv(za, p.tk0, p.tk1)
+
+   return t, s
+
+end
+
+# Separate inverse for the two rectangular regions.
+function mapinv(d::peanut, u::Float64,
+   v::Float64, k::Int)::Tuple{Float64,Float64}
+
+   p = d.pths[k]
+   r = p.reg
+
+   if r == 11
+
+      xξ = (u - d.A - d.R * d.alpha + d.L2 / 2) / d.L2
+      yξ = (v - d.B + d.L1 / 2) / d.L1
+
+      if d.L2 >= d.L1
+         Z1 = xi_inv(xξ, p.tk0, p.tk1)
+         Z2 = xi_inv(yξ, p.ck0, p.ck1)
+      else
+         Z1 = xi_inv(xξ, p.ck0, p.ck1)
+         Z2 = xi_inv(yξ, p.tk0, p.tk1)
+      end
+
+      return Z1, Z2
+
+   elseif r == 12
+
+      xξ = (u - d.A + d.R * d.alpha + d.L2 / 2) / d.L2
+      yξ = (v - d.B + d.L1 / 2) / d.L1
+
+      if d.L2 >= d.L1
+         Z1 = xi_inv(xξ, p.tk0, p.tk1)
+         Z2 = xi_inv(yξ, p.ck0, p.ck1)
+      else
+         Z1 = xi_inv(xξ, p.ck0, p.ck1)
+         Z2 = xi_inv(yξ, p.tk0, p.tk1)
+      end
+
+      return Z1, Z2
+
+   end
+
+   throw(ArgumentError("mapinv(d::peanut) is only for rectangular regions 11 and 12; got reg=$r"))
+
+end
+
+"""
+    ptconv(d::peanut, t1::Float64, t2::Float64, idx::Int, ptdest::String)
+
+Convert a parametric point between region ↔ patch coordinates.
+
+Inputs:
+- `t1` : first coordinate of point t
+- `t2` : second coordinate of point t
+- `idx`: region index if `"to_pth"`, or patch index if `"to_reg"`
+- `ptdest`: `"to_pth"` or `"to_reg"`
+
+Returns:
+- `Tuple(Float64, Float64, out_idx::Int)`
+  where `out_idx` is patch index if `"to_pth"`, region index if `"to_reg"`.
+"""
+function ptconv(d::peanut, t1::Float64, t2::Float64, idx::Int, ptdest::String)
+
+   if ptdest == "to_pth"
+
+      r = idx
+
+      for k in 1:d.Npat
+
+         p = d.pths[k]
+         p.reg == r || continue
+
+         if r != 11 && r != 12
+
+            t1k = xi_inv((t1 + 1) / 2, p.ck0, p.ck1)
+            t2k = xi_inv((t2 + 1) / 2, p.tk0, p.tk1)
+
+         else
+
+            if d.L1 > d.L2
+
+               t1k = xi_inv((t1 + 1) / 2, p.ck0, p.ck1)
+               t2k = xi_inv((t2 + 1) / 2, p.tk0, p.tk1)
+
+            else
+
+               t1k = xi_inv((t1 + 1) / 2, p.tk0, p.tk1)
+               t2k = xi_inv((t2 + 1) / 2, p.ck0, p.ck1)
+
+            end
+
+         end
+
+         if abs(t1k) ≤ 1 && abs(t2k) ≤ 1
+            return t1k, t2k, k
+         end
+
+      end
+
+      error("ptconv(to_pth): no patch in region $r contained the point.")
+
+   elseif ptdest == "to_reg"
+
+      k = idx
+      p = d.pths[k]
+      r = p.reg
+
+      if r != 11 && r != 12
+
+         t1r = (p.ck1 - p.ck0) * t1 + (p.ck1 + p.ck0) - 1
+         t2r = (p.tk1 - p.tk0) * t2 + (p.tk1 + p.tk0) - 1
+
+      else
+
+         if d.L1 > d.L2
+
+            t1r = (p.ck1 - p.ck0) * t1 + (p.ck1 + p.ck0) - 1
+            t2r = (p.tk1 - p.tk0) * t2 + (p.tk1 + p.tk0) - 1
+
+         else
+
+            t1r = (p.tk1 - p.tk0) * t1 + (p.tk1 + p.tk0) - 1
+            t2r = (p.ck1 - p.ck0) * t2 + (p.ck1 + p.ck0) - 1
+
+         end
+
+      end
+
+      return t1r, t2r, r
+
+   else
+
+      error("ptconv: ptdest must be \"to_pth\" or \"to_reg\"")
+
+   end
+
+end
+
+"""
+    mapinv2(d::peanut, t1::Float64, t2::Float64, k2::Int, k::Int) -> Tuple{Float64,Float64}
+
+Given a point `(u,v) = τₖ₂(t1,t2)` on patch `k2`, return its reference
+coordinates on patch `k` in `[-1,1]^2`.
+
+This differs from `mapinv` because we already know `(u,v)` comes from
+`(t1,t2)` on `k2`.
+
+This should only be called when patches `k2` and `k` are in the same region.
+"""
+function mapinv2(d::peanut, t1::Float64, t2::Float64,
+   k2::Int, k::Int)::Tuple{Float64,Float64}
+
+   p = d.pths[k]
+
+   # Convert the point from patch coordinates on k2 to region coordinates.
+   tr1, tr2, _ = ptconv(d, t1, t2, k2, "to_reg")
+
+   # Map from [-1,1] to [0,1].
+   û = (tr1 + 1) / 2
+   v̂ = (tr2 + 1) / 2
+
+   # Rectangular regions 11 and 12 use the same axis-swap convention
+   # as mapxy/mapinv when L2 >= L1.
+   if d.L2 >= d.L1 && (p.reg == 11 || p.reg == 12)
+
+      t1k = xi_inv(û, p.tk0, p.tk1)
+      t2k = xi_inv(v̂, p.ck0, p.ck1)
+
+   else
+
+      t1k = xi_inv(û, p.ck0, p.ck1)
+      t2k = xi_inv(v̂, p.tk0, p.tk1)
+
+   end
+
+   return t1k, t2k
+
+end
+
+"""
+Factor that goes linearly to zero as we approach the boundary.
+
+- If patch `k` is in rectangular region 11 or 12, returns `1`.
+- Otherwise uses
+
+    d = 1 - ck1 + (ck1 - ck0) * t / 2
+
+  then raises elementwise to the power `s-1` if `s ≥ 0.5`, else to `s`.
+
+Notes:
+- `t` is expected to be `1 - t_actual`.
+- `t` may be a scalar `Float64` or any `StridedArray{Float64}`.
+"""
+function dfunc(d::peanut, k::Int, t::Float64, s::Float64)::Float64
+
+   p = d.pths[k]
+
+   if p.reg == 11 || p.reg == 12
+      return 1.0
+   end
+
+   hc = p.ck1 - p.ck0
+   val = (1.0 - p.ck1) + hc * t / 2
+   exp = s ≥ 0.5 ? (s - 1) : s
+
+   return val^exp
+
+end
+
+function dfunc!(out::StridedArray{Float64}, d::peanut, k::Int,
+   t::StridedArray{Float64}, s::Float64)
+
+   p = d.pths[k]
+
+   if p.reg == 11 || p.reg == 12
+
+      fill!(out, 1.0)
+
+   else
+
+      exp = s ≥ 0.5 ? (s - 1) : s
+      αc = (p.ck1 - p.ck0) / 2
+      βc = 1.0 - p.ck1
+
+      @inbounds for i in eachindex(t)
+         out[i] = muladd(αc, t[i], βc)^exp
+      end
+
+   end
+
+   return nothing
+
+end
+
+"""
+    gamderhigher(d::peanut, th::Float64)
+
+Return centered peanut boundary coordinates and derivatives up to 4th order.
+
+Returns
+    gx, gy, dgx, dgy, d2gx, d2gy,
+    d3gx, d3gy, d4gx, d4gy
+
+where gx(th) = R*h(th)*cos(th), gy(th) = R*h(th)*sin(th)
+and h(th) = sqrt(cos(2th) + sqrt(P + cos(2th)^2)).
+"""
+function gamderhigher(d::peanut, th::Float64)
+
+   st, ct = sincos(th)
+
+   # f = cos(2th)
+   f = cos(2 * th)
+   f1 = -2.0 * sin(2 * th)
+   f2 = -4.0 * f
+   f3 = -4.0 * f1
+   f4 = 16.0 * f
+
+   # l = P + f^2
+   l = d.P + f^2
+   l1 = 2.0 * f * f1
+   l2 = 2.0 * f1^2 + 2.0 * f * f2
+   l3 = 6.0 * f1 * f2 + 2.0 * f * f3
+   l4 = 6.0 * f2^2 + 8.0 * f1 * f3 + 2.0 * f * f4
+
+   # q = sqrt(l)
+   q = sqrt(l)
+
+   q1 = l1 / (2.0 * q)
+
+   q2 = (l2 - 2.0 * q1^2) / (2.0 * q)
+
+   q3 = (l3 - 6.0 * q1 * q2) / (2.0 * q)
+
+   q4 = (l4 - 6.0 * q2^2 - 8.0 * q1 * q3) / (2.0 * q)
+
+   # h = sqrt(f + q)
+   m = f + q
+   m1 = f1 + q1
+   m2 = f2 + q2
+   m3 = f3 + q3
+   m4 = f4 + q4
+
+   h = sqrt(m)
+
+   h1 = m1 / (2.0 * h)
+
+   h2 = (m2 - 2.0 * h1^2) / (2.0 * h)
+
+   h3 = (m3 - 6.0 * h1 * h2) / (2.0 * h)
+
+   h4 = (m4 - 6.0 * h2^2 - 8.0 * h1 * h3) / (2.0 * h)
+
+   gx = d.R * h * ct
+   gy = d.R * h * st
+
+   dgx = d.R * (h1 * ct - h * st)
+   dgy = d.R * (h1 * st + h * ct)
+
+   d2gx = d.R * (h2 * ct - 2.0 * h1 * st - h * ct)
+   d2gy = d.R * (h2 * st + 2.0 * h1 * ct - h * st)
+
+   d3gx = d.R * (h3 * ct - 3.0 * h2 * st - 3.0 * h1 * ct + h * st)
+   d3gy = d.R * (h3 * st + 3.0 * h2 * ct - 3.0 * h1 * st - h * ct)
+
+   d4gx = d.R * (h4 * ct - 4.0 * h3 * st - 6.0 * h2 * ct + 4.0 * h1 * st + h * ct)
+   d4gy = d.R * (h4 * st + 4.0 * h3 * ct - 6.0 * h2 * st - 4.0 * h1 * ct + h * st)
+
+   return gx, gy, dgx, dgy, d2gx, d2gy, d3gx, d3gy, d4gx, d4gy
+
+end
+
+"""
+    diff_map!(out, Zx, Zy, DJ, d::peanut, u, v, u2, v2, du, dv, k; tol=1e-4)
+
+Fill `out` with `||τ(u,v) - τ(u₂,v₂)||` on patch `k`.
+
+No allocations. Uses `mapxy_Dmap!` for the far values and Taylor expansion
+near `(u,v)` to avoid cancellation.
+"""
+function diff_map!(out::Matrix{Float64},
+   Zx::Matrix{Float64}, Zy::Matrix{Float64}, DJ::StridedArray{Float64},
+   d::peanut, u::Float64, v::Float64,
+   u2::Matrix{Float64}, v2::Matrix{Float64},
+   du::AbstractVector, dv::AbstractVector, k::Int;
+   tol::Float64=1e-4)
+
+   nd_u = size(out, 1)
+   nd_v = size(out, 2)
+
+   p = d.pths[k]
+
+   αc = (p.ck1 - p.ck0) / 2
+   αt = (p.tk1 - p.tk0) / 2
+
+   # Important: fill Zx, Zy, and DJ before any early return.
+   mapxy_Dmap!(Zx, Zy, DJ, d, u2, v2, k)
+
+   if p.reg == 11 || p.reg == 12
+
+      if d.L2 >= d.L1
+         cDx = d.L2 * αt
+         cDy = d.L1 * αc
+      else
+         cDx = d.L2 * αc
+         cDy = d.L1 * αt
+      end
+
+      @inbounds for j in 1:nd_v
+         dvj = dv[j]
+         @inbounds for i in 1:nd_u
+            out[i, j] = hypot(cDx * du[i], cDy * dvj)
+         end
+      end
+
+      return nothing
+
+   end
+
+   uhat = muladd(αc, u, p.ck0 + αc)
+   vhat = muladd(αt, v, p.tk0 + αt)
+
+   Rα = d.R * d.alpha
+   L1h = d.L1 / 2
+   L2h = d.L2 / 2
+
+   if p.reg == 1
+
+      ak = 2 * d.tht1
+      bk = -d.tht1
+
+      Xx = Rα + L2h
+      Xy = d.L1 * (2vhat - 1) / 2
+
+      dXx = 0.0
+      dXy = d.L1
+
+   elseif p.reg == 2
+
+      ak = d.tht2 - d.tht1
+      bk = d.tht1
+
+      Xx = Rα + d.L2 * (1 - 2vhat) / 2
+      Xy = L1h
+
+      dXx = -d.L2
+      dXy = 0.0
+
+   elseif p.reg == 3
+
+      ak = π / 2 - d.tht2
+      bk = d.tht2
+
+      Xx = (1 - vhat) * (Rα - L2h)
+      Xy = 0.0
+
+      dXx = -(Rα - L2h)
+      dXy = 0.0
+
+   elseif p.reg == 4
+
+      ak = π / 2 - d.tht2
+      bk = π / 2
+
+      Xx = vhat * (L2h - Rα)
+      Xy = 0.0
+
+      dXx = L2h - Rα
+      dXy = 0.0
+
+   elseif p.reg == 5
+
+      ak = d.tht2 - d.tht1
+      bk = π - d.tht2
+
+      Xx = -Rα + d.L2 * (1 - 2vhat) / 2
+      Xy = L1h
+
+      dXx = -d.L2
+      dXy = 0.0
+
+   elseif p.reg == 6
+
+      ak = 2 * d.tht1
+      bk = π - d.tht1
+
+      Xx = -Rα - L2h
+      Xy = -d.L1 * (2vhat - 1) / 2
+
+      dXx = 0.0
+      dXy = -d.L1
+
+   elseif p.reg == 7
+
+      ak = d.tht2 - d.tht1
+      bk = π + d.tht1
+
+      Xx = -Rα - d.L2 * (1 - 2vhat) / 2
+      Xy = -L1h
+
+      dXx = d.L2
+      dXy = 0.0
+
+   elseif p.reg == 8
+
+      ak = π / 2 - d.tht2
+      bk = π + d.tht2
+
+      Xx = (1 - vhat) * (L2h - Rα)
+      Xy = 0.0
+
+      dXx = -(L2h - Rα)
+      dXy = 0.0
+
+   elseif p.reg == 9
+
+      ak = π / 2 - d.tht2
+      bk = -π / 2
+
+      Xx = vhat * (Rα - L2h)
+      Xy = 0.0
+
+      dXx = Rα - L2h
+      dXy = 0.0
+
+   elseif p.reg == 10
+
+      ak = d.tht2 - d.tht1
+      bk = -d.tht2
+
+      Xx = Rα - d.L2 * (1 - 2vhat) / 2
+      Xy = -L1h
+
+      dXx = d.L2
+      dXy = 0.0
+
+   else
+
+      throw(ArgumentError("diff_map! for peanut expects region 1–12; got reg=$(p.reg)"))
+
+   end
+
+   th = muladd(ak, vhat, bk)
+
+   gx, gy, dgx, dgy, d2gx, d2gy, d3gx, d3gy, d4gx, d4gy =
+      gamderhigher(d, th)
+
+   q = αt * ak
+   q2 = q * q
+   q3 = q2 * q
+   q4 = q2 * q2
+
+   dux = αc * (gx - Xx)
+   duy = αc * (gy - Xy)
+
+   dvx = (1 - uhat) * αt * dXx + uhat * q * dgx
+   dvy = (1 - uhat) * αt * dXy + uhat * q * dgy
+
+   duvx = αc * (q * dgx - αt * dXx)
+   duvy = αc * (q * dgy - αt * dXy)
+
+   dv2x = uhat * q2 * d2gx
+   dv2y = uhat * q2 * d2gy
+
+   duv2x = αc * q2 * d2gx
+   duv2y = αc * q2 * d2gy
+
+   dv3x = uhat * q3 * d3gx
+   dv3y = uhat * q3 * d3gy
+
+   duv3x = αc * q3 * d3gx
+   duv3y = αc * q3 * d3gy
+
+   dv4x = uhat * q4 * d4gx
+   dv4y = uhat * q4 * d4gy
+
+   tux, tvy = mapxy(d, u, v, k)
+
+   @inbounds for j in 1:nd_v
+
+      dvj = dv[j]
+      dvj2 = dvj * dvj
+      dvj3 = dvj2 * dvj
+      dvj4 = dvj2 * dvj2
+
+      @inbounds for i in 1:nd_u
+
+         uu = u2[i, j]
+         vv = v2[i, j]
+
+         if abs(u - uu) < tol && abs(v - vv) < tol
+
+            dui = du[i]
+
+            Dx = (dui * dux + dvj * dvx) -
+                 (dui * dvj * duvx + dvj2 * dv2x / 2) +
+                 (dui * dvj2 * duv2x / 2 + dvj3 * dv3x / 6) -
+                 (dui * dvj3 * duv3x / 6 + dvj4 * dv4x / 24)
+
+            Dy = (dui * duy + dvj * dvy) -
+                 (dui * dvj * duvy + dvj2 * dv2y / 2) +
+                 (dui * dvj2 * duv2y / 2 + dvj3 * dv3y / 6) -
+                 (dui * dvj3 * duv3y / 6 + dvj4 * dv4y / 24)
+
+            out[i, j] = hypot(Dx, Dy)
+
+         else
+
+            out[i, j] = hypot(tux - Zx[i, j], tvy - Zy[i, j])
+
+         end
+
+      end
+
+   end
+
+   return nothing
+
+end
+
+"""
+  diff_rmap!(out::Matrix{Float64}, Zx::Matrix{Float64}, Zy::Matrix{Float64},
+             DJ::StridedArray{Float64}, d::peanut,
+             u::Float64, v::Float64,
+             u2::Matrix{Float64}, v2::Matrix{Float64}, r::Matrix{Float64},
+             du::AbstractVector, dv::AbstractVector, k::Int;
+             tol = 1e-5)
+
+Compute
+
+    ||τ(u,v) - τ(u₂,v₂)|| / r
+
+for the `k`-th patch, where
+
+    u₂ = u - r .* du
+    v₂ = v - r .* dv
+
+No allocations. Uses `mapxy_Dmap!` and Taylor correction near `(u,v)`.
+"""
+function diff_rmap!(out::Matrix{Float64},
+   Zx::Matrix{Float64}, Zy::Matrix{Float64}, DJ::StridedArray{Float64},
+   d::peanut, u::Float64, v::Float64,
+   u2::Matrix{Float64}, v2::Matrix{Float64}, r::Matrix{Float64},
+   du::AbstractVector, dv::AbstractVector, k::Int;
+   tol::Float64 = 1e-5)
+
+   nt = size(out, 1)
+   nr = size(out, 2)
+
+   p = d.pths[k]
+
+   αc = (p.ck1 - p.ck0) / 2
+   αt = (p.tk1 - p.tk0) / 2
+
+   if p.reg == 11 || p.reg == 12
+
+      if d.L2 >= d.L1
+         cDx = d.L2 * αt
+         cDy = d.L1 * αc
+      else
+         cDx = d.L2 * αc
+         cDy = d.L1 * αt
+      end
+
+      fill!(DJ, cDx * cDy)
+
+      @inbounds for i in 1:nt
+         dui = du[i]
+         dvi = dv[i]
+         hD = hypot(cDx * dui, cDy * dvi)
+
+         @inbounds for j in 1:nr
+            out[i, j] = hD
+         end
+      end
+
+      return nothing
+
+   end
+
+   mapxy_Dmap!(Zx, Zy, DJ, d, u2, v2, k)
+
+   uhat = muladd(αc, u, p.ck0 + αc)
+   vhat = muladd(αt, v, p.tk0 + αt)
+
+   Rα = d.R * d.alpha
+   L1h = d.L1 / 2
+   L2h = d.L2 / 2
+
+   if p.reg == 1
+
+      ak = 2 * d.tht1
+      bk = -d.tht1
+
+      Xx = Rα + L2h
+      Xy = d.L1 * (2vhat - 1) / 2
+
+      dXx = 0.0
+      dXy = d.L1
+
+   elseif p.reg == 2
+
+      ak = d.tht2 - d.tht1
+      bk = d.tht1
+
+      Xx = Rα + d.L2 * (1 - 2vhat) / 2
+      Xy = L1h
+
+      dXx = -d.L2
+      dXy = 0.0
+
+   elseif p.reg == 3
+
+      ak = π / 2 - d.tht2
+      bk = d.tht2
+
+      Xx = (1 - vhat) * (Rα - L2h)
+      Xy = 0.0
+
+      dXx = -(Rα - L2h)
+      dXy = 0.0
+
+   elseif p.reg == 4
+
+      ak = π / 2 - d.tht2
+      bk = π / 2
+
+      Xx = vhat * (L2h - Rα)
+      Xy = 0.0
+
+      dXx = L2h - Rα
+      dXy = 0.0
+
+   elseif p.reg == 5
+
+      ak = d.tht2 - d.tht1
+      bk = π - d.tht2
+
+      Xx = -Rα + d.L2 * (1 - 2vhat) / 2
+      Xy = L1h
+
+      dXx = -d.L2
+      dXy = 0.0
+
+   elseif p.reg == 6
+
+      ak = 2 * d.tht1
+      bk = π - d.tht1
+
+      Xx = -Rα - L2h
+      Xy = -d.L1 * (2vhat - 1) / 2
+
+      dXx = 0.0
+      dXy = -d.L1
+
+   elseif p.reg == 7
+
+      ak = d.tht2 - d.tht1
+      bk = π + d.tht1
+
+      Xx = -Rα - d.L2 * (1 - 2vhat) / 2
+      Xy = -L1h
+
+      dXx = d.L2
+      dXy = 0.0
+
+   elseif p.reg == 8
+
+      ak = π / 2 - d.tht2
+      bk = π + d.tht2
+
+      Xx = (1 - vhat) * (L2h - Rα)
+      Xy = 0.0
+
+      dXx = -(L2h - Rα)
+      dXy = 0.0
+
+   elseif p.reg == 9
+
+      ak = π / 2 - d.tht2
+      bk = -π / 2
+
+      Xx = vhat * (Rα - L2h)
+      Xy = 0.0
+
+      dXx = Rα - L2h
+      dXy = 0.0
+
+   elseif p.reg == 10
+
+      ak = d.tht2 - d.tht1
+      bk = -d.tht2
+
+      Xx = Rα - d.L2 * (1 - 2vhat) / 2
+      Xy = -L1h
+
+      dXx = d.L2
+      dXy = 0.0
+
+   else
+
+      throw(ArgumentError("diff_rmap! for peanut expects region 1–12; got reg=$(p.reg)"))
+
+   end
+
+   th = muladd(ak, vhat, bk)
+
+   gx, gy, dgx, dgy, d2gx, d2gy, d3gx, d3gy, d4gx, d4gy =
+      gamderhigher(d, th)
+
+   q = αt * ak
+   q2 = q * q
+   q3 = q2 * q
+   q4 = q2 * q2
+
+   dux = αc * (gx - Xx)
+   duy = αc * (gy - Xy)
+
+   dvx = (1 - uhat) * αt * dXx + uhat * q * dgx
+   dvy = (1 - uhat) * αt * dXy + uhat * q * dgy
+
+   duvx = αc * (q * dgx - αt * dXx)
+   duvy = αc * (q * dgy - αt * dXy)
+
+   dv2x = uhat * q2 * d2gx
+   dv2y = uhat * q2 * d2gy
+
+   duv2x = αc * q2 * d2gx
+   duv2y = αc * q2 * d2gy
+
+   dv3x = uhat * q3 * d3gx
+   dv3y = uhat * q3 * d3gy
+
+   duv3x = αc * q3 * d3gx
+   duv3y = αc * q3 * d3gy
+
+   dv4x = uhat * q4 * d4gx
+   dv4y = uhat * q4 * d4gy
+
+   tux, tvy = mapxy(d, u, v, k)
+
+   @inbounds for i in 1:nt
+
+      dui = du[i]
+      dvi = dv[i]
+
+      @inbounds for j in 1:nr
+
+         uu = u2[i, j]
+         vv = v2[i, j]
+
+         if abs(u - uu) < tol && abs(v - vv) < tol
+
+            rij = r[i, j]
+
+            r1 = dvi * rij
+            r2 = r1 * r1
+            r3 = r2 * r1
+
+            Dx = (dui * dux + dvi * dvx) -
+                 r1 * (dui * duvx + dvi * dv2x / 2) +
+                 r2 * (dui * duv2x / 2 + dvi * dv3x / 6) -
+                 r3 * (dui * duv3x / 6 + dvi * dv4x / 24)
+
+            Dy = (dui * duy + dvi * dvy) -
+                 r1 * (dui * duvy + dvi * dv2y / 2) +
+                 r2 * (dui * duv2y / 2 + dvi * dv3y / 6) -
+                 r3 * (dui * duv3y / 6 + dvi * dv4y / 24)
+
+            out[i, j] = hypot(Dx, Dy)
+
+         else
+
+            out[i, j] = hypot(tux - Zx[i, j], tvy - Zy[i, j]) / r[i, j]
+
+         end
+
+      end
+
+   end
+
+   return nothing
+
+end
+
+"""
+    Dwall(d::peanut, u::Float64, v::Float64, k::Int) -> dvx, dvy
+
+Derivative of the wall curve w.r.t. `v` at the singular side `u = ±1`
+for the `k`-th non-rectangular patch.
+
+Returns a Tuple `(dvx, dvy)`.
+"""
+function Dwall(d::peanut, u::Float64, v::Float64, k::Int)::Tuple{Float64,Float64}
+
+   p = d.pths[k]
+   reg = p.reg
+
+   if reg == 11 || reg == 12
+      throw(ArgumentError("Dwall is for non-rectangular patches; got reg=$reg"))
+   end
+
+   hc = p.ck1 - p.ck0
+   ht = p.tk1 - p.tk0
+
+   αu = 0.5 * hc
+   αv = 0.5 * ht
+
+   βu = p.ck0 + αu
+   βv = p.tk0 + αv
+
+   xi1 = muladd(αu, u, βu)
+   xi2 = muladd(αv, v, βv)
+
+   Rα = d.R * d.alpha
+   L2h = d.L2 / 2
+
+   if reg == 1
+
+      Δth = 2 * d.tht1
+      th0 = -d.tht1
+      th = muladd(Δth, xi2, th0)
+
+      _, _, dgx, dgy = gamder(d, th)
+
+      dvx = xi1 * Δth * dgx
+      dvy = (1.0 - xi1) * d.L1 + xi1 * Δth * dgy
+
+   elseif reg == 2
+
+      Δth = d.tht2 - d.tht1
+      th0 = d.tht1
+      th = muladd(Δth, xi2, th0)
+
+      _, _, dgx, dgy = gamder(d, th)
+
+      dvx = -(1.0 - xi1) * d.L2 + xi1 * Δth * dgx
+      dvy = xi1 * Δth * dgy
+
+   elseif reg == 3
+
+      Δth = π / 2 - d.tht2
+      th0 = d.tht2
+      th = muladd(Δth, xi2, th0)
+
+      _, _, dgx, dgy = gamder(d, th)
+
+      dvx = -(1.0 - xi1) * (Rα - L2h) + xi1 * Δth * dgx
+      dvy = xi1 * Δth * dgy
+
+   elseif reg == 4
+
+      Δth = π / 2 - d.tht2
+      th0 = π / 2
+      th = muladd(Δth, xi2, th0)
+
+      _, _, dgx, dgy = gamder(d, th)
+
+      dvx = (1.0 - xi1) * (L2h - Rα) + xi1 * Δth * dgx
+      dvy = xi1 * Δth * dgy
+
+   elseif reg == 5
+
+      Δth = d.tht2 - d.tht1
+      th0 = π - d.tht2
+      th = muladd(Δth, xi2, th0)
+
+      _, _, dgx, dgy = gamder(d, th)
+
+      dvx = -(1.0 - xi1) * d.L2 + xi1 * Δth * dgx
+      dvy = xi1 * Δth * dgy
+
+   elseif reg == 6
+
+      Δth = 2 * d.tht1
+      th0 = π - d.tht1
+      th = muladd(Δth, xi2, th0)
+
+      _, _, dgx, dgy = gamder(d, th)
+
+      dvx = xi1 * Δth * dgx
+      dvy = -(1.0 - xi1) * d.L1 + xi1 * Δth * dgy
+
+   elseif reg == 7
+
+      Δth = d.tht2 - d.tht1
+      th0 = π + d.tht1
+      th = muladd(Δth, xi2, th0)
+
+      _, _, dgx, dgy = gamder(d, th)
+
+      dvx = (1.0 - xi1) * d.L2 + xi1 * Δth * dgx
+      dvy = xi1 * Δth * dgy
+
+   elseif reg == 8
+
+      Δth = π / 2 - d.tht2
+      th0 = π + d.tht2
+      th = muladd(Δth, xi2, th0)
+
+      _, _, dgx, dgy = gamder(d, th)
+
+      dvx = -(1.0 - xi1) * (L2h - Rα) + xi1 * Δth * dgx
+      dvy = xi1 * Δth * dgy
+
+   elseif reg == 9
+
+      Δth = π / 2 - d.tht2
+      th0 = -π / 2
+      th = muladd(Δth, xi2, th0)
+
+      _, _, dgx, dgy = gamder(d, th)
+
+      dvx = (1.0 - xi1) * (Rα - L2h) + xi1 * Δth * dgx
+      dvy = xi1 * Δth * dgy
+
+   elseif reg == 10
+
+      Δth = d.tht2 - d.tht1
+      th0 = -d.tht2
+      th = muladd(Δth, xi2, th0)
+
+      _, _, dgx, dgy = gamder(d, th)
+
+      dvx = (1.0 - xi1) * d.L2 + xi1 * Δth * dgx
+      dvy = xi1 * Δth * dgy
+
+   else
+
+      throw(ArgumentError("Dwall is defined only for regions 1–10; got reg=$reg"))
+
+   end
+
+   return αv * dvx, αv * dvy
+
+end
+
+"""
+    boundquad!(P::SubArray{Float64}, d::peanut, k::Int) -> nothing
+
+Find a bounding quadrilateral for the k-th patch.
+
+Mutates `P` into `[x1,y1,x2,y2,x3,y3,x4,y4]` in counter-clockwise order.
+
+If the patch is already rectangular, return its four corners directly.
+Otherwise:
+1) build the two opposite sides `u = -1` and `u = +1`,
+2) along each side, intersect the tangent line at `τ(u,t)` with the
+   two straight sides to find extremal intersections in parameter space,
+3) compute the Float64-space intersection points and assemble `P`.
+"""
+function boundquad!(P::SubArray{Float64}, d::peanut, k::Int)
+
+   p = d.pths[k]
+
+   # Four corners.
+   L1p1x, L1p1y = mapm1(d, -1.0, k)   # u = -1, v = -1
+   L1p2x, L1p2y = mapp1(d, -1.0, k)   # u = +1, v = -1
+   L2p1x, L2p1y = mapm1(d,  1.0, k)   # u = -1, v = +1
+   L2p2x, L2p2y = mapp1(d,  1.0, k)   # u = +1, v = +1
+
+   if p.reg == 11 || p.reg == 12
+
+      # Already a quadrilateral: corners in CCW order.
+      P[1] = L1p1x
+      P[2] = L1p1y
+      P[3] = L1p2x
+      P[4] = L1p2y
+      P[5] = L2p2x
+      P[6] = L2p2y
+      P[7] = L2p1x
+      P[8] = L2p1y
+
+      return nothing
+
+   end
+
+   N = 101
+   tpts = range(-1.0, 1.0; length = N)
+
+   # ---------- side away from boundary: u = -1 ----------
+   best_score1 = Inf
+   best_idx1 = 0
+
+   for (i, t) in enumerate(tpts)
+
+      Cx, Cy = mapm1(d, t, k)
+      dvx, dvy = Dwall(d, -1.0, t, k)
+
+      z1, z2 = tanginterp(
+         L1p1x, L1p1y, L1p2x, L1p2y,
+         Cx, Cy, dvx, dvy,
+         L2p1x, L2p1y, L2p2x, L2p2y)
+
+      ok, s = SVum1(z1, z2)
+
+      if ok && s < best_score1
+         best_score1 = s
+         best_idx1 = i
+      end
+
+   end
+
+   if best_idx1 != 0
+
+      to = tpts[best_idx1]
+
+      Cx, Cy = mapm1(d, to, k)
+      dvx, dvy = Dwall(d, -1.0, to, k)
+
+      P1x, P1y, P2x, P2y = tanginterx(
+         L1p1x, L1p1y, L1p2x, L1p2y,
+         Cx, Cy, dvx, dvy,
+         L2p1x, L2p1y, L2p2x, L2p2y)
+
+   else
+
+      P1x, P1y = L1p1x, L1p1y
+      P2x, P2y = L2p1x, L2p1y
+
+   end
+
+   # ---------- side closer to boundary: u = +1 ----------
+   best_score2 = Inf
+   best_idx2 = 0
+
+   for (i, t) in enumerate(tpts)
+
+      Cx, Cy = mapp1(d, t, k)
+      dvx, dvy = Dwall(d, 1.0, t, k)
+
+      z1, z2 = tanginterp(
+         L1p1x, L1p1y, L1p2x, L1p2y,
+         Cx, Cy, dvx, dvy,
+         L2p1x, L2p1y, L2p2x, L2p2y)
+
+      ok, s = SVup1(z1, z2)
+
+      if ok && s < best_score2
+         best_score2 = s
+         best_idx2 = i
+      end
+
+   end
+
+   if best_idx2 != 0
+
+      to = tpts[best_idx2]
+
+      Cx, Cy = mapp1(d, to, k)
+      dvx, dvy = Dwall(d, 1.0, to, k)
+
+      P3x, P3y, P4x, P4y = tanginterx(
+         L1p1x, L1p1y, L1p2x, L1p2y,
+         Cx, Cy, dvx, dvy,
+         L2p1x, L2p1y, L2p2x, L2p2y)
+
+   else
+
+      P3x, P3y = L1p2x, L1p2y
+      P4x, P4y = L2p2x, L2p2y
+
+   end
+
+   # Assemble in CCW order.
+   P[1] = P1x
+   P[2] = P1y
+   P[3] = P3x
+   P[4] = P3y
+   P[5] = P4x
+   P[6] = P4y
+   P[7] = P2x
+   P[8] = P2y
+
+   return nothing
+
+end
+
+"""
+   refine!(d::peanut, Nc::Int, Nt::Int, K::AbstractVector{<:Int})
+
+Subdivide each patch in `K` into `Nc * Nt` subpatches, split in `c` and `t`.
+Updates `d.pths`, `d.Npat`, recomputes `d.kd`, and rebuilds `d.Qpts` / `d.Qptsbd`.
+
+Notes
+- Patches are re-sorted lexicographically by `(reg, ck0, ck1, tk0, tk1)`.
+- `Qpts` uses `boundquad!(V, d, k)`.
+- `Qptsbd` uses `boundquadbd!(V, d, k)` for patches in `d.kd`.
+"""
+function refine!(d::peanut, Nc::Int, Nt::Int, K::Vector{Int})
+
+   @assert Nc ≥ 1 && Nt ≥ 1 "Nc and Nt must be ≥ 1"
+   @assert !isempty(K) "K (set of patches to refine) is empty"
+
+   # Create the subdivided children.
+   children = Patch[]
+   sizehint!(children, length(K) * Nc * Nt)
+
+   for k in K
+
+      p = d.pths[k]
+
+      cc = range(p.ck0, p.ck1; length = Nc + 1)
+      tt = range(p.tk0, p.tk1; length = Nt + 1)
+
+      for i in 1:Nc, j in 1:Nt
+         push!(children, Patch(p.reg, cc[i], cc[i + 1], tt[j], tt[j + 1]))
+      end
+
+   end
+
+   # Merge and sort.
+   d.pths = vcat([d.pths[i] for i in 1:d.Npat if !(i in K)], children)
+
+   sort!(d.pths, by = q -> (q.reg, q.ck0, q.ck1, q.tk0, q.tk1))
+
+   # Update counts.
+   d.Npat = length(d.pths)
+
+   # Boundary-touching patches are regions 1:10 with ck1 == 1.
+   d.kd = [k for k in 1:d.Npat if d.pths[k].reg <= 10 && d.pths[k].ck1 == 1.0]
+
+   # Qpts: 8 × Npat.
+   d.Qpts = Matrix{Float64}(undef, 8, d.Npat)
+
+   @inbounds for k in 1:d.Npat
+      @views V = d.Qpts[:, k]
+      boundquad!(V, d, k)
+   end
+
+   # Qptsbd: 8 × length(kd).
+   d.Qptsbd = Matrix{Float64}(undef, 8, length(d.kd))
+
+   @inbounds for (l, k) in enumerate(d.kd)
+      @views V = d.Qptsbd[:, l]
+      boundquadbd!(V, d, k)
+   end
+
+   return d
+
+end
+
+function Base.show(io::IO, d::peanut)
+
+   println(io, "peanut with properties:")
+   println(io, "  (A, B)   = (", d.A, ", ", d.B, ")")
+   println(io, "  R        = ", d.R)
+   println(io, "  P        = ", d.P)
+   println(io, "  tht1     = ", d.tht1)
+   println(io, "  tht2     = ", d.tht2)
+   println(io, "  alpha    = ", d.alpha)
+   println(io, "  (L1, L2) = (", d.L1, ", ", d.L2, ")")
+   println(io, "  No. of holes = ", d.nh)
+
+   if length(d.kd) <= 6
+      L = "Int[" * join(d.kd, ' ') * "]"
+   else
+      head = join(d.kd[1:3], ' ')
+      tail = join(d.kd[end-2:end], ' ')
+      L = "Int[$head … $tail]"
+   end
+
+   println(io, "  kd     = ", L)
+   println(io, "  Npat   = ", d.Npat)
+   println(io, "  pths   = Vector{Patch} (", length(d.pths), " patches)")
+   println(io, "  Qpts   = ", size(d.Qpts, 1), "×", size(d.Qpts, 2), " Matrix")
+   println(io, "  Qptsbd = ", size(d.Qptsbd, 1), "×", size(d.Qptsbd, 2), " Matrix")
+
+end

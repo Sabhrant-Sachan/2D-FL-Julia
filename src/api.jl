@@ -15,16 +15,24 @@ using MAT
 #-------------------------
 
 Base.@kwdef struct Options
-    plot::Bool = false                      # show plots (requires plotfunc(dp,d,vec))
-    benchmark::Bool = false                 # benchmark ONLY the core solve
-    solver::Symbol = :gmres                 # :gmres or :direct
+    plot::Bool = false
+    benchmark::Bool = false
+    solver::Symbol = :gmres
     cond_num::Bool = false
-    # solver controls (gmres)
+
+    # solver controls, gmres
     reltol::Float64 = 3e-15
     abstol::Float64 = 0.0
     restart::Int = 450
     matrixfree::Bool = false
     s_small::Bool = false
+
+    # quadrature controls
+    nr::Int = 32          # regular volume integration: nr × nr
+    nbd::Int = 128        # boundary-touching volume integration: nbd × nr
+    nr_bdy::Int = 64      # DLP mode-0 regular boundary quadrature
+    ns_near::Int = 128    # DLP mode-1 near-boundary split quadrature
+    pbd::Int = 2          # DLP boundary smoothing order
 end
 
 """
@@ -79,7 +87,6 @@ Base.@kwdef struct Result
 
     info::SolveInfo = SolveInfo()
 end
-
 
 #CoreResult holds only the essential computation outputs
 #that is, stuff to be benchmarked. Plots/error NOT benchmarked!
@@ -206,172 +213,178 @@ end
 # Phase 1: CORE solve (benchmark this part)
 # -------------------------
 function solveFL_core(prob::Problem; opts::Options=Options())
-    d = prob.dom
-    n = prob.nₚᵣ
-    dp = domprop(prob.N, prob.δ, prob.δ_near, prob.δ_intp, d)
+   d = prob.dom
+   n = prob.nₚᵣ
+   dp = domprop(prob.N, prob.δ, prob.δ_near, prob.δ_intp, d)
 
-    #In this case, a direct solver is always due to high
-    #condition number of the discretized matrix
-    if opts.s_small
+   #In this case, a direct solver is always due to high
+   #condition number of the discretized matrix
+   if opts.s_small
 
-        IntS = precompsLs(d, dp, prob.s, prob.p; n=n)
+      IntS = precompsLs(d, dp, prob.s, prob.p; n=n)
 
-        b = bvec(d, dp, prob.f!)
+      b = bvec(d, dp, prob.f!)
 
-        IV = compress_vars(d, dp, prob.s, prob.p; matrix_form=true)
+      IV = compress_vars(d, dp, prob.s, prob.p;
+         matrix_form=true, nr=opts.nr, nbd=opts.nbd,
+         nr_bdy=opts.nr_bdy, ns_near=opts.ns_near, pbd=opts.pbd)
 
-        A = _assemble_matrix(dp, d, IntS, prob.s, IV; s_small=true)
+      A = _assemble_matrix(dp, d, IntS, prob.s, IV; s_small=true)
 
-    else
-        IntS = prob.s >= 0.5 ?
-               precompsH(d, dp, prob.s, prob.p; n=n) :
-               precompsL(d, dp, prob.s, prob.p; n=n)
+   else
+      IntS = prob.s >= 0.5 ?
+             precompsH(d, dp, prob.s, prob.p; n=n) :
+             precompsL(d, dp, prob.s, prob.p; n=n)
 
-        b = bvec(d, dp, prob.s, prob.f!)
+      b = bvec(d, dp, prob.s, prob.f!)
 
-        if opts.matrixfree
-            #Matrix free approach is not for domains with holes in it
-            IV = compress_vars(d, dp, prob.s, prob.p; matrix_form=false)
+      if opts.matrixfree
+         #Matrix free approach is not for domains with holes in it
+         IV = compress_vars(d, dp, prob.s, prob.p;
+         matrix_form=false, nr=opts.nr, nbd=opts.nbd,
+         nr_bdy=opts.nr_bdy, ns_near=opts.ns_near, pbd=opts.pbd)
 
-            Uapp = copy(b)
-            (; N, Np, M, Mbd) = IV.IV1
-            Ltot = M * Np + Mbd * N
-            restart_eff = min(opts.restart, Ltot)
+         Uapp = copy(b)
+         (; N, Np, M, Mbd) = IV.IV1
+         Ltot = M * Np + Mbd * N
+         restart_eff = min(opts.restart, Ltot)
 
-            #===
-            The argument is an in-place function
-                (v, x) -> Ax!(v, x, IntS, d, dp, prob.s, IV)
-            which means:
-            given an input vector x, compute A*x and write the result into v.
-            The two Ltot arguments specify the size of the linear operator:
-                size(Aop) == (Ltot, Ltot)
-            This is necessary because gmres! needs to know the dimensions of the
-            linear system, even though A is not stored explicitly.
-            The keyword ismutating=true tells LinearMap that the supplied function
-            is an in-place/mutating matvec of the form f!(v, x), rather than a
-            function of the form f(x) that returns a new vector.
-            ===#
-            Aop = LinearMap{Float64}((v, x) -> Ax!(v, x, IntS, d, dp, prob.s, IV),
-                Ltot, Ltot; ismutating=true)
+         #===
+         The argument is an in-place function
+             (v, x) -> Ax!(v, x, IntS, d, dp, prob.s, IV)
+         which means:
+         given an input vector x, compute A*x and write the result into v.
+         The two Ltot arguments specify the size of the linear operator:
+             size(Aop) == (Ltot, Ltot)
+         This is necessary because gmres! needs to know the dimensions of the
+         linear system, even though A is not stored explicitly.
+         The keyword ismutating=true tells LinearMap that the supplied function
+         is an in-place/mutating matvec of the form f!(v, x), rather than a
+         function of the form f(x) that returns a new vector.
+         ===#
+         Aop = LinearMap{Float64}((v, x) -> Ax!(v, x, IntS, d, dp, prob.s, IV),
+            Ltot, Ltot; ismutating=true)
 
-            Uapp, ch = gmres!(Uapp, Aop, b;
-                reltol=opts.reltol, abstol=opts.abstol, restart=restart_eff, log=true)
+         Uapp, ch = gmres!(Uapp, Aop, b;
+            reltol=opts.reltol, abstol=opts.abstol, restart=restart_eff, log=true)
 
-            iters = hasproperty(ch, :iters) ? ch.iters : 0
-            conv = hasproperty(ch, :isconverged) ? ch.isconverged : false
-            info = SolveInfo(solver=:gmres, iters=iters, converged=conv, reltol=opts.reltol)
+         iters = hasproperty(ch, :iters) ? ch.iters : 0
+         conv = hasproperty(ch, :isconverged) ? ch.isconverged : false
+         info = SolveInfo(solver=:gmres, iters=iters, converged=conv, reltol=opts.reltol)
 
-            return CoreResult(dp=dp, d=d, IntS=IntS, A=nothing, b=b, Uapp=Uapp, info=info)
+         return CoreResult(dp=dp, d=d, IntS=IntS, A=nothing, b=b, Uapp=Uapp, info=info)
 
-        end
+      end
 
-        IV = compress_vars(d, dp, prob.s, prob.p; matrix_form=true)
+      IV = compress_vars(d, dp, prob.s, prob.p;
+         matrix_form=true, nr=opts.nr, nbd=opts.nbd,
+         nr_bdy=opts.nr_bdy, ns_near=opts.ns_near, pbd=opts.pbd)
 
-        A = _assemble_matrix(dp, d, IntS, prob.s, IV; s_small=false)
-    end
+      A = _assemble_matrix(dp, d, IntS, prob.s, IV; s_small=false)
+   end
 
-    if size(IntS, 2) > 100_000
-        IntS = nothing
-        GC.gc()
-    end
+   if size(IntS, 2) > 100_000
+      IntS = nothing
+      GC.gc()
+   end
 
-    # solve
-    info = SolveInfo(solver=opts.solver)
+   # solve
+   info = SolveInfo(solver=opts.solver)
 
-    if opts.solver == :direct
-        if d.nh == 0
-            Uapp = A \ b
-            info = SolveInfo(solver=:direct, iters=0, converged=true, reltol=0)
+   if opts.solver == :direct
+      if d.nh == 0
+         Uapp = A \ b
+         info = SolveInfo(solver=:direct, iters=0, converged=true, reltol=0)
 
-        else
-            # There are holes in the domain.
-            # A is rank-deficient by d.nh. We use SLP basis functions
-            # to modify the RHS so that it is in the image of A.
+      else
+         # There are holes in the domain.
+         # A is rank-deficient by d.nh. We use SLP basis functions
+         # to modify the RHS so that it is in the image of A.
 
-            (; N, Np, M, Mbd) = IV.IV1
+         (; N, Np, M, Mbd) = IV.IV1
 
-            # bZ : The single layer potential on all the
-            #      target points (including the boundary).
-            #      It's a rectangular matrix of size
-            #      (Npat*N*N + Mbd*N) * nh where nh is the
-            #      number of holes and Npat*N*N + Mbd*N is total
-            #      number of target points.
-            bZ = SLPeval(d, dp, IV)
+         # bZ : The single layer potential on all the
+         #      target points (including the boundary).
+         #      It's a rectangular matrix of size
+         #      (Npat*N*N + Mbd*N) * nh where nh is the
+         #      number of holes and Npat*N*N + Mbd*N is total
+         #      number of target points.
+         bZ = SLPeval(d, dp, IV)
 
-            if !opts.s_small && prob.s >= 0.5
-                bZ[(M*Np+1):(M*Np+Mbd*N), 1:d.nh] .= 0.0
-            end
+         if !opts.s_small && prob.s >= 0.5
+            bZ[(M*Np+1):(M*Np+Mbd*N), 1:d.nh] .= 0.0
+         end
 
-            Lp = M * Np + Mbd * N
-            indx = (Lp-d.nh+1):Lp
+         Lp = M * Np + Mbd * N
+         indx = (Lp-d.nh+1):Lp
 
-            # Use pivoted QR for rank-deficient A.
-            F = qr(A, ColumnNorm())
+         # Use pivoted QR for rank-deficient A.
+         F = qr(A, ColumnNorm())
 
-            Qa = Matrix(F.Q)
-            Ra = F.R
-            Pa = Matrix(F.P)
+         Qa = Matrix(F.Q)
+         Ra = F.R
+         Pa = Matrix(F.P)
 
-            if size(A, 2) > 30_000
-                A = nothing
-                GC.gc()
-            end
+         if size(A, 2) > 30_000
+            A = nothing
+            GC.gc()
+         end
 
 
-            B_SLP = Qa' * b
-            Beta_SLP = Qa' * bZ
+         B_SLP = Qa' * b
+         Beta_SLP = Qa' * bZ
 
-            if size(Qa, 2) > 30_000
-                Qa = nothing
-                GC.gc()
-            end
+         if size(Qa, 2) > 30_000
+            Qa = nothing
+            GC.gc()
+         end
 
-            # Choose SLP coefficients so bottom compatibility equations vanish:
-            # Q₂ᵀ(b + bZ*R) = 0.
-            RNh = -(Beta_SLP[indx, :] \ B_SLP[indx])
+         # Choose SLP coefficients so bottom compatibility equations vanish:
+         # Q₂ᵀ(b + bZ*R) = 0.
+         RNh = -(Beta_SLP[indx, :] \ B_SLP[indx])
 
-            beq = B_SLP + Beta_SLP * RNh
+         beq = B_SLP + Beta_SLP * RNh
 
-            # Enforce exact numerical compatibility in the artificial rows.
-            beq[indx] .= 0.0
+         # Enforce exact numerical compatibility in the artificial rows.
+         beq[indx] .= 0.0
 
-            for j in 1:d.nh
-                Ra[indx[j], indx[j]] = 1.0
-            end
+         for j in 1:d.nh
+            Ra[indx[j], indx[j]] = 1.0
+         end
 
-            Uapp = Pa * (Ra \ beq)
+         Uapp = Pa * (Ra \ beq)
 
-            info = SolveInfo(solver=:direct, iters=0, converged=true, reltol=0.0)
-        end
+         info = SolveInfo(solver=:direct, iters=0, converged=true, reltol=0.0)
+      end
 
-    elseif opts.solver == :gmres
+   elseif opts.solver == :gmres
 
-        if d.nh == 0
-            Uapp = copy(b)
-            (; N, Np, M, Mbd) = IV.IV1
-            Lp = M * Np + Mbd * N
-            restart_eff = min(opts.restart, Lp)
+      if d.nh == 0
+         Uapp = copy(b)
+         (; N, Np, M, Mbd) = IV.IV1
+         Lp = M * Np + Mbd * N
+         restart_eff = min(opts.restart, Lp)
 
-            Uapp, ch = gmres!(Uapp, A, b;
-                reltol=opts.reltol, abstol=opts.abstol, restart=restart_eff, log=true)
+         Uapp, ch = gmres!(Uapp, A, b;
+            reltol=opts.reltol, abstol=opts.abstol, restart=restart_eff, log=true)
 
-            iters = hasproperty(ch, :iters) ? ch.iters : 0
-            conv = hasproperty(ch, :isconverged) ? ch.isconverged : false
-            info = SolveInfo(solver=:gmres, iters=iters, converged=conv, reltol=opts.reltol)
-        else
-            error("solver=$(opts.solver) not possible. Use direct solver.")
-        end
-    else
-        error("Unknown solver=$(opts.solver). Use :gmres or :direct.")
-    end
+         iters = hasproperty(ch, :iters) ? ch.iters : 0
+         conv = hasproperty(ch, :isconverged) ? ch.isconverged : false
+         info = SolveInfo(solver=:gmres, iters=iters, converged=conv, reltol=opts.reltol)
+      else
+         error("solver=$(opts.solver) not possible. Use direct solver.")
+      end
+   else
+      error("Unknown solver=$(opts.solver). Use :gmres or :direct.")
+   end
 
-    #Too much RAM usage for modern laptops. ~15GB
-    if A !== nothing && size(A, 2) > 40_000
-        A = nothing
-        GC.gc()
-    end
+   #Too much RAM usage for modern laptops. ~15GB
+   if A !== nothing && size(A, 2) > 40_000
+      A = nothing
+      GC.gc()
+   end
 
-    return CoreResult(dp=dp, d=d, IntS=IntS, A=A, b=b, Uapp=Uapp, info=info)
+   return CoreResult(dp=dp, d=d, IntS=IntS, A=A, b=b, Uapp=Uapp, info=info)
 
 end
 
@@ -490,16 +503,21 @@ function solveFL(prob::Problem; opts::Options=Options())
 
     if opts.benchmark
         
-        opts_core = Options(
-            plot=false,
-            benchmark=false,
-            solver=opts.solver,
-            cond_num=opts.cond_num,
-            reltol=opts.reltol,
-            abstol=opts.abstol,
-            restart=opts.restart,
-            matrixfree=opts.matrixfree,
-            s_small=opts.s_small)
+      opts_core = Options(
+         plot=false,
+         benchmark=false,
+         solver=opts.solver,
+         cond_num=opts.cond_num,
+         reltol=opts.reltol,
+         abstol=opts.abstol,
+         restart=opts.restart,
+         matrixfree=opts.matrixfree,
+         s_small=opts.s_small,
+         nr=opts.nr,
+         nbd=opts.nbd,
+         nr_bdy=opts.nr_bdy,
+         ns_near=opts.ns_near,
+         pbd=opts.pbd)
 
         core  = solveFL_core(prob; opts=opts_core)  # compute once for actual result
 
@@ -520,24 +538,6 @@ end
 
 import Base: show
 
-function plot_result(res::Result; what::Symbol=:uapp)
-    if what == :uapp
-        U = copy(res.Uapp)
-        plotu(res.dp, res.d, U, res.problem.s; interpolate=true )
-        U = copy(res.Uapp)
-        plotu(res.dp, res.d, U, res.problem.s; interpolate=false )
-        #plotfunc(res.dp, res.d, res.uappv)
-    elseif what == :uex
-        res.uexv === nothing && error("No uexv available.")
-        plotfunc(res.dp, res.d, res.uexv)
-    elseif what == :err
-        res.err === nothing && error("No err available.")
-        plotfunc(res.dp, res.d, abs.(res.err))
-    else
-        error("what must be :uapp, :uex, or :err")
-    end
-end
-
 struct SolveView
     prob::Problem
     opts::Options
@@ -545,78 +545,94 @@ struct SolveView
 end
 
 function show(io::IO, ::MIME"text/plain", v::SolveView)
-    println(io, "================ FractionalLaplacian2D ================")
+   println(io, "============ FractionalLaplacian2D ============")
 
-    # build a postprocessed Result using current opts
-    res = solveFL_post(v.prob, v.core; opts=v.opts)
+   # build a postprocessed Result using current opts
+   res = solveFL_post(v.prob, v.core; opts=v.opts)
 
-    #Everytime show is called, the paraview files are changed!
-    #u_to_paraview(v.core.dp, v.core.d, v.core.Uapp, v.prob.s)
+   println(io, "\n----------- Domain -----------")
+   try
+      show(io, MIME"text/plain"(), v.core.d)
+      println(io)
+   catch
+      println(io, v.core.d)
+   end
 
-    println(io, "\n----------- Domain -----------")
-    try
-        show(io, MIME"text/plain"(), v.core.d)
-        println(io)
-    catch
-        println(io, v.core.d)
-    end
+   prob = res.problem
+   println(io, "\n----------- Parameters -----------")
+   @printf(io, "N=%d, nₚᵣ=%d, s=%.6g, p=%d, δ=%.6g,\n",
+      prob.N, prob.nₚᵣ, prob.s, prob.p, prob.δ)
+   if v.opts.s_small
+      @printf(io, "--- small s case used --- \n")
+   else
+      @printf(io, "Precomps nodes: r = nₚᵣ, θ = 2nₚᵣ,\n")
+   end
+   @printf(io, "Lᵢₙ=%d, δ_near=%.6g, δ_intp=%.6g.\n",
+      v.core.dp.Lᵢₙ, prob.δ_near, prob.δ_intp)
 
-    prob = res.problem
-    println(io, "\n----------- Parameters -----------")
-    @printf(io, "N=%d, nₚᵣ=%d, s=%.6g, p=%d, δ=%.6g\nLᵢₙ=%d, δ_near=%.6g, δ_intp=%.6g\n",
-            prob.N, prob.nₚᵣ, prob.s, prob.p, prob.δ, v.core.dp.Lᵢₙ ,prob.δ_near, prob.δ_intp)
+   println(io, "\n----------- Quadrature -----------")
+   @printf(io, "Vol. regular patches  : nr = %d  (%d×%d grid)\n",
+      v.opts.nr, v.opts.nr, v.opts.nr)
 
-    println(io, "\n----------- System -----------")
-    n = length(v.core.b)
-    println(io, "Target points (Vars.) : $n")
-    n = size(v.core.dp.prepts, 2)
-    println(io, "Precomputation points : $n")
-    n = size(v.core.dp.invpts, 2)
-    println(io, "Near-singular  points : $n")
+   @printf(io, "Vol. boundary patches : nbd = %d (%d×%d grid)\n",
+      v.opts.nbd, v.opts.nbd, v.opts.nr)
 
-    if res.cond_num != -1
-        if res.cond_num > 1000
-            @printf(io, "Cond. num 2-norm: %.2e\n", res.cond_num)
-        else
-            @printf(io, "Cond. num 2-norm: %f\n", res.cond_num)
-        end
-    end
+   @printf(io, "Boundary DLP mode-0   : nr_bdy = %d\n", v.opts.nr_bdy)
+   @printf(io, "Boundary DLP mode-1   : ns_near = %d\n", v.opts.ns_near)
+   @printf(io, "Boundary DLP smoothing: pbd = %d\n", v.opts.pbd)
 
-    println(io, "\n----------- Solve -----------")
-    info = res.info
-    println(io, "Solver : ", info.solver)
-    if info.solver == :gmres
-        println(io, "Iters  : ", info.iters)
-        println(io, "Conv   : ", info.converged)
-        println(io, "Reltol : ", info.reltol)
-    end
+   println(io, "\n----------- System -----------")
+   n = length(v.core.b)
+   println(io, "Target points (Vars.) : $n")
+   n = size(v.core.dp.prepts, 2)
+   println(io, "Precomputation points : $n")
+   n = size(v.core.dp.invpts, 2)
+   println(io, "Near-singular  points : $n")
 
-    println(io, "\n----------- Error -----------")
-    em = res.errors
-    if isnan(em.max)
-        println(io, "(No exact solution provided; errors not computed.)")
-    else
-        @printf(io, "Max Error   : %.2e\n", em.max)
-        @printf(io, "Max Rel err : %.2e\n", em.relmax)
-        @printf(io, "L^2 error   : %.2e\n", em.l2)
-        @printf(io, "Root MSE err: %.2e\n", em.rmse)
-    end
+   if res.cond_num != -1
+      if res.cond_num > 1000
+         @printf(io, "Cond. num 2-norm: %.2e\n", res.cond_num)
+      else
+         @printf(io, "Cond. num 2-norm: %f\n", res.cond_num)
+      end
+   end
 
-    if v.core.bench !== nothing
-        println(io, "\n----------- Benchmark -----------")
-        try
-            show(io, MIME"text/plain"(), v.core.bench)
-            println(io)
-        catch
-            println(io, res.bench)
-        end
-    end
+   println(io, "\n----------- Solve -----------")
+   info = res.info
+   println(io, "Solver : ", info.solver)
+   if info.solver == :gmres
+      println(io, "Iters  : ", info.iters)
+      println(io, "Conv   : ", info.converged)
+      println(io, "Reltol : ", info.reltol)
+   end
 
-    if res.options.plot
-        plot_result(res; what=:uapp)
-    end
+   println(io, "\n----------- Error -----------")
+   em = res.errors
+   if isnan(em.max)
+      println(io, "(No exact solution provided)")
+   else
+      @printf(io, "Max Error   : %.2e\n", em.max)
+      @printf(io, "Max Rel err : %.2e\n", em.relmax)
+      @printf(io, "L^2 error   : %.2e\n", em.l2)
+      @printf(io, "Root MSE err: %.2e\n", em.rmse)
+   end
 
-    println(io, "=====================================================")
+   if v.core.bench !== nothing
+      println(io, "\n----------- Benchmark -----------")
+      try
+         show(io, MIME"text/plain"(), v.core.bench)
+         println(io)
+      catch
+         println(io, res.bench)
+      end
+   end
+
+   if res.options.plot
+      #Everytime show is called, the paraview files are changed!
+      u_to_paraview(v.core.dp, v.core.d, v.core.Uapp, v.prob.s)
+   end
+
+   println(io, "===============================================")
 end
 
 show(io::IO, v::SolveView) = show(io, MIME"text/plain"(), v)

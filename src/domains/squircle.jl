@@ -1586,7 +1586,7 @@ function DLP!(out::StridedArray{Float64}, d::squircle, t::Float64,
       sΔ, cΔ = sincos(Δ)
 
       #This tolerance needs to be higher if P is large
-      if abs(Δ) < 1e-3
+      if abs(Δ) < 2e-3
 
          Δ2 = Δ * Δ
          Δ3 = Δ2 * Δ
@@ -1694,7 +1694,6 @@ function gamder!(out::Vector{Float64}, d::squircle, theta::Float64)
 
 end
 
-#-----------------------
 function Dmap!(out::StridedArray{Float64}, d::squircle,
    u::StridedArray{Float64}, v::StridedArray{Float64}, k::Int)
 
