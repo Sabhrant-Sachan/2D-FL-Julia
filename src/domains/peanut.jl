@@ -91,7 +91,6 @@ mutable struct peanut <: abstractdomain
 
       Npat = dot(a, b)
 
-      # No padding, unlike Matlab.
       # ck[k] has length a[k] + 1
       # tk[k] has length b[k] + 1
       ck = something(ck, [(0:a[k]) ./ a[k] for k in 1:12])

@@ -1630,9 +1630,9 @@ No allocations! This map computes within itself
 mapxy!(Zx, Zy, d, u2, v2, k)
   DLP!(DJ,     d, u2, v2, k)
 it uses the combined function mapxy_Dmap!
-  Unlike diff_map! function, Zx, Zy in regions
-  with affine mappings are not updated!
-  But the Jacobian DJ is always updated.
+Unlike diff_map! function, Zx, Zy in regions
+with affine mappings are not updated!
+But the Jacobian DJ is always updated.
 """
 function diff_rmap!(out::Matrix{Float64},
   Zx::Matrix{Float64}, Zy::Matrix{Float64}, DJ::StridedArray{Float64},

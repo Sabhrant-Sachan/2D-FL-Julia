@@ -2392,7 +2392,6 @@ function mapxy_Dmap!(Zx::StridedArray{Float64}, Zy::StridedArray{Float64},
       dgx = -d.R1 * s - 2.0 * d.P * s * c
       dgy =  d.R2 * c
 
-      # Dmap unscaled partials (matching MATLAB after mapping u,v -> xi1,xi2)
       dux = Yx - (d.A + α1x) - t2m1 * cL1x - cL2x
       duy = Yy - (d.B + α1y) - t2m1 * cL1y - cL2y
 
@@ -3810,7 +3809,6 @@ function diff_map!(out::Matrix{Float64},
     return nothing
 
   elseif reg == 12
-    # MATLAB uses e1,q1 with same algebra
     if d.L2 >= d.L1
       cV = d.L1 * αu * invn
       cU = d.L2 * αv * invn
@@ -4262,7 +4260,6 @@ function diff_rmap!(out::Matrix{Float64},
 
     fill!(DJ, d.L1 * d.L2 * αu * αv)
 
-    # MATLAB uses e1,q1 with same algebra
     if d.L2 >= d.L1
       cV = d.L1 * αu * invn
       cU = d.L2 * αv * invn

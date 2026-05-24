@@ -4,22 +4,47 @@ import FL2D.FLdata as FLdata
 
 d = FL2D.peanut(b=[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1])
 
+d = FL2D.peanut(b=[6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6]);
+
+FL2D.refine!(d, 2, 2, [67,96,187,216])
+
+
 d = FL2D.kite(b=[4, 5, 9, 9, 5, 4, 5, 5, 5, 5, 4, 4],
-a=[4, 3, 7, 7, 3, 4, 3, 6, 6, 3, 3, 3])
+a=[4, 3, 7, 7, 3, 4, 3, 6, 6, 3, 3, 3]);
 
 FL2D.refine!(d, 1, 2, [9, 12, 13, 16, 181, 184, 185, 188])
 
-d = FL2D.squircle(b=[5, 5, 5, 5, 5], a=[3, 3, 3, 3, 4], L1=0.8, L2=0.8, P=4.0);
+d = FL2D.kite(b=[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1])
 
-d = FL2D.squircle(b=[1, 1, 1, 1, 1], P=4.0)
 
-d = FL2D.disc(b=[1, 1, 1, 1, 1])
+d = FL2D.bean(b=[4, 5, 5, 5, 5, 4, 5, 9, 9, 5, 4, 4],
+a=[4, 3, 7, 7, 3, 4, 3, 6, 6, 3, 4, 4]);
 
-dp = FL2D.domprop(12, 0.1, 0.15, 5e-3, d; Lᵢₙ=5)
+FL2D.refine!(d, 1, 2, [9, 12, 13, 16, 125, 128, 129, 132])
 
-fig, ax = FL2D.plotns(dp, d, 1)
+d = FL2D.bean(b=[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1])
 
-FL2D.drawextregion(fig, ax, d, 1, 1.221)
+
+
+d =  FL2D.disc(b=[6, 6, 6, 6, 5],a=[4, 4, 4, 4, 4], L1=0.8, L2=0.8)
+
+d = FL2D.disc(b=[1, 1, 1, 1, 1], L1=0.8, L2=0.8)
+
+
+d =  FL2D.squircle(b=[6, 6, 6, 6, 5],a=[4, 4, 4, 4, 4], L1=0.8, L2=0.8, P=4.0)
+
+d = FL2D.squircle(b=[1, 1, 1, 1, 1], L1=0.8, L2=0.8, P=4.0)
+
+
+
+d = FL2D.ellipse(b=[6, 6, 6, 6, 6],a=[3, 3, 3, 3, 4],R1=1,R2=2,L1=2,L2=0.8)
+
+
+dp = FL2D.domprop(12, 0.2, 5e-3, 0.15, 5e-3, d; Lᵢₙ=5)
+
+fig, ax = FL2D.plotns(dp, d, 19)
+
+FL2D.drawextregion(fig, ax, d, 1, 1.3)
 
 FL2D.chk_map(d);
 
@@ -27,7 +52,7 @@ FL2D.draw(d,1)
 
 FL2D.drawbd(d)
 
-FL2D.chkinvpts(dp,d)
+FL2D.chkinvpts(dp,d; flag=true)
 
 FL2D.testDLP(d, dp; nr=64)
 

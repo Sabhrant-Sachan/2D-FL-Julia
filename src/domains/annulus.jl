@@ -5770,7 +5770,6 @@ function diff_rmap!(out::Matrix{Float64},
   dybx = Δthb * (-R21c2 * stb - R22s2 * ctb)
   dyby = Δthb * (-R21s2 * stb + R22c2 * ctb)
 
-  # Higher derivatives: exactly as MATLAB
   # d2 = -(Δth)^2 * (y - center), 
   # d3 = -(Δth)^2 * d1,
   # d4 = -(Δth)^2 * d2

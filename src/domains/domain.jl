@@ -21,9 +21,9 @@ end
 
 abstract type abstractdomain end
 
-function inFTable(N::Int=100_001)
-    vmin = -30.0
-    vmax =  30.0
+function inFTable(N::Int=10_001)
+    vmin = -3.0
+    vmax =  3.0
 
     P1   = Vector{Float64}(undef, N)
     P2   = Vector{Float64}(undef, N)
@@ -490,6 +490,100 @@ function projbd(d::D, u::Float64, v::Float64, k::Int; tol::Float64 = 1e-14)::Flo
 
   return t
 
+end
+
+function projbdvol(d::D, x::Float64, y::Float64, k::Int; tol::Float64=1e-14) where {D<:abstractdomain}
+
+   # ------------------------------------------------------------
+   # Wall 1: v = -1
+   # Segment from τₖ(-1,-1) to τₖ(1,-1)
+   # ------------------------------------------------------------
+   Ax, Ay = mapm1(d, -1.0, k)
+   Bx, By = mapp1(d, -1.0, k)
+
+   vx, wx = Bx - Ax, x - Ax
+   vy, wy = By - Ay, y - Ay
+
+   den = vx * vx + vy * vy
+   λ = den == 0.0 ? 0.0 : (wx * vx + wy * vy) / den
+   λ = λ < 0.0 ? 0.0 : λ > 1.0 ? 1.0 : λ
+
+   dx = x - Ax - λ * vx
+   dy = y - Ay - λ * vy
+
+   d1 = hypot(dx, dy)
+   u1 = -1.0 + 2.0 * λ
+   v1 = -1.0
+
+   u1 = abs(u1 - 1.0) < 1e-14 ? 1.0 : abs(u1 + 1.0) < 1e-14 ? -1.0 : u1
+
+   # ------------------------------------------------------------
+   # Wall 2: v = +1
+   # Segment from τₖ(-1,1) to τₖ(1,1)
+   # ------------------------------------------------------------
+   Ax, Ay = mapm1(d, 1.0, k)
+   Bx, By = mapp1(d, 1.0, k)
+
+   vx, wx = Bx - Ax, x - Ax
+   vy, wy = By - Ay, y - Ay
+
+   den = vx * vx + vy * vy
+   λ = den == 0.0 ? 0.0 : (wx * vx + wy * vy) / den
+   λ = λ < 0.0 ? 0.0 : λ > 1.0 ? 1.0 : λ
+
+   dx = x - Ax - λ * vx
+   dy = y - Ay - λ * vy
+
+   d2 = hypot(dx, dy)
+   u2 = -1.0 + 2.0 * λ
+   v2 = 1.0
+
+   u2 = abs(u2 - 1.0) < 1e-14 ? 1.0 : abs(u2 + 1.0) < 1e-14 ? -1.0 : u2
+
+   # ------------------------------------------------------------
+   # Wall 3: u = -1
+   # Minimize distance over v ∈ [-1,1]
+   # ------------------------------------------------------------
+   d3, t3 = GSS(dist_mapm1, -1.0, 1.0, tol, d, x, y, k)
+
+   u3 = -1.0
+   v3 = abs(t3 - 1.0) < 1e-14 ? 1.0 : abs(t3 + 1.0) < 1e-14 ? -1.0 : t3
+
+   # ------------------------------------------------------------
+   # Wall 4: u = +1
+   # Minimize distance over v ∈ [-1,1]
+   # ------------------------------------------------------------
+   d4, t4 = GSS(dist_mapp1, -1.0, 1.0, tol, d, x, y, k)
+
+   u4 = 1.0
+   v4 = abs(t4 - 1.0) < 1e-14 ? 1.0 : abs(t4 + 1.0) < 1e-14 ? -1.0 : t4
+
+   # ------------------------------------------------------------
+   # Choose closest wall
+   # ------------------------------------------------------------
+   bestd = d1
+   bestu = u1
+   bestv = v1
+
+   if d2 < bestd
+      bestd = d2
+      bestu = u2
+      bestv = v2
+   end
+
+   if d3 < bestd
+      bestd = d3
+      bestu = u3
+      bestv = v3
+   end
+
+   if d4 < bestd
+      bestd = d4
+      bestu = u4
+      bestv = v4
+   end
+
+   return bestd, bestu, bestv
 end
 
 # in your abstractdomain type: kd::Set{Int}

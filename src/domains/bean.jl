@@ -1854,21 +1854,24 @@ with derivatives taken with respect to θ.
 function hderhigher(d::bean, θ::Float64)
 
    s, c = sincos(θ)
-   s3, c3 = sincos(3θ)
 
-   h  = (3c + c3 + 3s - s3) / 4
+   spc = s + c
+   smc = s - c
+   sc = s * c
 
-   h1 = (-3s - 3s3 + 3c - 3c3) / 4
+   h  = spc * (1.0 - sc)
 
-   h2 = (-3c - 9c3 - 3s + 9s3) / 4
+   h1 = 3.0 * sc * smc
 
-   h3 = (3s + 27s3 - 3c + 27c3) / 4
+   h2 = -3.0 * spc * (1.0 - 3.0 * sc)
 
-   h4 = (3c + 81c3 + 3s - 81s3) / 4
+   h3 = -3.0 * smc * (2.0 + 9.0 * sc)
 
-   h5 = (-3s - 243s3 + 3c - 243c3) / 4
+   h4 = 3.0 * spc * (7.0 - 27.0 * sc)
 
-   h6 = (-3c - 729c3 - 3s + 729s3) / 4
+   h5 = 3.0 * smc * (20.0 + 81.0 * sc)
+
+   h6 = -3.0 * spc * (61.0 - 243.0 * sc)
 
    return h, h1, h2, h3, h4, h5, h6
 
@@ -1953,9 +1956,12 @@ function DLP!(out::StridedArray{Float64}, d::bean, t::Float64,
 
       sτ, cτ = sincos(thτ)
 
-      # hτ and hτ'
-      hτ = sτ^3 + cτ^3
-      hτ1 = 3.0 * sτ^2 * cτ - 3.0 * cτ^2 * sτ
+      spcτ = sτ + cτ
+      smcτ = sτ - cτ
+      scτ = sτ * cτ
+
+      hτ = spcτ * (1.0 - scτ)
+      hτ1 = 3.0 * scτ * smcτ
 
       Δ = 0.5 * (thτ - tht)
 
@@ -3711,6 +3717,26 @@ function fill_FTable!(tbl::FTable, d::bean, r::Int)
 
 end
 
+@inline function f1I(t::Float64, s::Float64,
+  d::bean, u::Float64, v::Float64, r::Int)
+  ŝ = (s + 1) / 2
+  t̂ = (t + 1) / 2
+
+  Xxv, Yxv = Xx(ŝ, d, r),  Yx(ŝ, d, r)
+
+  return (1 - t̂) * Xxv + t̂ * Yxv - u
+end
+
+@inline function f2I(t::Float64, s::Float64,
+  d::bean, u::Float64, v::Float64, r::Int)
+    ŝ = (s + 1) / 2
+    t̂ = (t + 1) / 2
+
+    Xyv, Yyv = Xy(ŝ, d, r), Yy(ŝ, d, r)
+
+    return (1 - t̂) * Xyv + t̂ * Yyv - v
+end
+
 @inline function f_cont(v̂::Float64, d::bean,
    u::Float64, v::Float64, r::Int)
 
@@ -3836,6 +3862,12 @@ end
    return term1 + term2
 
 end
+
+@inline function JinvI(t::Float64, s::Float64,
+  d::bean, u::Float64, v::Float64, r::Int)
+  return jinvmap(d, t, s, r)  # returns J11,J12,J21,J22
+end
+
 
 function mapinv(tbl::FTable, d::bean, u::Float64,
    v::Float64, k::Int)::Tuple{Float64,Float64}
@@ -4144,3 +4176,1029 @@ function dfunc!(out::StridedArray{Float64}, d::bean, k::Int,
 
 end
 
+"""
+   gamderhigher(d::bean, th::Float64)
+
+Return centered bean boundary values and derivatives through fourth order.
+
+That is, it Returns gx, gy, dgx, dgy, d2gx, d2gy, d3gx, d3gy, d4gx, d4gy
+
+where gx(th) = R*h(th)*cos(th), gy(th) = R*h(th)*sin(th)
+and h(th) = sin(th)^3 + cos(th)^3.
+"""
+function gamderhigher(d::bean, th::Float64)
+
+   s, c = sincos(th)
+
+   spc = s + c
+   smc = s - c
+   sc = s * c
+
+   h = spc * (1.0 - sc)
+   h1 = 3.0 * sc * smc
+   h2 = -3.0 * spc * (1.0 - 3.0 * sc)
+   h3 = -3.0 * smc * (2.0 + 9.0 * sc)
+   h4 = 3.0 * spc * (7.0 - 27.0 * sc)
+
+   gx = d.R * h * c
+   gy = d.R * h * s
+
+   dgx = d.R * (h1 * c - h * s)
+   dgy = d.R * (h1 * s + h * c)
+
+   d2gx = d.R * (h2 * c - 2.0 * h1 * s - h * c)
+   d2gy = d.R * (h2 * s + 2.0 * h1 * c - h * s)
+
+   d3gx = d.R * (h3 * c - 3.0 * h2 * s - 3.0 * h1 * c + h * s)
+   d3gy = d.R * (h3 * s + 3.0 * h2 * c - 3.0 * h1 * s - h * c)
+
+   d4gx = d.R * (h4 * c - 4.0 * h3 * s - 6.0 * h2 * c +
+                 4.0 * h1 * s + h * c)
+
+   d4gy = d.R * (h4 * s + 4.0 * h3 * c - 6.0 * h2 * s -
+                 4.0 * h1 * c + h * s)
+
+   return gx, gy, dgx, dgy, d2gx, d2gy, d3gx, d3gy, d4gx, d4gy
+
+end
+
+"""
+  diff_map!(out::Matrix{Float64}, Zx::Matrix{Float64}, Zy::Matrix{Float64},
+            DJ::StridedArray{Float64}, d::bean,
+            u::Float64, v::Float64,
+            u2::Matrix{Float64}, v2::Matrix{Float64},
+            du::AbstractVector, dv::AbstractVector, k::Int;
+            tol = 1e-4)
+
+Fill `out` with ‖τ(u,v) - τ(u₂,v₂)‖ on patch `k`.
+
+No allocations. Uses `mapxy_Dmap!` and Taylor correction near `(u,v)`.
+"""
+function diff_map!(out::Matrix{Float64},
+   Zx::Matrix{Float64}, Zy::Matrix{Float64}, DJ::StridedArray{Float64},
+   d::bean, u::Float64, v::Float64,
+   u2::Matrix{Float64}, v2::Matrix{Float64},
+   du::AbstractVector, dv::AbstractVector, k::Int;
+   tol::Float64=1e-4)
+
+   nd_u = size(out, 1)
+   nd_v = size(out, 2)
+
+   p = d.pths[k]
+   rp = d.RP
+
+   αc = (p.ck1 - p.ck0) / 2
+   αt = (p.tk1 - p.tk0) / 2
+
+   invn = 1.0 / rp.nme
+
+   mapxy_Dmap!(Zx, Zy, DJ, d, u2, v2, k)
+
+   if p.reg == 11 || p.reg == 12
+
+      if d.L2 >= d.L1
+         αu = αt
+         αv = αc
+      else
+         αu = αc
+         αv = αt
+      end
+
+      if p.reg == 11
+
+         qx = rp.q₂x
+         qy = rp.q₂y
+         ex = rp.e₂x
+         ey = rp.e₂y
+
+      else # p.reg == 12
+
+         qx = rp.q₁x
+         qy = rp.q₁y
+         ex = rp.e₁x
+         ey = rp.e₁y
+
+      end
+
+      @inbounds for j in 1:nd_v
+         dvj = dv[j]
+
+         @inbounds for i in 1:nd_u
+            dui = du[i]
+
+            Dx = d.L2 * αu * dui * qx * invn +
+                 d.L1 * αv * dvj * ex * invn
+
+            Dy = d.L2 * αu * dui * qy * invn +
+                 d.L1 * αv * dvj * ey * invn
+
+            out[i, j] = hypot(Dx, Dy)
+         end
+      end
+
+      return nothing
+
+   end
+
+   uhat = muladd(αc, u, p.ck0 + αc)
+   vhat = muladd(αt, v, p.tk0 + αt)
+
+   if p.reg == 1
+
+      ak = d.tht2 + d.tht3
+      bk = -d.tht3
+
+      Xx = d.R * rp.e₄x +
+           (2.0 * vhat - 1.0) * d.L1 * rp.e₂x * invn / 2.0 +
+           d.L2 * rp.q₂x * invn
+
+      Xy = d.R * rp.e₄y +
+           (2.0 * vhat - 1.0) * d.L1 * rp.e₂y * invn / 2.0 +
+           d.L2 * rp.q₂y * invn
+
+      dXx = d.L1 * rp.e₂x * invn
+      dXy = d.L1 * rp.e₂y * invn
+
+   elseif p.reg == 2
+
+      ak = π / 4 - d.tht1 - d.tht2
+      bk = d.tht2
+
+      Xx = d.R * rp.e₄x +
+           d.L1 * rp.e₂x * invn / 2.0 +
+           (1.0 - vhat) * d.L2 * rp.q₂x * invn
+
+      Xy = d.R * rp.e₄y +
+           d.L1 * rp.e₂y * invn / 2.0 +
+           (1.0 - vhat) * d.L2 * rp.q₂y * invn
+
+      dXx = -d.L2 * rp.q₂x * invn
+      dXy = -d.L2 * rp.q₂y * invn
+
+   elseif p.reg == 3
+
+      ak = d.tht1
+      bk = π / 4 - d.tht1
+
+      Xx = d.R * vhat / 4.0 + d.R * (1.0 - vhat) * rp.e₄x
+      Xy = d.R * vhat / 4.0 + d.R * (1.0 - vhat) * rp.e₄y
+
+      dXx = d.R * (1.0 / 4.0 - rp.e₄x)
+      dXy = d.R * (1.0 / 4.0 - rp.e₄y)
+
+   elseif p.reg == 4
+
+      ak = d.tht1
+      bk = π / 4
+
+      Xx = d.R * (1.0 - vhat) / 4.0 + d.R * vhat * rp.e₃x
+      Xy = d.R * (1.0 - vhat) / 4.0 + d.R * vhat * rp.e₃y
+
+      dXx = d.R * (rp.e₃x - 1.0 / 4.0)
+      dXy = d.R * (rp.e₃y - 1.0 / 4.0)
+
+   elseif p.reg == 5
+
+      ak = π / 4 - d.tht1 - d.tht2
+      bk = π / 4 + d.tht1
+
+      Xx = d.R * rp.e₃x +
+           d.L1 * rp.e₁x * invn / 2.0 +
+           vhat * d.L2 * rp.q₁x * invn
+
+      Xy = d.R * rp.e₃y +
+           d.L1 * rp.e₁y * invn / 2.0 +
+           vhat * d.L2 * rp.q₁y * invn
+
+      dXx = d.L2 * rp.q₁x * invn
+      dXy = d.L2 * rp.q₁y * invn
+
+   elseif p.reg == 6
+
+      ak = d.tht2 + d.tht3
+      bk = π / 2 - d.tht2
+
+      Xx = d.R * rp.e₃x +
+           (1.0 - 2.0 * vhat) * d.L1 * rp.e₁x * invn / 2.0 +
+           d.L2 * rp.q₁x * invn
+
+      Xy = d.R * rp.e₃y +
+           (1.0 - 2.0 * vhat) * d.L1 * rp.e₁y * invn / 2.0 +
+           d.L2 * rp.q₁y * invn
+
+      dXx = -d.L1 * rp.e₁x * invn
+      dXy = -d.L1 * rp.e₁y * invn
+
+   elseif p.reg == 7
+
+      ak = π / 4 - d.tht1 - d.tht3
+      bk = π / 2 + d.tht3
+
+      Xx = d.R * rp.e₃x -
+           d.L1 * rp.e₁x * invn / 2.0 +
+           (1.0 - vhat) * d.L2 * rp.q₁x * invn
+
+      Xy = d.R * rp.e₃y -
+           d.L1 * rp.e₁y * invn / 2.0 +
+           (1.0 - vhat) * d.L2 * rp.q₁y * invn
+
+      dXx = -d.L2 * rp.q₁x * invn
+      dXy = -d.L2 * rp.q₁y * invn
+
+   elseif p.reg == 8
+
+      ak = d.tht1
+      bk = 3π / 4 - d.tht1
+
+      Xx = d.R * vhat / 4.0 + d.R * (1.0 - vhat) * rp.e₃x
+      Xy = d.R * vhat / 4.0 + d.R * (1.0 - vhat) * rp.e₃y
+
+      dXx = d.R * (1.0 / 4.0 - rp.e₃x)
+      dXy = d.R * (1.0 / 4.0 - rp.e₃y)
+
+   elseif p.reg == 9
+
+      ak = d.tht1
+      bk = 3π / 4
+
+      Xx = d.R * (1.0 - vhat) / 4.0 + d.R * vhat * rp.e₄x
+      Xy = d.R * (1.0 - vhat) / 4.0 + d.R * vhat * rp.e₄y
+
+      dXx = d.R * (rp.e₄x - 1.0 / 4.0)
+      dXy = d.R * (rp.e₄y - 1.0 / 4.0)
+
+   elseif p.reg == 10
+
+      ak = π / 4 - d.tht1 - d.tht3
+      bk = 3π / 4 + d.tht1
+
+      Xx = d.R * rp.e₄x -
+           d.L1 * rp.e₂x * invn / 2.0 +
+           vhat * d.L2 * rp.q₂x * invn
+
+      Xy = d.R * rp.e₄y -
+           d.L1 * rp.e₂y * invn / 2.0 +
+           vhat * d.L2 * rp.q₂y * invn
+
+      dXx = d.L2 * rp.q₂x * invn
+      dXy = d.L2 * rp.q₂y * invn
+
+   else
+
+      throw(ArgumentError("diff_map! for bean expects region 1–12; got reg=$(p.reg)"))
+
+   end
+
+   th = muladd(ak, vhat, bk)
+
+   gx, gy,
+   dgx, dgy,
+   d2gx, d2gy,
+   d3gx, d3gy,
+   d4gx, d4gy = gamderhigher(d, th)
+
+   q = αt * ak
+   q2 = q * q
+   q3 = q2 * q
+   q4 = q2 * q2
+
+   dux = αc * (gx - Xx)
+   duy = αc * (gy - Xy)
+
+   dvx = (1.0 - uhat) * αt * dXx + uhat * q * dgx
+   dvy = (1.0 - uhat) * αt * dXy + uhat * q * dgy
+
+   duvx = αc * (q * dgx - αt * dXx)
+   duvy = αc * (q * dgy - αt * dXy)
+
+   dv2x = uhat * q2 * d2gx
+   dv2y = uhat * q2 * d2gy
+
+   duv2x = αc * q2 * d2gx
+   duv2y = αc * q2 * d2gy
+
+   dv3x = uhat * q3 * d3gx
+   dv3y = uhat * q3 * d3gy
+
+   duv3x = αc * q3 * d3gx
+   duv3y = αc * q3 * d3gy
+
+   dv4x = uhat * q4 * d4gx
+   dv4y = uhat * q4 * d4gy
+
+   tux, tvy = mapxy(d, u, v, k)
+
+   @inbounds for j in 1:nd_v
+
+      dvj = dv[j]
+      dvj2 = dvj * dvj
+      dvj3 = dvj2 * dvj
+      dvj4 = dvj2 * dvj2
+
+      @inbounds for i in 1:nd_u
+
+         uu = u2[i, j]
+         vv = v2[i, j]
+
+         if abs(u - uu) < tol && abs(v - vv) < tol
+
+            dui = du[i]
+
+            Dx = (dui * dux + dvj * dvx) -
+                 (dui * dvj * duvx + dvj2 * dv2x / 2.0) +
+                 (dui * dvj2 * duv2x / 2.0 + dvj3 * dv3x / 6.0) -
+                 (dui * dvj3 * duv3x / 6.0 + dvj4 * dv4x / 24.0)
+
+            Dy = (dui * duy + dvj * dvy) -
+                 (dui * dvj * duvy + dvj2 * dv2y / 2.0) +
+                 (dui * dvj2 * duv2y / 2.0 + dvj3 * dv3y / 6.0) -
+                 (dui * dvj3 * duv3y / 6.0 + dvj4 * dv4y / 24.0)
+
+            out[i, j] = hypot(Dx, Dy)
+
+         else
+
+            out[i, j] = hypot(tux - Zx[i, j], tvy - Zy[i, j])
+
+         end
+
+      end
+   end
+
+   return nothing
+
+end
+
+"""
+  diff_rmap!(out::Matrix{Float64}, Zx::Matrix{Float64}, Zy::Matrix{Float64},
+             DJ::StridedArray{Float64}, d::bean,
+             u::Float64, v::Float64,
+             u2::Matrix{Float64}, v2::Matrix{Float64},
+             du::AbstractVector, dv::AbstractVector,
+             r::Matrix{Float64}, k::Int;
+             tol = 1e-4)
+
+Fill `out` with
+
+    ‖τ(u,v) - τ(u₂,v₂)‖ / r
+
+on patch `k`.
+
+No allocations. Uses `mapxy_Dmap!` and Taylor correction near `(u,v)`.
+"""
+function diff_rmap!(out::Matrix{Float64},
+   Zx::Matrix{Float64}, Zy::Matrix{Float64}, DJ::StridedArray{Float64},
+   d::bean, u::Float64, v::Float64,
+   u2::Matrix{Float64}, v2::Matrix{Float64},
+   du::AbstractVector, dv::AbstractVector,
+   r::Matrix{Float64}, k::Int;
+   tol::Float64 = 1e-4)
+
+   nd_u = size(out, 1)
+   nd_v = size(out, 2)
+
+   p = d.pths[k]
+   rp = d.RP
+
+   αc = (p.ck1 - p.ck0) / 2
+   αt = (p.tk1 - p.tk0) / 2
+
+   invn = 1.0 / rp.nme
+
+   # Rectangular regions are affine, so the scaled difference is exact.
+   if p.reg == 11 || p.reg == 12
+
+      fill!(DJ, d.L1 * d.L2 * αc * αt)
+
+      if d.L2 >= d.L1
+         cV = d.L1 * αc * invn
+         cU = d.L2 * αt * invn
+      else
+         cV = d.L1 * αt * invn
+         cU = d.L2 * αc * invn
+      end
+
+      if p.reg == 11
+         qx = rp.q₂x
+         qy = rp.q₂y
+         ex = rp.e₂x
+         ey = rp.e₂y
+      else
+         qx = rp.q₁x
+         qy = rp.q₁y
+         ex = rp.e₁x
+         ey = rp.e₁y
+      end
+
+      @inbounds for j in 1:nd_v
+         dvj = dv[j]
+
+         @inbounds for i in 1:nd_u
+            dui = du[i]
+
+            # Algebraically correct sign for the bean map.
+            Dx = (cV * dvj) * ex + (cU * dui) * qx
+            Dy = (cV * dvj) * ey + (cU * dui) * qy
+
+            out[i, j] = hypot(Dx, Dy)
+         end
+      end
+
+      return nothing
+
+   end
+
+   mapxy_Dmap!(Zx, Zy, DJ, d, u2, v2, k)
+
+   uhat = muladd(αc, u, p.ck0 + αc)
+   vhat = muladd(αt, v, p.tk0 + αt)
+
+   if p.reg == 1
+
+      ak = d.tht2 + d.tht3
+      bk = -d.tht3
+
+      Xx = d.R * rp.e₄x +
+           (2.0 * vhat - 1.0) * d.L1 * rp.e₂x * invn / 2.0 +
+           d.L2 * rp.q₂x * invn
+
+      Xy = d.R * rp.e₄y +
+           (2.0 * vhat - 1.0) * d.L1 * rp.e₂y * invn / 2.0 +
+           d.L2 * rp.q₂y * invn
+
+      dXx = d.L1 * rp.e₂x * invn
+      dXy = d.L1 * rp.e₂y * invn
+
+   elseif p.reg == 2
+
+      ak = π / 4 - d.tht1 - d.tht2
+      bk = d.tht2
+
+      Xx = d.R * rp.e₄x +
+           d.L1 * rp.e₂x * invn / 2.0 +
+           (1.0 - vhat) * d.L2 * rp.q₂x * invn
+
+      Xy = d.R * rp.e₄y +
+           d.L1 * rp.e₂y * invn / 2.0 +
+           (1.0 - vhat) * d.L2 * rp.q₂y * invn
+
+      dXx = -d.L2 * rp.q₂x * invn
+      dXy = -d.L2 * rp.q₂y * invn
+
+   elseif p.reg == 3
+
+      ak = d.tht1
+      bk = π / 4 - d.tht1
+
+      Xx = d.R * vhat / 4.0 + d.R * (1.0 - vhat) * rp.e₄x
+      Xy = d.R * vhat / 4.0 + d.R * (1.0 - vhat) * rp.e₄y
+
+      dXx = d.R * (1.0 / 4.0 - rp.e₄x)
+      dXy = d.R * (1.0 / 4.0 - rp.e₄y)
+
+   elseif p.reg == 4
+
+      ak = d.tht1
+      bk = π / 4
+
+      Xx = d.R * (1.0 - vhat) / 4.0 + d.R * vhat * rp.e₃x
+      Xy = d.R * (1.0 - vhat) / 4.0 + d.R * vhat * rp.e₃y
+
+      dXx = d.R * (rp.e₃x - 1.0 / 4.0)
+      dXy = d.R * (rp.e₃y - 1.0 / 4.0)
+
+   elseif p.reg == 5
+
+      ak = π / 4 - d.tht1 - d.tht2
+      bk = π / 4 + d.tht1
+
+      Xx = d.R * rp.e₃x +
+           d.L1 * rp.e₁x * invn / 2.0 +
+           vhat * d.L2 * rp.q₁x * invn
+
+      Xy = d.R * rp.e₃y +
+           d.L1 * rp.e₁y * invn / 2.0 +
+           vhat * d.L2 * rp.q₁y * invn
+
+      dXx = d.L2 * rp.q₁x * invn
+      dXy = d.L2 * rp.q₁y * invn
+
+   elseif p.reg == 6
+
+      ak = d.tht2 + d.tht3
+      bk = π / 2 - d.tht2
+
+      Xx = d.R * rp.e₃x +
+           (1.0 - 2.0 * vhat) * d.L1 * rp.e₁x * invn / 2.0 +
+           d.L2 * rp.q₁x * invn
+
+      Xy = d.R * rp.e₃y +
+           (1.0 - 2.0 * vhat) * d.L1 * rp.e₁y * invn / 2.0 +
+           d.L2 * rp.q₁y * invn
+
+      dXx = -d.L1 * rp.e₁x * invn
+      dXy = -d.L1 * rp.e₁y * invn
+
+   elseif p.reg == 7
+
+      ak = π / 4 - d.tht1 - d.tht3
+      bk = π / 2 + d.tht3
+
+      Xx = d.R * rp.e₃x -
+           d.L1 * rp.e₁x * invn / 2.0 +
+           (1.0 - vhat) * d.L2 * rp.q₁x * invn
+
+      Xy = d.R * rp.e₃y -
+           d.L1 * rp.e₁y * invn / 2.0 +
+           (1.0 - vhat) * d.L2 * rp.q₁y * invn
+
+      dXx = -d.L2 * rp.q₁x * invn
+      dXy = -d.L2 * rp.q₁y * invn
+
+   elseif p.reg == 8
+
+      ak = d.tht1
+      bk = 3π / 4 - d.tht1
+
+      Xx = d.R * vhat / 4.0 + d.R * (1.0 - vhat) * rp.e₃x
+      Xy = d.R * vhat / 4.0 + d.R * (1.0 - vhat) * rp.e₃y
+
+      dXx = d.R * (1.0 / 4.0 - rp.e₃x)
+      dXy = d.R * (1.0 / 4.0 - rp.e₃y)
+
+   elseif p.reg == 9
+
+      ak = d.tht1
+      bk = 3π / 4
+
+      Xx = d.R * (1.0 - vhat) / 4.0 + d.R * vhat * rp.e₄x
+      Xy = d.R * (1.0 - vhat) / 4.0 + d.R * vhat * rp.e₄y
+
+      dXx = d.R * (rp.e₄x - 1.0 / 4.0)
+      dXy = d.R * (rp.e₄y - 1.0 / 4.0)
+
+   elseif p.reg == 10
+
+      ak = π / 4 - d.tht1 - d.tht3
+      bk = 3π / 4 + d.tht1
+
+      Xx = d.R * rp.e₄x -
+           d.L1 * rp.e₂x * invn / 2.0 +
+           vhat * d.L2 * rp.q₂x * invn
+
+      Xy = d.R * rp.e₄y -
+           d.L1 * rp.e₂y * invn / 2.0 +
+           vhat * d.L2 * rp.q₂y * invn
+
+      dXx = d.L2 * rp.q₂x * invn
+      dXy = d.L2 * rp.q₂y * invn
+
+   else
+
+      throw(ArgumentError("diff_rmap! for bean expects region 1–12; got reg=$(p.reg)"))
+
+   end
+
+   th = muladd(ak, vhat, bk)
+
+   gx, gy,
+   dgx, dgy,
+   d2gx, d2gy,
+   d3gx, d3gy,
+   d4gx, d4gy = gamderhigher(d, th)
+
+   q = αt * ak
+   q2 = q * q
+   q3 = q2 * q
+   q4 = q2 * q2
+
+   dux = αc * (gx - Xx)
+   duy = αc * (gy - Xy)
+
+   dvx = (1.0 - uhat) * αt * dXx + uhat * q * dgx
+   dvy = (1.0 - uhat) * αt * dXy + uhat * q * dgy
+
+   duvx = αc * (q * dgx - αt * dXx)
+   duvy = αc * (q * dgy - αt * dXy)
+
+   dv2x = uhat * q2 * d2gx
+   dv2y = uhat * q2 * d2gy
+
+   duv2x = αc * q2 * d2gx
+   duv2y = αc * q2 * d2gy
+
+   dv3x = uhat * q3 * d3gx
+   dv3y = uhat * q3 * d3gy
+
+   duv3x = αc * q3 * d3gx
+   duv3y = αc * q3 * d3gy
+
+   dv4x = uhat * q4 * d4gx
+   dv4y = uhat * q4 * d4gy
+
+   tux, tvy = mapxy(d, u, v, k)
+
+   @inbounds for j in 1:nd_v
+
+      dvj = dv[j]
+
+      @inbounds for i in 1:nd_u
+
+         uu = u2[i, j]
+         vv = v2[i, j]
+
+         if abs(u - uu) < tol && abs(v - vv) < tol
+
+            dui = du[i]
+            rij = r[i, j]
+
+            r1 = dvj * rij
+            r2 = r1 * r1
+            r3 = r2 * r1
+
+            Dx = (dui * dux + dvj * dvx) -
+                 r1 * (dui * duvx + dvj * dv2x / 2.0) +
+                 r2 * (dui * duv2x / 2.0 + dvj * dv3x / 6.0) -
+                 r3 * (dui * duv3x / 6.0 + dvj * dv4x / 24.0)
+
+            Dy = (dui * duy + dvj * dvy) -
+                 r1 * (dui * duvy + dvj * dv2y / 2.0) +
+                 r2 * (dui * duv2y / 2.0 + dvj * dv3y / 6.0) -
+                 r3 * (dui * duv3y / 6.0 + dvj * dv4y / 24.0)
+
+            out[i, j] = hypot(Dx, Dy)
+
+         else
+
+            out[i, j] = hypot(tux - Zx[i, j], tvy - Zy[i, j]) / r[i, j]
+
+         end
+
+      end
+
+   end
+
+   return nothing
+
+end
+
+"""
+   Dwall(d::bean, u::Float64, v::Float64, k::Int) -> dvx, dvy
+
+Derivative of the wall curve w.r.t. `v` at the singular side `u = ±1`
+for the `k`-th non-rectangular patch.
+
+Returns a Tuple `(dvx, dvy)`.
+"""
+function Dwall(d::bean, u::Float64, v::Float64, k::Int)::Tuple{Float64,Float64}
+
+   p = d.pths[k]
+   reg = p.reg
+
+   if reg == 11 || reg == 12
+      throw(ArgumentError("Dwall is for non-rectangular patches; got reg=$reg"))
+   end
+
+   hc = p.ck1 - p.ck0
+   ht = p.tk1 - p.tk0
+
+   αu = 0.5 * hc
+   αv = 0.5 * ht
+   βu = p.ck0 + αu
+   βv = p.tk0 + αv
+
+   xi1 = muladd(αu, u, βu)
+   xi2 = muladd(αv, v, βv)
+
+   rp = d.RP
+   invn = 1.0 / rp.nme
+
+   if reg == 1
+
+      ak = d.tht2 + d.tht3
+      th = muladd(ak, xi2, -d.tht3)
+
+      _, _, dgx, dgy = gamder(d, th)
+
+      dvx = (1.0 - xi1) * d.L1 * rp.e₂x * invn + xi1 * ak * dgx
+      dvy = (1.0 - xi1) * d.L1 * rp.e₂y * invn + xi1 * ak * dgy
+
+   elseif reg == 2
+
+      ak = π / 4 - d.tht1 - d.tht2
+      th = muladd(ak, xi2, d.tht2)
+
+      _, _, dgx, dgy = gamder(d, th)
+
+      dvx = -(1.0 - xi1) * d.L2 * rp.q₂x * invn + xi1 * ak * dgx
+      dvy = -(1.0 - xi1) * d.L2 * rp.q₂y * invn + xi1 * ak * dgy
+
+   elseif reg == 3
+
+      ak = d.tht1
+      th = muladd(ak, xi2, π / 4 - d.tht1)
+
+      _, _, dgx, dgy = gamder(d, th)
+
+      dvx = (1.0 - xi1) * d.R * (1.0 / 4 - rp.e₄x) + xi1 * ak * dgx
+      dvy = (1.0 - xi1) * d.R * (1.0 / 4 - rp.e₄y) + xi1 * ak * dgy
+
+   elseif reg == 4
+
+      ak = d.tht1
+      th = muladd(ak, xi2, π / 4)
+
+      _, _, dgx, dgy = gamder(d, th)
+
+      dvx = (1.0 - xi1) * d.R * (rp.e₃x - 1.0 / 4) + xi1 * ak * dgx
+      dvy = (1.0 - xi1) * d.R * (rp.e₃y - 1.0 / 4) + xi1 * ak * dgy
+
+   elseif reg == 5
+
+      ak = π / 4 - d.tht1 - d.tht2
+      th = muladd(ak, xi2, π / 4 + d.tht1)
+
+      _, _, dgx, dgy = gamder(d, th)
+
+      dvx = (1.0 - xi1) * d.L2 * rp.q₁x * invn + xi1 * ak * dgx
+      dvy = (1.0 - xi1) * d.L2 * rp.q₁y * invn + xi1 * ak * dgy
+
+   elseif reg == 6
+
+      ak = d.tht2 + d.tht3
+      th = muladd(ak, xi2, π / 2 - d.tht2)
+
+      _, _, dgx, dgy = gamder(d, th)
+
+      dvx = -(1.0 - xi1) * d.L1 * rp.e₁x * invn + xi1 * ak * dgx
+      dvy = -(1.0 - xi1) * d.L1 * rp.e₁y * invn + xi1 * ak * dgy
+
+   elseif reg == 7
+
+      ak = π / 4 - d.tht1 - d.tht3
+      th = muladd(ak, xi2, π / 2 + d.tht3)
+
+      _, _, dgx, dgy = gamder(d, th)
+
+      dvx = -(1.0 - xi1) * d.L2 * rp.q₁x * invn + xi1 * ak * dgx
+      dvy = -(1.0 - xi1) * d.L2 * rp.q₁y * invn + xi1 * ak * dgy
+
+   elseif reg == 8
+
+      ak = d.tht1
+      th = muladd(ak, xi2, 3π / 4 - d.tht1)
+
+      _, _, dgx, dgy = gamder(d, th)
+
+      dvx = (1.0 - xi1) * d.R * (1.0 / 4 - rp.e₃x) + xi1 * ak * dgx
+      dvy = (1.0 - xi1) * d.R * (1.0 / 4 - rp.e₃y) + xi1 * ak * dgy
+
+   elseif reg == 9
+
+      ak = d.tht1
+      th = muladd(ak, xi2, 3π / 4)
+
+      _, _, dgx, dgy = gamder(d, th)
+
+      dvx = (1.0 - xi1) * d.R * (rp.e₄x - 1.0 / 4) + xi1 * ak * dgx
+      dvy = (1.0 - xi1) * d.R * (rp.e₄y - 1.0 / 4) + xi1 * ak * dgy
+
+   elseif reg == 10
+
+      ak = π / 4 - d.tht1 - d.tht3
+      th = muladd(ak, xi2, 3π / 4 + d.tht1)
+
+      _, _, dgx, dgy = gamder(d, th)
+
+      dvx = (1.0 - xi1) * d.L2 * rp.q₂x * invn + xi1 * ak * dgx
+      dvy = (1.0 - xi1) * d.L2 * rp.q₂y * invn + xi1 * ak * dgy
+
+   else
+
+      throw(ArgumentError("Dwall is defined only for regions 1–10; got reg=$reg"))
+
+   end
+
+   return αv * dvx, αv * dvy
+
+end
+
+"""
+   boundquad!(P::SubArray{Float64}, d::bean, k::Int) -> nothing
+
+Find a bounding quadrilateral for the k-th patch.
+
+Mutates `P` into `[x1,y1,x2,y2,x3,y3,x4,y4]` in counter-clockwise order.
+
+If the patch is already rectangular, return its four corners directly.
+Otherwise:
+1) build the two opposite sides `u = -1` and `u = +1`,
+2) along each side, intersect the tangent line at `τ(u,t)` with the
+   two straight sides to find extremal intersections in parameter space,
+3) compute the Float64-space intersection points and assemble `P`.
+"""
+function boundquad!(P::SubArray{Float64}, d::bean, k::Int)
+
+   p = d.pths[k]
+
+   L1p1x, L1p1y = mapm1(d, -1.0, k)   # u = -1, v = -1
+   L1p2x, L1p2y = mapp1(d, -1.0, k)   # u = +1, v = -1
+   L2p1x, L2p1y = mapm1(d,  1.0, k)   # u = -1, v = +1
+   L2p2x, L2p2y = mapp1(d,  1.0, k)   # u = +1, v = +1
+
+   if p.reg == 11 || p.reg == 12
+
+      P[1] = L1p1x
+      P[2] = L1p1y
+      P[3] = L1p2x
+      P[4] = L1p2y
+      P[5] = L2p2x
+      P[6] = L2p2y
+      P[7] = L2p1x
+      P[8] = L2p1y
+
+      return nothing
+
+   end
+
+   N = 101
+   tpts = range(-1.0, 1.0; length = N)
+
+   best_score1 = Inf
+   best_idx1 = 0
+
+   for (i, t) in enumerate(tpts)
+
+      Cx, Cy = mapm1(d, t, k)
+      dvx, dvy = Dwall(d, -1.0, t, k)
+
+      z1, z2 = tanginterp(
+         L1p1x, L1p1y, L1p2x, L1p2y,
+         Cx, Cy, dvx, dvy,
+         L2p1x, L2p1y, L2p2x, L2p2y)
+
+      ok, s = SVum1(z1, z2)
+
+      if ok && s < best_score1
+         best_score1 = s
+         best_idx1 = i
+      end
+
+   end
+
+   if best_idx1 != 0
+
+      to = tpts[best_idx1]
+      Cx, Cy = mapm1(d, to, k)
+      dvx, dvy = Dwall(d, -1.0, to, k)
+
+      P1x, P1y, P2x, P2y = tanginterx(
+         L1p1x, L1p1y, L1p2x, L1p2y,
+         Cx, Cy, dvx, dvy,
+         L2p1x, L2p1y, L2p2x, L2p2y)
+
+   else
+
+      P1x, P1y = L1p1x, L1p1y
+      P2x, P2y = L2p1x, L2p1y
+
+   end
+
+   best_score2 = Inf
+   best_idx2 = 0
+
+   for (i, t) in enumerate(tpts)
+
+      Cx, Cy = mapp1(d, t, k)
+      dvx, dvy = Dwall(d, 1.0, t, k)
+
+      z1, z2 = tanginterp(
+         L1p1x, L1p1y, L1p2x, L1p2y,
+         Cx, Cy, dvx, dvy,
+         L2p1x, L2p1y, L2p2x, L2p2y)
+
+      ok, s = SVup1(z1, z2)
+
+      if ok && s < best_score2
+         best_score2 = s
+         best_idx2 = i
+      end
+
+   end
+
+   if best_idx2 != 0
+
+      to = tpts[best_idx2]
+      Cx, Cy = mapp1(d, to, k)
+      dvx, dvy = Dwall(d, 1.0, to, k)
+
+      P3x, P3y, P4x, P4y = tanginterx(
+         L1p1x, L1p1y, L1p2x, L1p2y,
+         Cx, Cy, dvx, dvy,
+         L2p1x, L2p1y, L2p2x, L2p2y)
+
+   else
+
+      P3x, P3y = L1p2x, L1p2y
+      P4x, P4y = L2p2x, L2p2y
+
+   end
+
+   P[1] = P1x
+   P[2] = P1y
+   P[3] = P3x
+   P[4] = P3y
+   P[5] = P4x
+   P[6] = P4y
+   P[7] = P2x
+   P[8] = P2y
+
+   return nothing
+
+end
+
+"""
+   refine!(d::bean, Nc::Int, Nt::Int, K::Vector{Int})
+
+Subdivide each patch in `K` into `Nc * Nt` subpatches, split in `c` and `t`.
+Updates `d.pths`, `d.Npat`, recomputes `d.kd`, and rebuilds `d.Qpts` / `d.Qptsbd`.
+
+Notes
+- Patches are re-sorted lexicographically by `(reg, ck0, ck1, tk0, tk1)`.
+- `Qpts` uses `boundquad!(V, d, k)`.
+- `Qptsbd` uses `boundquadbd!(V, d, k)` for patches in `d.kd`.
+"""
+function refine!(d::bean, Nc::Int, Nt::Int, K::Vector{Int})
+
+   @assert Nc ≥ 1 && Nt ≥ 1 "Nc and Nt must be ≥ 1"
+   @assert !isempty(K) "K (set of patches to refine) is empty"
+
+   children = Patch[]
+   sizehint!(children, length(K) * Nc * Nt)
+
+   for k in K
+
+      p = d.pths[k]
+
+      cc = range(p.ck0, p.ck1; length = Nc + 1)
+      tt = range(p.tk0, p.tk1; length = Nt + 1)
+
+      for i in 1:Nc, j in 1:Nt
+         push!(children, Patch(p.reg, cc[i], cc[i + 1], tt[j], tt[j + 1]))
+      end
+
+   end
+
+   d.pths = vcat([d.pths[i] for i in 1:d.Npat if !(i in K)], children)
+   sort!(d.pths, by = q -> (q.reg, q.ck0, q.ck1, q.tk0, q.tk1))
+
+   d.Npat = length(d.pths)
+
+   d.kd = [
+      k for k in 1:d.Npat
+      if d.pths[k].reg != 11 && d.pths[k].reg != 12 && d.pths[k].ck1 == 1.0
+   ]
+
+   d.Qpts = Matrix{Float64}(undef, 8, d.Npat)
+
+   @inbounds for k in 1:d.Npat
+      @views V = d.Qpts[:, k]
+      boundquad!(V, d, k)
+   end
+
+   d.Qptsbd = Matrix{Float64}(undef, 8, length(d.kd))
+
+   @inbounds for (ℓ, k) in enumerate(d.kd)
+      @views V = d.Qptsbd[:, ℓ]
+      boundquadbd!(V, d, k)
+   end
+
+   return nothing
+
+end
+
+function Base.show(io::IO, d::bean)
+
+   println(io, "bean with properties:")
+   println(io, "  (A, B)   = (", d.A, ", ", d.B, ")")
+   println(io, "  R        = ", d.R)
+   println(io, "  (L1, L2) = (", d.L1, ", ", d.L2, ")")
+   println(io, "  tht1     = ", d.tht1)
+   println(io, "  tht2     = ", d.tht2)
+   println(io, "  tht3     = ", d.tht3)
+   println(io, "  No. of holes = ", d.nh)
+
+   if length(d.kd) <= 6
+      L = "Int[" * join(d.kd, ' ') * "]"
+   else
+      head = join(d.kd[1:3], ' ')
+      tail = join(d.kd[end-2:end], ' ')
+      L = "Int[$head … $tail]"
+   end
+
+   println(io, "  kd     = ", L)
+   println(io, "  Npat   = ", d.Npat)
+   println(io, "  pths   = Vector{Patch} (", length(d.pths), " patches)")
+   println(io, "  Qpts   = ", size(d.Qpts, 1), "×", size(d.Qpts, 2), " Matrix")
+   println(io, "  Qptsbd = ", size(d.Qptsbd, 1), "×", size(d.Qptsbd, 2), " Matrix")
+end

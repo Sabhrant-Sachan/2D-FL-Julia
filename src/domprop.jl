@@ -1,6 +1,13 @@
 mutable struct domprop
    N::Int
-   del::Float64
+   # Volumetric classification cutoffs.
+   # delv_near:
+   #     if delv_close < dist(xᵢ, Ωₖ) <= delv_near for some vol. panel k.
+   # delv_close:
+   #     if dist(xᵢ, Ωₖ) <= delv_close for some vol. panel k,
+   #     then xᵢ is considered very close to the patch.
+   delv_near::Float64
+   delv_close::Float64
 
    # Boundary DLP classification cutoffs.
    # del_near:
@@ -37,11 +44,6 @@ mutable struct domprop
            t = cospi((2*ip - 1)/(2N))
    ===#
 
-   # 2 × (Ni + Nb + Tnsp)
-   # row 1 = global target column i
-   # row 2 = actual integration patch k
-   prepts::Matrix{Int}
-
    # Volume near/close classification.
    # volmode[row,k] gives the volume interaction type between target row
    # and integration patch k.
@@ -49,18 +51,21 @@ mutable struct domprop
    # 0 = regular/far
    # 1 = near: invpts stores projected boundary point (u0,v0)
    # 2 = close: invpts stores true inverse point (α1,α2)
+   # During invpts fill, candidate VOL_CLOSE entries are validated.
+   # If the inverse is unreliable, the entry is demoted to VOL_NEAR.
+   # This does not change pthgo/invgo because both VOL_NEAR and VOL_CLOSE
+   # consume one invpts column.
    volmode::Matrix{UInt8}
 
-   # invgo[k] : invgo[k+1]-1 gives the block in invpts for patch k.
-   # Entries are stored in row-scan order over row = 1:Nt.
+   # invgo has length 2M+1.
+   # invgo[k] : invgo[k+1]-1 gives interior near/close invpts for patch k.
+   # invgo[M+k] : invgo[M+k+1]-1 gives boundary near/close invpts for patch k.
    invgo::Vector{Int}
 
-   # 2 × (invgo[M+1]-1)
+   # invpts has size 2 × (invgo[2M+1]-1).
    # For mode 1, stores projection point on ∂([-1,1]^2).
    # For mode 2, stores true inverse point.
    invpts::Matrix{Float64}
-
-   #TODO
 
    #========== Boundary-DLP target classification ==========
    bdmode[i], i = 1:Ni:
@@ -173,12 +178,13 @@ mutable struct domprop
    bdintpk::Vector{Int}         # flattened near panel indices
    bdintpt::Vector{Float64}     # inverse/projection parameters; see above
 
-   # pthgo[k] = first column in prepts for actual volume patch k
-   # pthgo[M+1] = first column of the regular boundary-target block in prepts
+   # pthgo[k] = first IntS column for volume patch k, k = 1:M
+   # pthgo[M+1] = first IntS column of the boundary-target block
+   # pthgo[M+2] = one past the final IntS column
    pthgo::Vector{Int}
-
-   function domprop(N::Integer, del::Float64, del_near::Float64,
-      del_intp::Float64, dom::D; Lᵢₙ=5) where {D<:abstractdomain}
+   
+   function domprop(N::Integer, delv_near::Float64, delv_close::Float64,
+    del_near::Float64, del_intp::Float64, dom::D; Lᵢₙ=5) where {D<:abstractdomain}
 
       # ---------------------------------------------------------------------
       # Notation used inside this constructor only
@@ -199,11 +205,8 @@ mutable struct domprop
       # ib      boundary target index, 1:Nb
       # ip      local node index inside a patch
       #
-      # colp    column in prepts
-      # coli    column in invpts
-      #
-      # nsp_i   number of interior targets near each volume patch, length M
-      # nsp_b   number of boundary targets near each volume patch, length M
+      # nvoli   number of interior near/close targets for each volume patch
+      # nvolb   number of boundary near/close targets for each volume patch
       #
       # Xi      view of interior target coordinates, tgtpts[:, 1:Ni]
       # Xb      view of boundary target coordinates, tgtpts[:, Ni+1:Nt]
@@ -264,232 +267,338 @@ mutable struct domprop
       end
 
       # ---------------------------------------------------------------------
-      # 2. Extended quadrilaterals and near-singular counts
+      # 2. Extended quadrilaterals for volume classification
       # ---------------------------------------------------------------------
       Q = dom.Qpts
-      Qe = similar(Q)
+
+      Qev_near = similar(Q)
 
       @inbounds for k in 1:M
-         @views extendqua!(Qe[:, k], Q[:, k], del)
+         @views extendqua!(Qev_near[:, k], Q[:, k], delv_near)
       end
 
       in_i = Vector{Bool}(undef, Ni)
       in_b = Vector{Bool}(undef, Nb)
 
-      nsp_i = zeros(Int, M)
-      nsp_b = zeros(Int, M)
+      # ---------------------------------------------------------------------
+      # 3. Volume mode classification
+      #
+      # volmode[row,k]:
+      #   0 = far/regular
+      #   1 = near:  invpts stores projection point from projbdvol
+      #   2 = close: invpts stores true inverse point from mapinv/mapinv2
+      # Initial classification by distance:
+      #   dist <= delv_close gives a candidate VOL_CLOSE.
+      #
+      # During invpts fill, candidate VOL_CLOSE entries are validated.
+      # If the inverse is unreliable, the entry is demoted to VOL_NEAR.
+      # This does not change pthgo/invgo because both VOL_NEAR and VOL_CLOSE
+      # consume one invpts column.
+      # ---------------------------------------------------------------------
+      VOL_FAR = UInt8(0)
+      VOL_NEAR = UInt8(1)
+      VOL_CLOSE = UInt8(2)
 
-      # Count interior and boundary targets near each volume patch.
+      volmode = fill(VOL_FAR, Nt, M)
+
+      nvoli = zeros(Int, M)
+      nvolb = zeros(Int, M)
+
       @inbounds for k in 1:M
-         P1x, P1y = Qe[1, k], Qe[2, k]
-         P2x, P2y = Qe[3, k], Qe[4, k]
-         P3x, P3y = Qe[5, k], Qe[6, k]
-         P4x, P4y = Qe[7, k], Qe[8, k]
+
+         P1x, P1y = Qev_near[1, k], Qev_near[2, k]
+         P2x, P2y = Qev_near[3, k], Qev_near[4, k]
+         P3x, P3y = Qev_near[5, k], Qev_near[6, k]
+         P4x, P4y = Qev_near[7, k], Qev_near[8, k]
 
          ptinqua!(in_i, Xi, P1x, P1y, P2x, P2y, P3x, P3y, P4x, P4y)
          ptinqua!(in_b, Xb, P1x, P1y, P2x, P2y, P3x, P3y, P4x, P4y)
 
-         cnt = 0
-         for i in 1:Ni
-            kt = cld(i, Np)
-            if in_i[i] && kt != k
-               if isnsp(dom, tgtpts[1, i], tgtpts[2, i], k, del)
-                  cnt += 1
-               end
+         # Interior targets.
+         for row in 1:Ni
+            kt = cld(row, Np)
+
+            kt == k && continue
+            in_i[row] || continue
+
+            x1 = tgtpts[1, row]
+            x2 = tgtpts[2, row]
+
+            distpt, _, _ = projbdvol(dom, x1, x2, k)
+
+            if distpt <= delv_close
+               volmode[row, k] = VOL_CLOSE
+               nvoli[k] += 1
+            elseif distpt <= delv_near
+               volmode[row, k] = VOL_NEAR
+               nvoli[k] += 1
             end
          end
-         nsp_i[k] = cnt
 
-         cnt = 0
+         # Boundary targets.
          for ib in 1:Nb
-            i = Ni + ib
+            row = Ni + ib
+
             ibp = cld(ib, N)
             kt = dom.kd[ibp]
 
-            if in_b[ib] && kt != k
-               if isnsp(dom, tgtpts[1, i], tgtpts[2, i], k, del)
-                  cnt += 1
-               end
+            kt == k && continue
+            in_b[ib] || continue
+
+            x1 = tgtpts[1, row]
+            x2 = tgtpts[2, row]
+
+            distpt, _, _ = projbdvol(dom, x1, x2, k)
+
+            if distpt <= delv_close
+               volmode[row, k] = VOL_CLOSE
+               nvolb[k] += 1
+            elseif distpt <= delv_near
+               volmode[row, k] = VOL_NEAR
+               nvolb[k] += 1
             end
          end
-         nsp_b[k] = cnt
       end
 
-      Tnsp_i = sum(nsp_i)
-      Tnsp_b = sum(nsp_b)
-      Tnsp = Tnsp_i + Tnsp_b
-
       # ---------------------------------------------------------------------
-      # 3. Layout arrays and output allocation
+      # 4. Build pthgo and invgo
+      #
+      # pthgo layout preserves old IntS structure:
+      #
+      #   for k = 1:M:
+      #       Np self/singular columns
+      #       nvoli[k] interior near/close columns
+      #
+      #   then:
+      #       Nb singular boundary-target columns
+      #       sum(nvolb) boundary near/close columns
+      #
+      # invgo layout:
+      #
+      #   invgo[k] : invgo[k+1]-1
+      #       interior near/close invpts for patch k
+      #
+      #   invgo[M+k] : invgo[M+k+1]-1
+      #       boundary near/close invpts for patch k
       # ---------------------------------------------------------------------
-      pthgo = zeros(Int, M + 1)
-      nspsz = zeros(Int, M + 1)
+      pthgo = Vector{Int}(undef, M + 2)
 
-      colp = 1
+      pthgo[1] = 1
+
       @inbounds for k in 1:M
-         pthgo[k] = colp
-         nspsz[k] = nsp_i[k]
-         colp += Np + nsp_i[k]
+         pthgo[k+1] = pthgo[k] + Np + nvoli[k]
       end
 
-      pthgo[M+1] = colp
-      nspsz[M+1] = Tnsp_b
+      pthgo[M+2] = pthgo[M+1] + Nb + sum(nvolb)
 
-      hmap = Dict{UInt64,Int}()
-      sizehint!(hmap, Tnsp)
+      invgo = Vector{Int}(undef, 2M + 1)
 
-      prepts = Matrix{Int}(undef, 2, Ni + Nb + Tnsp)
-      invpts = Matrix{Float64}(undef, 2, Tnsp)
+      invgo[1] = 1
+
+      @inbounds for k in 1:M
+         invgo[k+1] = invgo[k] + nvoli[k]
+      end
+
+      @inbounds for k in 1:M
+         invgo[M+k+1] = invgo[M+k] + nvolb[k]
+      end
+
+      invpts = Matrix{Float64}(undef, 2, invgo[2M+1] - 1)
 
       # ---------------------------------------------------------------------
-      # 4. Inversion tables
+      # 5. Inversion tables
       # ---------------------------------------------------------------------
-      # Build compact FTables only for regions that need them.
-      # `regs` stores the actual region numbers with FTable-based inversion.
       regs = collect(ftable_regions(dom))
 
-      # `ftbs[j]` stores the table for region `regs[j]`.
       ftbs = Vector{FTable}(undef, length(regs))
 
-      # `reg_to_ftb[r] == 0` means region r has no FTable
-      # and should use the direct/rectangular `mapinv(dom, ...)`.
-      # Otherwise, `reg_to_ftb[r]` gives the index into `ftbs`
       maxreg = maximum(p.reg for p in dom.pths)
       reg_to_ftb = zeros(Int, maxreg)
 
       @inbounds for (j, r) in enumerate(regs)
-         tbl = inFTable(10_001)
+         tbl = inFTable()
          fill_FTable!(tbl, dom, r)
          ftbs[j] = tbl
          reg_to_ftb[r] = j
       end
 
       # ---------------------------------------------------------------------
-      # 5. Fill prepts and invpts for volume integrations
+      # 6. Fill invpts for volume interactions
       # ---------------------------------------------------------------------
-      coli = 1
 
+      αmax_close = 2.0
+
+      ndemote = 0
+      demote_examples = Tuple{Int,Int,Float64,Float64,Float64}[]
+      max_demote_examples = 10
+
+      # Interior target rows.
       @inbounds for k in 1:M
-         colp = pthgo[k]
 
-         # Regular self-patch interior targets.
-         for ip in 1:Np
-            i = (k - 1) * Np + ip
+         qinv = invgo[k]
 
-            prepts[1, colp] = i
-            prepts[2, colp] = k
+         for row in 1:Ni
 
-            colp += 1
-         end
+            mode = volmode[row, k]
 
-         # Near-singular interior targets for volume patch k.
-         P1x, P1y = Qe[1, k], Qe[2, k]
-         P2x, P2y = Qe[3, k], Qe[4, k]
-         P3x, P3y = Qe[5, k], Qe[6, k]
-         P4x, P4y = Qe[7, k], Qe[8, k]
+            mode == VOL_FAR && continue
 
-         ptinqua!(in_i, Xi, P1x, P1y, P2x, P2y, P3x, P3y, P4x, P4y)
+            x1 = tgtpts[1, row]
+            x2 = tgtpts[2, row]
 
-         @inbounds for i in 1:Ni
-            kt = cld(i, Np)
+            if mode == VOL_NEAR
 
-            if in_i[i] && kt != k
-               if isnsp(dom, tgtpts[1, i], tgtpts[2, i], k, del)
-                  prepts[1, colp] = i
-                  prepts[2, colp] = k
-                  hmap[packkey(i, k)] = colp
+               _, u0, v0 = projbdvol(dom, x1, x2, k)
 
-                  src_reg = dom.pths[k].reg
+               invpts[1, qinv] = u0
+               invpts[2, qinv] = v0
 
-                  if src_reg == dom.pths[kt].reg
-                     ip = i - (kt - 1) * Np
-                     q, r = divrem(ip - 1, N)
-                     Zx, Zy = mapinv2(dom, z[r+1], z[q+1], kt, k)
+            elseif mode == VOL_CLOSE
+
+               kt = cld(row, Np)
+
+               src_reg = dom.pths[k].reg
+
+               if src_reg == dom.pths[kt].reg
+
+                  ip = row - (kt - 1) * Np
+                  qq, rr = divrem(ip - 1, N)
+
+                  Zx, Zy = mapinv2(dom, z[rr+1], z[qq+1], kt, k)
+
+               else
+
+                  j = reg_to_ftb[src_reg]
+
+                  if j != 0
+                     ftb = ftbs[j]
+                     Zx, Zy = mapinv(ftb, dom, x1, x2, k)
                   else
-
-                     j = reg_to_ftb[src_reg]
-
-                     if j != 0
-                        # Curved/FTable region.
-                        ftb = ftbs[j]
-                        Zx, Zy = mapinv(ftb, dom, tgtpts[1, i], tgtpts[2, i], k)
-                     else
-                        # Rectangular or otherwise direct-inversion region.
-                        Zx, Zy = mapinv(dom, tgtpts[1, i], tgtpts[2, i], k)
-                     end
-
+                     Zx, Zy = mapinv(dom, x1, x2, k)
                   end
-
-                  invpts[1, coli] = snap1(Zx)
-                  invpts[2, coli] = snap1(Zy)
-
-                  colp += 1
-                  coli += 1
                end
+
+               Zx = snap1(Zx)
+               Zy = snap1(Zy)
+
+               zx, zy = mapxy(dom, Zx, Zy, k)
+               Einv = hypot(zx - x1, zy - x2)
+               αmax = max(abs(Zx), abs(Zy))
+
+               if αmax <= αmax_close
+                  invpts[1, qinv] = Zx
+                  invpts[2, qinv] = Zy
+               else
+                  # Inverse branch is not trustworthy; demote to mode 1.
+                  distpt, u0, v0 = projbdvol(dom, x1, x2, k)
+
+                  volmode[row, k] = VOL_NEAR
+
+                  invpts[1, qinv] = u0
+                  invpts[2, qinv] = v0
+
+                  ndemote += 1
+
+                  if length(demote_examples) < max_demote_examples
+                     push!(demote_examples, (row, k, distpt, αmax, Einv))
+                  end
+               end
+
+            else
+               error("Unexpected volume mode = $mode")
             end
+
+            qinv += 1
          end
+
+         @assert qinv == invgo[k+1]
       end
 
-      # Regular boundary targets.
-      colp = pthgo[M+1]
+      # Boundary target rows.
+      @inbounds for k in 1:M
 
-      @inbounds for ib in 1:Nb
-         i = Ni + ib
-         ibp = cld(ib, N)
-         kt = dom.kd[ibp]
+         qinv = invgo[M+k]
 
-         prepts[1, colp] = i
-         prepts[2, colp] = kt
+         for row in Ni+1:Nt
 
-         colp += 1
+            mode = volmode[row, k]
+
+            mode == VOL_FAR && continue
+
+            x1 = tgtpts[1, row]
+            x2 = tgtpts[2, row]
+
+            if mode == VOL_NEAR
+
+               _, u0, v0 = projbdvol(dom, x1, x2, k)
+
+               invpts[1, qinv] = u0
+               invpts[2, qinv] = v0
+
+            elseif mode == VOL_CLOSE
+
+               ib = row - Ni
+               ibp = cld(ib, N)
+               kt = dom.kd[ibp]
+
+               src_reg = dom.pths[k].reg
+
+               if src_reg == dom.pths[kt].reg
+
+                  ip = ib - (ibp - 1) * N
+
+                  Zx, Zy = mapinv2(dom, 1.0, z[ip], kt, k)
+
+               else
+
+                  j = reg_to_ftb[src_reg]
+
+                  if j != 0
+                     ftb = ftbs[j]
+                     Zx, Zy = mapinv(ftb, dom, x1, x2, k)
+                  else
+                     Zx, Zy = mapinv(dom, x1, x2, k)
+                  end
+               end
+
+               Zx = snap1(Zx)
+               Zy = snap1(Zy)
+
+               zx, zy = mapxy(dom, Zx, Zy, k)
+               Einv = hypot(zx - x1, zy - x2)
+               αmax = max(abs(Zx), abs(Zy))
+
+               if αmax <= αmax_close
+                  invpts[1, qinv] = Zx
+                  invpts[2, qinv] = Zy
+               else
+                  # Inverse branch is not trustworthy; demote to mode 1.
+                  distpt, u0, v0 = projbdvol(dom, x1, x2, k)
+
+                  volmode[row, k] = VOL_NEAR
+
+                  invpts[1, qinv] = u0
+                  invpts[2, qinv] = v0
+
+                  ndemote += 1
+
+                  if length(demote_examples) < max_demote_examples
+                     push!(demote_examples, (row, k, distpt, αmax, Einv))
+                  end
+               end
+
+            else
+               error("Unexpected volume mode = $mode")
+            end
+
+            qinv += 1
+         end
+
+         @assert qinv == invgo[M+k+1]
       end
 
-      # Near-singular boundary targets for volume patch k.
-      @inbounds for k in 1:M
-         P1x, P1y = Qe[1, k], Qe[2, k]
-         P2x, P2y = Qe[3, k], Qe[4, k]
-         P3x, P3y = Qe[5, k], Qe[6, k]
-         P4x, P4y = Qe[7, k], Qe[8, k]
-
-         ptinqua!(in_b, Xb, P1x, P1y, P2x, P2y, P3x, P3y, P4x, P4y)
-
-         for ib in 1:Nb
-            i = Ni + ib
-            ibp = cld(ib, N)
-            kt = dom.kd[ibp]
-
-            if in_b[ib] && kt != k
-               if isnsp(dom, tgtpts[1, i], tgtpts[2, i], k, del)
-                  prepts[1, colp] = i
-                  prepts[2, colp] = k
-                  hmap[packkey(i, k)] = colp
-
-                  src_reg = dom.pths[k].reg
-
-                  if src_reg == dom.pths[kt].reg
-                     ip = ib - (ibp - 1) * N
-                     Zx, Zy = mapinv2(dom, 1.0, z[ip], kt, k)
-                  else
-                     j = reg_to_ftb[src_reg]
-
-                     if j != 0
-                        # Curved/FTable region.
-                        ftb = ftbs[j]
-                        Zx, Zy = mapinv(ftb, dom, tgtpts[1, i], tgtpts[2, i], k)
-                     else
-                        # Rectangular or otherwise direct-inversion region.
-                        Zx, Zy = mapinv(dom, tgtpts[1, i], tgtpts[2, i], k)
-                     end
-                  end
-
-                  invpts[1, coli] = snap1(Zx)
-                  invpts[2, coli] = snap1(Zy)
-
-                  colp += 1
-                  coli += 1
-               end
-            end
-         end
+      if ndemote > 0
+         @warn "Some VOL_CLOSE candidates demoted to VOL_NEAR because inverse was nonlocal." count = ndemote examples = demote_examples αmax_close = αmax_close
       end
 
       # ---------------------------------------------------------------------
@@ -774,9 +883,10 @@ mutable struct domprop
          end
       end
 
-      return new(N, del, del_near, del_intp, hmap, tgtpts, prepts, invpts,
-         bdmode, bdnearptr, bdneark, bdneart, bdclosest, bdt, bddist,
-         Lᵢₙ, bdxvals, bdintpptr, bdintpk, bdintpt, pthgo, nspsz)
+      return new(N, delv_near, delv_close, del_near, del_intp, tgtpts,
+        volmode, invgo, invpts, bdmode, bdnearptr, bdneark, bdneart,
+        bdclosest, bdt, bddist, Lᵢₙ, bdxvals, bdintpptr, bdintpk,
+         bdintpt, pthgo)
    end
 end
 
@@ -834,71 +944,180 @@ function plotdp(dp::domprop, d::abstractdomain; label=:none)
 end
 
 """
-Plot the near–singular target points to patch `k` on top of the domain drawing.
-- Interior near–singulars to `k` are shown in black.
-- Boundary near–singulars to `k` are shown in blue.
-Also draws the (black) quadrilateral for patch `k` and its δ–extended quad.
+Plot volume near/close target points to patch `k` on top of the domain drawing.
+
+- mode 1 points, `VOL_NEAR`, are shown in black.
+- mode 2 points, `VOL_CLOSE`, are shown in blue.
+- For mode 1 points, draws a line from the target x to the projected point
+  τₖ(u0,v0) stored in `invpts`.
+- Draws patch `k`, its `delv_near` extended quad, and its `delv_close`
+  extended quad.
+- Includes both interior and boundary target rows.
 """
 function plotns(dp::domprop, d::abstractdomain, k::Integer)
 
    fig, ax = draw(d)
 
-   # -- draw quadrilateral for patch k --
-   @views P = d.Qpts[:, k]      # 8-vector: [x1,y1,x2,y2,x3,y3,x4,y4]
+   M = d.Npat
+   Nt = size(dp.tgtpts, 2)
 
-   Pext = Vector{Float64}(undef, 8)
+   @assert 1 <= k <= M "patch index k must satisfy 1 <= k <= d.Npat"
+
+   VOL_FAR   = UInt8(0)
+   VOL_NEAR  = UInt8(1)
+   VOL_CLOSE = UInt8(2)
+
+   # ------------------------------------------------------------
+   # Draw original patch quad and extended quads
+   # ------------------------------------------------------------
+   @views P = d.Qpts[:, k]
+
+   Pnear  = Vector{Float64}(undef, 8)
+   Pclose = Vector{Float64}(undef, 8)
 
    ix = [1, 3, 5, 7, 1]
    iy = [2, 4, 6, 8, 2]
-   #plot!(plt, P[ix], P[iy], color=:black, lw=2, label="")
 
-   # -- draw δ-extended quadrilateral --
-   extendqua!(Pext, P, dp.del)
-   lines!(ax, Pext[ix], Pext[iy], color=:black, linewidth=2)
+   # delv_near extended quad
+   extendqua!(Pnear, P, dp.delv_near)
+   lines!(ax, Pnear[ix], Pnear[iy], color=:gray, linewidth=2)
 
-   # convenient sizes
-   M = d.Npat
-   Np = dp.N^2
-   Mbd = length(d.kd)
+   # delv_close extended quad
+   extendqua!(Pclose, P, dp.delv_close)
+   lines!(ax, Pclose[ix], Pclose[iy], color=:blue, linewidth=2)
 
-   # ---------------- Interior near–singulars to k ----------------
-   # In prepts layout: for each patch k, block = Np interior pts (k=l),
-   # followed by dp.nspsz[k] near–singulars (k given patch index).
-   S = dp.pthgo[k] + Np               # start of near–singulars for patch k
-   E = dp.pthgo[k+1] - 1              # end index (inclusive) for that block
+   # ------------------------------------------------------------
+   # Interior near/close block for patch k
+   # invgo[k] : invgo[k+1]-1 corresponds to rows 1:Ni
+   # ------------------------------------------------------------
+   qint = dp.invgo[k]
 
-   xin = Vector{Float64}(undef, E - S + 1)
-   yin = Vector{Float64}(undef, E - S + 1)
-   @inbounds for (j, i) in enumerate(S:E)
-      ti = dp.prepts[1, i]
-      xin[j] = dp.tgtpts[1, ti]
-      yin[j] = dp.tgtpts[2, ti]
-   end
-   scatter!(ax, xin, yin; markersize=9, color=:black, strokewidth=0)
+   # ------------------------------------------------------------
+   # Boundary near/close block for patch k
+   # invgo[M+k] : invgo[M+k+1]-1 corresponds to rows Ni+1:Nt
+   # ------------------------------------------------------------
+   qbd = dp.invgo[M + k]
 
+   xnear = Float64[]
+   ynear = Float64[]
 
-   # ---------------- Boundary near–singulars to k ----------------
-   # After dp.pthgo[M+1] we have:
-   #   - a block of all boundary targets (length Nb)
-   #   - then all boundary near–singulars (various k).
-   start_bd_block = dp.pthgo[M+1] + Mbd * dp.N
+   xclose = Float64[]
+   yclose = Float64[]
 
-   xb = Float64[]
-   yb = Float64[]
+   segx = Float64[]
+   segy = Float64[]
 
-   @inbounds for i in start_bd_block:size(dp.prepts, 2)
-      if dp.prepts[2, i] == k
-         ti = dp.prepts[1, i]
-         push!(xb, dp.tgtpts[1, ti])
-         push!(yb, dp.tgtpts[2, ti])
+   # ------------------------------------------------------------
+   # Scan all target rows in the same two-phase order used by invpts:
+   #   1) interior rows
+   #   2) boundary rows
+   # ------------------------------------------------------------
+
+   Ni = d.Npat * dp.N^2
+
+   # ---------------- Interior rows ----------------
+   @inbounds for row in 1:Ni
+
+      mode = dp.volmode[row, k]
+
+      if mode == VOL_NEAR
+
+         x1 = dp.tgtpts[1, row]
+         x2 = dp.tgtpts[2, row]
+
+         u0 = dp.invpts[1, qint]
+         v0 = dp.invpts[2, qint]
+         qint += 1
+
+         px, py = mapxy(d, u0, v0, k)
+
+         push!(xnear, x1)
+         push!(ynear, x2)
+
+         push!(segx, x1)
+         push!(segy, x2)
+         push!(segx, px)
+         push!(segy, py)
+         push!(segx, NaN)
+         push!(segy, NaN)
+
+      elseif mode == VOL_CLOSE
+
+         x1 = dp.tgtpts[1, row]
+         x2 = dp.tgtpts[2, row]
+
+         # Advance qint because close mode also has one invpts entry.
+         qint += 1
+
+         push!(xclose, x1)
+         push!(yclose, x2)
+
+      elseif mode == VOL_FAR
+         nothing
+
+      else
+         error("Unexpected volume mode = $mode for row=$row, k=$k")
       end
    end
 
-   !isempty(xb) && scatter!(ax, xb, yb; markersize=9, color=:black, strokewidth=0)
+   @assert qint == dp.invgo[k + 1]
 
-   return (fig, ax)
+   # ---------------- Boundary rows ----------------
+   @inbounds for row in Ni+1:Nt
+
+      mode = dp.volmode[row, k]
+
+      if mode == VOL_NEAR
+
+         x1 = dp.tgtpts[1, row]
+         x2 = dp.tgtpts[2, row]
+
+         u0 = dp.invpts[1, qbd]
+         v0 = dp.invpts[2, qbd]
+         qbd += 1
+
+         px, py = mapxy(d, u0, v0, k)
+
+         push!(xnear, x1)
+         push!(ynear, x2)
+
+         push!(segx, x1)
+         push!(segy, x2)
+         push!(segx, px)
+         push!(segy, py)
+         push!(segx, NaN)
+         push!(segy, NaN)
+
+      elseif mode == VOL_CLOSE
+
+         x1 = dp.tgtpts[1, row]
+         x2 = dp.tgtpts[2, row]
+
+         # Advance qbd because close mode also has one invpts entry.
+         qbd += 1
+
+         push!(xclose, x1)
+         push!(yclose, x2)
+
+      elseif mode == VOL_FAR
+         nothing
+
+      else
+         error("Unexpected volume mode = $mode for row=$row, k=$k")
+      end
+   end
+
+   @assert qbd == dp.invgo[M + k + 1]
+
+   # ------------------------------------------------------------
+   # Scatter points
+   # ------------------------------------------------------------
+   !isempty(segx) && lines!(ax, segx, segy; color=:black, linewidth=1)
+   !isempty(xnear) && scatter!(ax, xnear, ynear; markersize=9, color=:black, strokewidth=0)
+   !isempty(xclose) && scatter!(ax, xclose, yclose; markersize=9, color=:blue, strokewidth=0)
+
+   return fig, ax
 end
-
 
 """
 Plot boundary-DLP projections associated with boundary patch `k`.
@@ -1937,141 +2156,199 @@ function plotu(dp::domprop, d::abstractdomain, s::Real;
     return plotu(dp, d, u, s; interpolate=interpolate)
 end
 
-
 """
-    chkinvpts(dp::domprop, d::abstractdomain) -> Vector{Float64}
+   chkinvpts(dp::domprop, d::abstractdomain; flag=nothing, jac_tol=1e-12) -> Float64
 
-Check that inverse points stored in `dp.invpts` are correct.
+Check only the mode-2 entries of `dp.invpts`.
 
-For every near–singular precomputation entry `pt = dp.prepts[i]`, 
-that is, those with `pt.k != pt.l`, we:
--- locate its running index `ll` inside the near–singular list (the columns
-   of `dp.invpts`), and
--- map the stored inverse `(t,s) = dp.invpts[:,ll]` back to real space via
-   `mapxy(d, t, s, pt.k)`, then
--- record the Euclidean error to the original target `(pt.x, pt.y)`.
+For every volume interaction with dp.volmode[row,k] == 2
 
-Returns a vector `err` of length `Tnsp = sum(dp.nspsz)`, ordered exactly like
-`dp.invpts` (first the interior near–singulars, then the boundary ones).
+we interpret `dp.invpts[:,q]` as a true inverse point `(û,v̂)` on patch `k`.
+Then we check mapxy(d, û, v̂, k) ≈ dp.tgtpts[:,row]
+
+Mode-1 entries are skipped because they store projected boundary points, not
+true inverse points. Also checks the local Jacobian determinant using `Dmap!`. 
+If the Jacobian is near zero at any mode-2 inverse point, a warning is raised.
+
+Returns the maximum forward-map error over mode-2 entries.
 """
-function chkinvpts(dp::domprop, d::abstractdomain,flag=nothing)::Float64
-    #bookkeeping
-    N   = dp.N
-    M   = d.Npat
-    Np  = N^2
-    Mbd = length(d.kd)
-    nbd = Mbd * N
-    
-    # Col index where the bd near–singular block starts in `prepts`
-    bdnsp = dp.pthgo[M+1] + nbd        
+function chkinvpts(dp::domprop, d::abstractdomain; flag=nothing, jac_tol::Float64=1e-12)::Float64
 
-    Tnsp  = sum(dp.nspsz)
+   M = d.Npat
+   N = dp.N
+   Np = N^2
+   Ni = M * Np
+   Nt = size(dp.tgtpts, 2)
 
-    err  = Vector{Float64}(undef, Tnsp)
+   VOL_FAR = UInt8(0)
+   VOL_NEAR = UInt8(1)
+   VOL_CLOSE = UInt8(2)
 
-    Lₚ = Np * M + nbd + Tnsp # Total cols in Prepts matrix
+   err = Float64[]
+   jacvals = Float64[]
 
-    z = Vector{Float64}(undef, N)
+   maxinv = Float64[]
 
-    @inbounds for j in 1:N
-        z[j] = cos(π*(2j-1)/(2N))
-    end
+   # 1×1 work arrays for Dmap!
+   U = Matrix{Float64}(undef, 1, 1)
+   V = Matrix{Float64}(undef, 1, 1)
+   J = Matrix{Float64}(undef, 1, 1)
 
-    #-------------------------------------------
-    #A vector of Bool, initialized to true for all
-    #indices from 1:Lₚ. They will be updated as 
-    #False  for singular points. (and ofcourse the
-    #points left are near singular, which are true)
-    NSI = trues(Lₚ)
+   # ------------------------------------------------------------
+   # Interior target rows: invgo[k] : invgo[k+1]-1
+   # ------------------------------------------------------------
+   @inbounds for k in 1:M
 
-    @inbounds for j in 1:Np
-        @inbounds for k in 1:M
-            NSI[dp.pthgo[k]+j-1] = false
-        end
-    end
+      qinv = dp.invgo[k]
 
-    @inbounds for j in dp.pthgo[M+1]:bdnsp-1
-        NSI[j] = false
-    end
+      for row in 1:Ni
 
-    @inbounds for i in 1:Lₚ
-        if NSI[i] == true
-            #Target point with linear index ti near singuluar to patch k
-            ti = dp.prepts[1, i]
+         mode = dp.volmode[row, k]
 
-            k = dp.prepts[2, i]
+         if mode == VOL_FAR
+            continue
+         end
 
-            # (prepts index) -> `ll` (column in invpts)
-            if i < bdnsp
-                # interior near–singular to patch k
-                ll = i - k * Np
-                # Building the target point
-                ℓ = ceil(Int, ti / Np)
+         if mode == VOL_CLOSE
 
-                jj = ti - (ℓ - 1) * Np
+            û = dp.invpts[1, qinv]
+            v̂ = dp.invpts[2, qinv]
 
-                q, r = divrem(jj - 1, N)
+            push!(maxinv, max(abs(û), abs(v̂)))
 
-                x, y = z[r+1], z[q+1]
+            zx, zy = mapxy(d, û, v̂, k)
 
-                tx, ty = mapxy(d, x, y, ℓ)
-            else
-                # boundary near–singulars
-                ll = i - M * Np - nbd
-                # Building the target point
-                k₀ = ceil(Int, (ti - M * Np) / N)
-
-                jj = ti - M * Np - (k₀ - 1) * N
-
-                ℓ = d.kd[k₀]
-
-                tx, ty = mapxy(d, 1.0, z[jj], ℓ)
-            end
-
-            # pull (t,s) and map back to real space on patch k
-            t̂ = dp.invpts[1, ll]
-            ŝ = dp.invpts[2, ll]
-
-            zx, zy = mapxy(d, t̂, ŝ, k)
+            tx = dp.tgtpts[1, row]
+            ty = dp.tgtpts[2, row]
 
             E = hypot(tx - zx, ty - zy)
-            # Euclidean error to the original target
-            err[ll] = E < 1e-16 ? 1e-16 : E
-        end
-    end
+            push!(err, E < 1e-17 ? 1e-17 : E)
 
-    flag = isnothing(flag) ? 0 : 1
+            U[1, 1] = û
+            V[1, 1] = v̂
 
-    if flag == 1
-        fig = Figure(size=(650, 650))
+            Dmap!(J, d, U, V, k)
 
-        ax = Axis(fig[1, 1];
-            xlabel=latexstring("\$x\$"),
-            ylabel="Error",
-            xlabelsize=22,
-            ylabelsize=22,
-            xticklabelsize=18,
-            yticklabelsize=18,
-            yscale=log10,                # log y-axis
-            xminorgridvisible=true,
-            yminorgridvisible=true,
-        )
+            push!(jacvals, abs(J[1, 1]))
+         end
 
-        xs = collect(1:length(err))
-        lines!(ax, xs, err; linewidth=1.2)
-        scatter!(ax, xs, err;
-            marker=:circle,
-            markersize=9,
-            color=:transparent,      # hollow fill
-            strokecolor=:black,      # outline color
-            strokewidth=1.2)
+         # Important: mode 1 and mode 2 both consume one invpts entry.
+         qinv += 1
+      end
 
-        ax.title = "Inverse-map error"
+      @assert qinv == dp.invgo[k+1]
+   end
 
-        display(GLMakie.Screen(), fig)
-    end
+   # ------------------------------------------------------------
+   # Boundary target rows: invgo[M+k] : invgo[M+k+1]-1
+   # ------------------------------------------------------------
+   @inbounds for k in 1:M
 
-    return maximum(err)
+      qinv = dp.invgo[M+k]
+
+      for row in Ni+1:Nt
+
+         mode = dp.volmode[row, k]
+
+         if mode == VOL_FAR
+            continue
+         end
+
+         if mode == VOL_CLOSE
+
+            û = dp.invpts[1, qinv]
+            v̂ = dp.invpts[2, qinv]
+
+            zx, zy = mapxy(d, û, v̂, k)
+
+            tx = dp.tgtpts[1, row]
+            ty = dp.tgtpts[2, row]
+
+            E = hypot(tx - zx, ty - zy)
+            push!(err, E < 1e-17 ? 1e-17 : E)
+
+            U[1, 1] = û
+            V[1, 1] = v̂
+
+            push!(maxinv, max(abs(û), abs(v̂)))
+
+            Dmap!(J, d, U, V, k)
+
+            push!(jacvals, abs(J[1, 1]))
+         end
+
+         # Important: mode 1 and mode 2 both consume one invpts entry.
+         qinv += 1
+      end
+
+      @assert qinv == dp.invgo[M+k+1]
+   end
+
+   if isempty(err)
+      @warn "No mode-2 volume inverse points found. Nothing to check."
+      return 0.0
+   end
+
+   minJ = minimum(jacvals)
+
+   display(minJ)
+
+   if minJ < jac_tol
+      @warn "Some mode-2 inverse points have nearly singular patch Jacobian." min_abs_J = minJ jac_tol = jac_tol
+   end
+
+   if !isnothing(flag)
+      fig = Figure(size=(700, 900))
+
+      ax1 = Axis(fig[1, 1];
+         xlabel=latexstring("\$q\$"),
+         ylabel="Error",
+         xlabelsize=22,
+         ylabelsize=22,
+         xticklabelsize=18,
+         yticklabelsize=18,
+         yscale=log10,
+         xminorgridvisible=true,
+         yminorgridvisible=true,
+         title="Mode-2 inverse-map error",
+      )
+
+      xs = collect(1:length(err))
+
+      lines!(ax1, xs, err; linewidth=1.2)
+
+      scatter!(ax1, xs, err;
+         marker=:circle,
+         markersize=9,
+         color=:transparent,
+         strokecolor=:black,
+         strokewidth=1.2)
+
+      ax2 = Axis(fig[2, 1];
+         xlabel=latexstring("\$q\$"),
+         ylabel="max(abs(û), abs(v̂))",
+         xlabelsize=22,
+         ylabelsize=22,
+         xticklabelsize=18,
+         yticklabelsize=18,
+         xminorgridvisible=true,
+         yminorgridvisible=true,
+         title="Mode-2 inverse coordinate size",
+      )
+
+      lines!(ax2, xs, maxinv; linewidth=1.2)
+
+      scatter!(ax2, xs, maxinv;
+         marker=:circle,
+         markersize=9,
+         color=:transparent,
+         strokecolor=:black,
+         strokewidth=1.2)
+
+      display(GLMakie.Screen(), fig)
+   end
+
+   return maximum(err)
 end
 
 function _preview(v::Vector{Int}; n::Int=3)
@@ -2114,8 +2391,39 @@ end
 
 function Base.show(io::IO, ::MIME"text/plain", d::domprop)
 
+    M = (length(d.invgo) - 1) ÷ 2
+    Np = d.N^2
     Ni = length(d.bdmode)
+    Nt = size(d.tgtpts, 2)
+    Nb = Nt - Ni
 
+    VOL_FAR   = UInt8(0)
+    VOL_NEAR  = UInt8(1)
+    VOL_CLOSE = UInt8(2)
+
+    # ------------------------------------------------------------
+    # Volume classification counts
+    # ------------------------------------------------------------
+    nvol_far   = count(==(VOL_FAR), d.volmode)
+    nvol_near  = count(==(VOL_NEAR), d.volmode)
+    nvol_close = count(==(VOL_CLOSE), d.volmode)
+
+    nvoli_near  = count(==(VOL_NEAR),  @view d.volmode[1:Ni, :])
+    nvoli_close = count(==(VOL_CLOSE), @view d.volmode[1:Ni, :])
+
+    nvolb_near  = Nb > 0 ? count(==(VOL_NEAR),  @view d.volmode[Ni+1:Nt, :]) : 0
+    nvolb_close = Nb > 0 ? count(==(VOL_CLOSE), @view d.volmode[Ni+1:Nt, :]) : 0
+
+    nvol_stored = nvol_near + nvol_close
+    expected_invpts_cols = d.invgo[end] - 1
+
+    # pthgo layout
+    nint_nearclose = sum((d.pthgo[k+1] - d.pthgo[k] - Np) for k in 1:M)
+    nbd_nearclose = d.pthgo[M+2] - (d.pthgo[M+1] + Nb)
+
+    # ------------------------------------------------------------
+    # Boundary-DLP counts
+    # ------------------------------------------------------------
     nfar  = count(==(UInt8(0)), d.bdmode)
     nnear = count(==(UInt8(1)), d.bdmode)
     nintp = count(==(UInt8(2)), d.bdmode)
@@ -2134,22 +2442,53 @@ function Base.show(io::IO, ::MIME"text/plain", d::domprop)
 
     expected_intp_ptr_len = length(d.bdclosest) * d.Lᵢₙ + 1
 
+    # ------------------------------------------------------------
+    # Print
+    # ------------------------------------------------------------
     println(io, "domain properties:")
-    println(io, "  N:          ", d.N)
-    println(io, "  del:        ", d.del)
-    println(io, "  del_near:   ", d.del_near)
-    println(io, "  del_intp:   ", d.del_intp)
+    println(io, "  N:            ", d.N)
+    println(io, "  delv_near:    ", d.delv_near)
+    println(io, "  delv_close:   ", d.delv_close)
+    println(io, "  del_near:     ", d.del_near)
+    println(io, "  del_intp:     ", d.del_intp)
 
     println(io)
-    println(io, "  hmap       :  Dict  (", length(d.hmap), " entries)")
-    println(io, "  tgtpts     :  Matrix{Float64} (", size(d.tgtpts, 1), "×", size(d.tgtpts, 2), ")")
-    println(io, "  prepts     :  Matrix{Int}     (", size(d.prepts, 1), "×", size(d.prepts, 2), ")")
-    println(io, "  invpts     :  Matrix{Float64} (", size(d.invpts, 1), "×", size(d.invpts, 2), ")")
+    println(io, "  Target storage:")
+    println(io, "    tgtpts     :  Matrix{Float64} (", size(d.tgtpts, 1), "×", size(d.tgtpts, 2), ")")
+    println(io, "      interior targets: ", Ni)
+    println(io, "      boundary targets : ", Nb)
 
     println(io)
-    println(io, "  Bookkeeping:")
+    println(io, "  Volume near/close classification:")
+    println(io, "    volmode    :  Matrix{UInt8}   (", size(d.volmode, 1), "×", size(d.volmode, 2), ")")
+    println(io, "      mode 0 far/regular       : ", nvol_far)
+    println(io, "      mode 1 near/projection   : ", nvol_near)
+    println(io, "      mode 2 close/inverse     : ", nvol_close)
+    println(io, "      interior mode 1          : ", nvoli_near)
+    println(io, "      interior mode 2          : ", nvoli_close)
+    println(io, "      boundary mode 1          : ", nvolb_near)
+    println(io, "      boundary mode 2          : ", nvolb_close)
+
+    println(io)
+    println(io, "  Volume projection/inverse storage:")
+    println(io, "    invgo      :  Vector{Int}     (", length(d.invgo), ")")
+    println(io, "    invpts     :  Matrix{Float64} (", size(d.invpts, 1), "×", size(d.invpts, 2), ")")
+    println(io, "    stored near/close entries: ", nvol_stored)
+    println(io, "    expected invpts columns  : ", expected_invpts_cols)
+
+    println(io)
+    println(io, "  IntS column layout:")
+    println(io, "    pthgo      :  Vector{Int}     (", length(d.pthgo), ")")
+    println(io, "    Np per singular block     : ", Np)
+    println(io, "    interior near/close cols  : ", nint_nearclose)
+    println(io, "    boundary singular cols    : ", Nb)
+    println(io, "    boundary near/close cols  : ", nbd_nearclose)
+    println(io, "    total IntS columns        : ", d.pthgo[end] - 1)
+
+    println(io)
+    println(io, "  Bookkeeping preview:")
     println(io, "    pthgo:    ", _preview(d.pthgo))
-    println(io, "    nspsz:    ", _preview(d.nspsz))
+    println(io, "    invgo:    ", _preview(d.invgo))
 
     println(io)
     println(io, "  Boundary-DLP target classification:")
@@ -2230,3 +2569,36 @@ function memory_report(dp::domprop)
 
     return nothing
 end
+
+
+#=== prepts is not needed anymore! To keep the same IntS layout:
+
+Layout for precomputations or prepts:
+For each volume patch k = 1:M: (Only interior target points)
+   first Np columns are self/singular target nodes on patch k.
+   following columns are volume near/close interactions for patch k.
+
+fter which: (Only boundary target points)
+   Big Singular boundary-target block for k = 1:M,
+   followed by boundary-target near/close volume interactions for k = 1:M
+
+so volmode is scanned in two pieces:
+
+# Phase 1: interior targets only
+for k in 1:M
+    for row in 1:Ni
+        if volmode[row,k] != VOL_FAR
+            # interior near/close column for patch k
+        end
+    end
+end
+
+# Phase 2: boundary targets only
+for k in 1:M
+    for row in Ni+1:Nt
+        if volmode[row,k] != VOL_FAR
+            # boundary near/close column for patch k
+        end
+    end
+end
+===#

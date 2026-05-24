@@ -101,9 +101,6 @@ mutable struct squircle <: abstractdomain
       @assert R1 > 0.0
       @assert R2 > 0.0
 
-      # Matlab defaults:
-      #   L1 = R2
-      #   L2 = R1
       L1 = Float64(something(L1, R2))
       L2 = Float64(something(L2, R1))
 
@@ -112,7 +109,6 @@ mutable struct squircle <: abstractdomain
 
       Npat = dot(a, b)
 
-      # No padding, unlike Matlab.
       # ck[k] has length a[k] + 1
       # tk[k] has length b[k] + 1
       ck = something(ck, [(0:a[k]) ./ a[k] for k in 1:5])
@@ -149,8 +145,6 @@ mutable struct squircle <: abstractdomain
                p = Patch(k, ck0, ck1, tk0, tk1)
                pths[idx] = p
 
-               # Same condition as Matlab:
-               # if pat(1) != 5 && pat(3) == 1
                if p.reg != 5 && p.ck1 == 1.0
                   nkd += 1
                   kd[nkd] = idx
