@@ -430,7 +430,7 @@ mutable struct domprop
 
       ndemote = 0
       demote_examples = Tuple{Int,Int,Float64,Float64,Float64}[]
-      max_demote_examples = 10
+      max_demote_examples = 20
 
       # Interior target rows.
       @inbounds for k in 1:M

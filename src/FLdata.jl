@@ -1,6 +1,6 @@
 module FLdata
 
-import ..disc, ..ellipse, ..kite, ..annulus, ..squircle, ..peanut, ..abstractdomain, ..refine!
+import ..disc, ..ellipse, ..kite, ..annulus, ..squircle, ..peanut, ..bean, ..abstractdomain, ..refine!
 
 #This file supplies the function f for which the FL problem will be solved
 #and a exact solution of the problem, if one exists.
@@ -12,6 +12,7 @@ export makekitefuex
 export makeannulusfuex
 export makesquirclefuex
 export makepeanutfuex
+export makebeanfuex
 
 using SpecialFunctions: gamma
 using HypergeometricFunctions: pFq 
@@ -453,6 +454,85 @@ function makepeanutfuex(n::Int, s::Float64)
    uex = nothing
 
    return f!, uex, fv
+end
+
+function makebeanfuex(n::Int, s::Float64)
+
+   nsgn = isodd(n) ? -1.0 : 1.0
+
+   C = (2.0^(2s) * nsgn * gamma(1 + s + n)^2) / gamma(n + 1)^2
+
+   # Coefficients for P_n^(s,0)(ξ), stored as (a0, a1, ..., an).
+   coeffs = if n == 0
+      (1.0,)
+
+   elseif n == 1
+      (0.5 * s, 0.5 * (s + 2.0))
+
+   elseif n == 2
+      a2 = (s + 3.0) * (s + 4.0) * 0.125
+      a1 = (2.0 * s * (s + 3.0)) * 0.125
+      a0 = (s * s - s - 4.0) * 0.125
+      (a0, a1, a2)
+
+   elseif n == 3
+      a3 = (s^3 + 15.0 * s^2 + 74.0 * s + 120.0) / 48.0
+      a2 = (s^3 + 9.0 * s^2 + 20.0 * s) / 16.0
+      a1 = (s^3 + 3.0 * s^2 - 10.0 * s - 24.0) / 16.0
+      a0 = (s^3 - 3.0 * s^2 - 16.0 * s) / 48.0
+      (a0, a1, a2, a3)
+
+   elseif n == 4
+      a4 = (s^4 + 26.0 * s^3 + 251.0 * s^2 + 1066.0 * s + 1680.0) / 384.0
+      a3 = s * (s^3 + 18.0 * s^2 + 107.0 * s + 210.0) / 96.0
+      a2 = (s^4 + 10.0 * s^3 + 11.0 * s^2 - 118.0 * s - 240.0) / 64.0
+      a1 = s * (s^3 + 2.0 * s^2 - 37.0 * s - 110.0) / 96.0
+      a0 = (s^4 - 6.0 * s^3 - 37.0 * s^2 + 42.0 * s + 144.0) / 384.0
+      (a0, a1, a2, a3, a4)
+
+   elseif n == 5
+      a5 = (s^5 + 40.0 * s^4 + 635.0 * s^3 + 5000.0 * s^2 + 19524.0 * s + 30240.0) / 3840.0
+      a4 = s * (s^4 + 30.0 * s^3 + 335.0 * s^2 + 1650.0 * s + 3024.0) / 768.0
+      a3 = (s^5 + 20.0 * s^4 + 115.0 * s^3 - 20.0 * s^2 - 1796.0 * s - 3360.0) / 384.0
+      a2 = s * (s^4 + 10.0 * s^3 - 25.0 * s^2 - 490.0 * s - 1176.0) / 384.0
+      a1 = (s^5 - 85.0 * s^3 - 240.0 * s^2 + 564.0 * s + 1440.0) / 768.0
+      a0 = s * (s^4 - 10.0 * s^3 - 65.0 * s^2 + 250.0 * s + 1024.0) / 3840.0
+      (a0, a1, a2, a3, a4, a5)
+
+   else
+      error("implemented n = 0..5")
+   end
+
+   @inline function polJac(ξ::Float64)
+      p = coeffs[n+1]
+      @inbounds for k in n:-1:1
+         p = muladd(p, ξ, coeffs[k])
+      end
+      return p
+   end
+
+   @inline function beaneta(x::Float64, y::Float64)::Float64
+      r2 = x * x + y * y
+      return x^3 + y^3 - r2 * r2
+   end
+
+   @inline function f!(F, x, y)
+      @inbounds for i in eachindex(F, x, y)
+         η = beaneta(x[i], y[i])
+         F[i] = C * polJac(10.0 * η - 1.0)
+      end
+      return nothing
+   end
+
+   @inline function fv(x::Float64, y::Float64)::Float64
+      η = beaneta(x, y)
+      return C * polJac(10.0 * η - 1.0)
+   end
+
+   uex = nothing
+
+   return f!, uex, fv
+
 end
 
 end 

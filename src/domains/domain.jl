@@ -22,8 +22,8 @@ end
 abstract type abstractdomain end
 
 function inFTable(N::Int=10_001)
-    vmin = -3.0
-    vmax =  3.0
+    vmin = -7.0
+    vmax =  7.0
 
     P1   = Vector{Float64}(undef, N)
     P2   = Vector{Float64}(undef, N)

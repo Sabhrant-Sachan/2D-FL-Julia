@@ -217,13 +217,13 @@ function solveFL_core(prob::Problem; opts::Options=Options())
    n = prob.nₚᵣ
    dp = domprop(prob.N, prob.δ, prob.δ_near, prob.δ_intp, d)
 
+   b = bvec(d, dp, prob.s, prob.f!)
+
    #In this case, a direct solver is always due to high
    #condition number of the discretized matrix
    if opts.s_small
 
       IntS = precompsLs(d, dp, prob.s, prob.p; n=n)
-
-      b = bvec(d, dp, prob.f!)
 
       IV = compress_vars(d, dp, prob.s, prob.p;
          matrix_form=true, nr=opts.nr, nbd=opts.nbd,
@@ -235,8 +235,6 @@ function solveFL_core(prob::Problem; opts::Options=Options())
       IntS = prob.s >= 0.5 ?
              precompsH(d, dp, prob.s, prob.p; n=n) :
              precompsL(d, dp, prob.s, prob.p; n=n)
-
-      b = bvec(d, dp, prob.s, prob.f!)
 
       if opts.matrixfree
          #Matrix free approach is not for domains with holes in it

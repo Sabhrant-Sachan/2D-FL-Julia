@@ -9,6 +9,7 @@ d = FL2D.peanut(b=[6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6]);
 FL2D.refine!(d, 2, 2, [67,96,187,216])
 
 
+
 d = FL2D.kite(b=[4, 5, 9, 9, 5, 4, 5, 5, 5, 5, 4, 4],
 a=[4, 3, 7, 7, 3, 4, 3, 6, 6, 3, 3, 3]);
 
@@ -28,7 +29,7 @@ d = FL2D.bean(b=[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1])
 
 d =  FL2D.disc(b=[6, 6, 6, 6, 5],a=[4, 4, 4, 4, 4], L1=0.8, L2=0.8)
 
-d = FL2D.disc(b=[1, 1, 1, 1, 1], L1=0.8, L2=0.8)
+d = FL2D.disc(b=[2, 2, 2, 2, 2], L1=0.8, L2=0.8)
 
 
 d =  FL2D.squircle(b=[6, 6, 6, 6, 5],a=[4, 4, 4, 4, 4], L1=0.8, L2=0.8, P=4.0)
@@ -40,9 +41,11 @@ d = FL2D.squircle(b=[1, 1, 1, 1, 1], L1=0.8, L2=0.8, P=4.0)
 d = FL2D.ellipse(b=[6, 6, 6, 6, 6],a=[3, 3, 3, 3, 4],R1=1,R2=2,L1=2,L2=0.8)
 
 
-dp = FL2D.domprop(12, 0.2, 5e-3, 0.15, 5e-3, d; Lᵢₙ=5)
+dp = FL2D.domprop(12, 0.15, 8e-3, 0.15, 5e-3, d; Lᵢₙ=5)
 
-fig, ax = FL2D.plotns(dp, d, 19)
+FL2D.memory_report(dp)
+
+fig, ax = FL2D.plotns(dp, d, 1)
 
 FL2D.drawextregion(fig, ax, d, 1, 1.3)
 
@@ -58,15 +61,23 @@ FL2D.testDLP(d, dp; nr=64)
 
 f!, uex, fv = FLdata.makesquirclefuex(5, 0.1, 4);
 
-f!, uex, fv = FLdata.makediscfuex(0, 0.2);
+f!, uex, fv = FLdata.makediscfuex(5, 0.75);
 
 f!, uex, fv = FLdata.makepeanutfuex(0, 0.75);
+
+f!, uex, fv = FLdata.makebeanfuex(5, 0.75);
 
 FL2D.plotfunc(dp, d, f!)
 
 b = FL2D.bvec(d, dp, 0.75, f!);
 
 FL2D.plotfunc(dp,d,b)
+
+bex = FL2D.bvec(d, dp, 0.75, f!, n=256); 
+for n in [32, 64, 128] 
+   b = FL2D.bvec(d, dp, 0.75, f!; n=n); 
+   display(maximum(abs.(b.-bex))) 
+end
 
 d = FL2D.disc(b=[5, 5, 5, 5, 5], a=[3, 3, 3, 3, 4], L1=0.8, L2=0.8)
 
