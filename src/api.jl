@@ -217,6 +217,7 @@ function solveFL_core(prob::Problem; opts::Options=Options())
    n = prob.nₚᵣ
    dp = domprop(prob.N, prob.δ, prob.δ_near, prob.δ_intp, d)
 
+   #b vec computed first and then precomps
    b = bvec(d, dp, prob.s, prob.f!)
 
    #In this case, a direct solver is always due to high

@@ -2,6 +2,8 @@ using Revise, FL2D
 
 import FL2D.FLdata as FLdata
 
+using GLMakie
+
 d = FL2D.peanut(b=[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1])
 
 d = FL2D.peanut(b=[6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6]);
@@ -81,9 +83,93 @@ end
 
 d = FL2D.disc(b=[5, 5, 5, 5, 5], a=[3, 3, 3, 3, 4], L1=0.8, L2=0.8)
 
-dp = FL2D.domprop(12, 0.1, 0.15, 5e-3, d; Lᵢₙ=5)
+d = FL2D.disc(b=[1, 1, 1, 1, 1], L1=0.8, L2=0.8)
 
-s, p, n = 0.999, 500, 512
+dp = FL2D.domprop(12, 0.15, 8e-3, 0.15, 5e-3, d; Lᵢₙ=5)
+
+s, p, n = 0.9, 5, 128
+
+IntSex = FL2D.precompsH(d, dp, s, p; n=512);
+
+for n in [16,32,64,128,256]
+   IntS = FL2D.precompsH(d, dp, s, p; n=n);
+   display(maximum(abs.(IntS .- IntSex)))
+end
+
+IntS = FL2D.precompsH(d, dp, s, p; n=256);
+
+for k in 1:d.Npat
+    S = dp.pthgo[k] + dp.N^2
+    E = dp.pthgo[k+1] - 1
+    println(k, " ", maximum(abs.(IntS[:, S:E] .- IntSex[:, S:E])))
+end
+
+# Singular/self blocks only
+for k in 1:d.Npat
+    S = dp.pthgo[k]
+    E = dp.pthgo[k] + dp.N^2 - 1
+    println("singular ", k, " ", maximum(abs.(IntS[:, S:E] .- IntSex[:, S:E])))
+end
+
+for k in 1:d.Npat
+    S = dp.pthgo[k]
+    E = dp.pthgo[k] + dp.N^2 - 1
+    abs_err = maximum(abs.(IntS[:, S:E] .- IntSex[:, S:E]))
+    rel_err = abs_err / maximum(abs.(IntSex[:, S:E]))
+    println(k, " abs=", abs_err, " rel=", rel_err)
+end
+
+# Apply log10 transformation. 
+# We add 1e-16 to safeguard against log10(0) if your matrix contains exact zeros.
+log_errors = log10.(abs.(IntS .- IntSex)/ maximum(abs.(IntSex)) .+ 1e-16);
+
+# Define axes using the matrix indices
+# In Makie, dimension 1 (rows) maps to the X-axis, dimension 2 (columns) maps to the Y-axis
+row_indices = 1:size(IntS, 1);
+col_indices = 1:size(IntS, 2);
+
+
+fig = Figure(size = (1300, 600), fontsize = 16)
+
+# Left Column: 2D Heatmap Axis mapped to element indices
+ax2d = Axis(fig[1, 1], 
+    title = "2D Error Heatmap (By Index)", 
+    xlabel = "Matrix Row Index", 
+    ylabel = "Matrix Column Index"
+)
+
+# Right Column: 3D Surface Axis mapped to element indices
+ax3d = Axis3(fig[1, 3], 
+    title = "3D Error Landscape (By Index)", 
+    xlabel = "Matrix Row Index", 
+    ylabel = "Matrix Column Index", 
+    zlabel = "log10(Error)",
+    aspect = (1, 1, 0.8), 
+    perspectiveness = 0.5 
+)
+
+
+# ==========================================
+# 3. Plotting using Indices
+# ==========================================
+cmap = :inferno  # Perceptually uniform colormap perfect for scale visualization
+
+# Pass the index ranges as the X and Y coordinates
+hm = heatmap!(ax2d, row_indices, col_indices, log_errors, colormap = cmap)
+sf = surface!(ax3d, row_indices, col_indices, log_errors, colormap = cmap)
+
+
+# ==========================================
+# 4. Colorbar and Render
+# ==========================================
+cb = Colorbar(fig[1, 2], hm, 
+    label = "log10(Absolute Error)", 
+    width = 20, 
+    tickalign = 1
+)
+
+# Display the interactive window
+display(fig)
 
 # precomputations
 if s >= 0.5
@@ -91,6 +177,14 @@ if s >= 0.5
 else
     IntS = FL2D.precompsL(d, dp, s, p; n=n);
 end
+
+IntSex = FL2D.precompsH(d, dp, s, p; n=256);
+display(maximum(abs.(IntS .- IntSex)))
+
+IntS = IntSex
+
+IntSex2 = FL2D.precompsH(d, dp, s, p; n=512);
+display(maximum(abs.(IntS .- IntSex2)))
 
 #Matrix free approach is not for domains with holes in it
 IV = FL2D.compress_vars(d, dp, s, p; matrix_form=true);

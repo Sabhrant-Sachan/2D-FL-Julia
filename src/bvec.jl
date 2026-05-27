@@ -1,3 +1,13 @@
+@inline function fill_meshgrid!(T1, T2, y1, y2)
+   @inbounds for j in eachindex(y2)
+      @inbounds for i in eachindex(y1)
+         T1[i, j] = y1[i]
+         T2[i, j] = y2[j]
+      end
+   end
+   return nothing
+end
+
 function bvec(d::abstractdomain, dp::domprop, s::Float64, f!::Function
    ; n::Int=64)::Vector{Float64}
 
@@ -34,11 +44,7 @@ function bvec(d::abstractdomain, dp::domprop, s::Float64, f!::Function
    Ni = M * Np
    
    b = zeros(Float64, Ni + Nd)
-
    # modified weights
-
-   #fwm = fw .* dwfunc(p, z2)       # length n
-
    fwm = similar(fw)
    dwfunc!(fwm, p, z2)   # fwm := dw(z2)
    @. fwm = fw * fwm
@@ -74,17 +80,6 @@ function bvec(d::abstractdomain, dp::domprop, s::Float64, f!::Function
    DJR = Matrix{Float64}(undef, n₂, n₂)
    FXR = Matrix{Float64}(undef, n₂, n₂)
    H = similar(DJR)
-
-   # small helpers (no allocations)
-   @inline function fill_meshgrid!(T1, T2, y1, y2)
-      @inbounds for j in eachindex(y2)
-         @inbounds for i in eachindex(y1)
-            T1[i, j] = y1[i]
-            T2[i, j] = y2[j]
-         end
-      end
-      return nothing
-   end
 
    tolbd = 1e-13
 
@@ -133,8 +128,8 @@ function bvec(d::abstractdomain, dp::domprop, s::Float64, f!::Function
 
             # -------- singular part on patch l: 4 contributions ----------
             # Part 1
-            @. d1 = (x1 + 1.0) .* dz
-            @. d2 = (x2 + 1.0) .* dz
+            @. d1 = (x1 + 1.0) * dz
+            @. d2 = (x2 + 1.0) * dz
             @. y1 = x1 - d1
             @. y2 = x2 - d2
             fill_meshgrid!(t1, t2, y1, y2)
@@ -495,8 +490,8 @@ function bvec(d::abstractdomain, dp::domprop, s::Float64, f!::Function
                else
                   # -1.0 < x2 < 1.0, (1.0, x2)
                   # Part 1
-                  @. y1 = 1.0 - 2.0 .* dz
-                  @. y2 = x2 - (x2 + 1.0) .* dz
+                  @. y1 = 1.0 - 2.0 * dz
+                  @. y2 = x2 - (x2 + 1.0) * dz
                   fill_meshgrid!(t1, t2, y1, y2)
 
                   mapxy_Dmap!(Zx, Zy, DJ, d, t1, t2, k)

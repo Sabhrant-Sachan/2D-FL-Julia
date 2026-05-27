@@ -1639,7 +1639,7 @@ function diff_rmap!(out::Matrix{Float64},
   d::disc, u::Float64, v::Float64,
   u2::Matrix{Float64}, v2::Matrix{Float64}, r::Matrix{Float64},
   du::AbstractVector, dv::AbstractVector, k::Int;
-  tol::Float64=1e-5)
+  tol::Float64=1e-3)
 
   nt = size(out, 1)   # angular
   nr = size(out, 2)   # radial
@@ -1706,28 +1706,35 @@ function diff_rmap!(out::Matrix{Float64},
   πa2 = πa * πa        # π^2 * αt^2
   πa3 = πa2 * πa       # π^3 * αt^3
   πa4 = πa2 * πa2      # π^4 * αt^4
+  πa5 = πa4 * πa
 
   # x-direction higher derivatives (common across regions)
   C2x = -(πa2 * cvt) / 4        # factor in dv2x, duv2x
   C3x = (πa3 * svt) / 8        # factor in dv3x, duv3x
   C4x = (πa4 * cvt) / 16       # dv4x
+  C5x = -(πa5 * svt) / 32
 
   dv2x = C2x * û
   duv2x = C2x * αc
   dv3x = C3x * û
   duv3x = C3x * αc
   dv4x = C4x * û
+  duv4x = C5x * αc
+  dv5x  = C5x * û
 
   # y-direction higher derivatives (common across regions)
   C2y = -(πa2 * svt) / 4
   C3y = -(πa3 * cvt) / 8
   C4y = (πa4 * svt) / 16
+  C5y =  (πa5 * cvt) / 32
 
   dv2y = C2y * û
   duv2y = C2y * αc
   dv3y = C3y * û
   duv3y = C3y * αc
   dv4y = C4y * û
+  duv4y = C5y * αc
+  dv5y  = C5y * û
 
   # some other shared helpers
   half_L1 = L1 / 2
@@ -1784,36 +1791,39 @@ function diff_rmap!(out::Matrix{Float64},
   # Map the reference scalar point and the whole grid
   tux, tvy = mapxy(d, u, v, k)
 
-  @inbounds for i in 1:nt
-    dvi = dv[i]
-    dui = du[i]
-    @inbounds for j in 1:nr
-      uu = u2[i, j]
-      vv = v2[i, j]
-      if (abs(u - uu) < tol) && (abs(v - vv) < tol)
-        r1 = dvi *  r[i, j]
-        r2 = r1 * r1
-        r3 = r2 * r1
-        # near the evaluation point: Taylor fixup
-        #Below computes the x and y coordinate of:
-        #(τ(u,v) - τ(u-r*du,v-r*dv))/r = dτᵤ(u,v) * du +  dτᵥ(u,v) * dv - r*(...)
-        Dx = (dui * dux + dvi * dvx) -
-             r1 * (dui * duvx + dvi * (dv2x / 2)) +
-             r2 * (dui * (duv2x / 2) + dvi * (dv3x / 6)) -
-             r3 * (dui * (duv3x / 6) + dvi * (dv4x / 24))
+   @inbounds for i in 1:nt
+      dvi = dv[i]
+      dui = du[i]
+      @inbounds for j in 1:nr
+         uu = u2[i, j]
+         vv = v2[i, j]
+         if (abs(u - uu) < tol) && (abs(v - vv) < tol)
+            r1 = dvi * r[i, j]
+            r2 = r1 * r1
+            r3 = r2 * r1
+            r4 = r3 * r1
+            # near the evaluation point: Taylor fixup
+            #Below computes the x and y coordinate of:
+            #(τ(u,v) - τ(u-r*du,v-r*dv))/r = dτᵤ(u,v) * du +  dτᵥ(u,v) * dv - r*(...)
+            Dx = (dui * dux + dvi * dvx) -
+                 r1 * (dui * duvx + dvi * (dv2x / 2)) +
+                 r2 * (dui * (duv2x / 2) + dvi * (dv3x / 6)) -
+                 r3 * (dui * (duv3x / 6) + dvi * (dv4x / 24)) +
+                 r4 * (dui * (duv4x / 24) + dvi * (dv5x / 120))
 
-        Dy = (dui * duy + dvi * dvy) -
-             r1 * (dui * duvy + dvi * (dv2y / 2)) +
-             r2 * (dui * (duv2y / 2) + dvi * (dv3y / 6)) -
-             r3 * (dui * (duv3y / 6) + dvi * (dv4y / 24))
+            Dy = (dui * duy + dvi * dvy) -
+                 r1 * (dui * duvy + dvi * (dv2y / 2)) +
+                 r2 * (dui * (duv2y / 2) + dvi * (dv3y / 6)) -
+                 r3 * (dui * (duv3y / 6) + dvi * (dv4y / 24)) +
+                 r4 * (dui * (duv4y / 24) + dvi * (dv5y / 120))
 
-        out[i, j] = hypot(Dx, Dy)
-      else
-        # far: direct geometric difference
-        out[i, j] = hypot(tux - Zx[i, j], tvy - Zy[i, j]) / r[i, j]
+            out[i, j] = hypot(Dx, Dy)
+         else
+            # far: direct geometric difference
+            out[i, j] = hypot(tux - Zx[i, j], tvy - Zy[i, j]) / r[i, j]
+         end
       end
-    end
-  end
+   end
 
   return nothing
 end
