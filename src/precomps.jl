@@ -1655,6 +1655,7 @@ function precompsH(d::abstractdomain, dp::domprop, s::Float64, p::Int
    return IntS
 end
 
+#------------------------------------------------------------------------
 @inline function eval_close_piece_L!(Iout::AbstractMatrix{Float64},
    work::NSHWork, d::abstractdomain,
    k::Int, α₁::Float64, α₂::Float64,
@@ -3295,7 +3296,7 @@ function precompsL(d::abstractdomain, dp::domprop, s::Float64, p::Int
             xt = dp.tgtpts[1, row]
             yt = dp.tgtpts[2, row]
 
-            NSnear_L!(I, work, d, k, xt, yt, u0, v0, s, pn, N)
+            NSnear_L!(I, work, d, k, xt, yt, u0, v0, s, pn, N, knbd)
 
          else
             error("Unexpected volume mode = $mode for row=$row, patch=$k")
@@ -3343,7 +3344,7 @@ function precompsL(d::abstractdomain, dp::domprop, s::Float64, p::Int
             xt = dp.tgtpts[1, row]
             yt = dp.tgtpts[2, row]
 
-            NSnear_L!(I, work, d, k, xt, yt, u0, v0, s, pn, N)
+            NSnear_L!(I, work, d, k, xt, yt, u0, v0, s, pn, N, knbd)
 
          else
             error("Unexpected volume mode = $mode for row=$row, patch=$k")
@@ -3363,1216 +3364,1323 @@ function precompsL(d::abstractdomain, dp::domprop, s::Float64, p::Int
    return IntS
 end
 
-#This part is remaining TODO
-#For really small s, we use precomps for Ls operator
+#------------------------------------------------------------------------
+@inline function eval_close_piece_Ls!(Iout::AbstractMatrix{Float64},
+   work, d::abstractdomain,
+   k::Int, α₁::Float64, α₂::Float64,
+   y1::AbstractVector{Float64},
+   y2::AbstractVector{Float64},
+   d1::AbstractVector{Float64},
+   d2::AbstractVector{Float64},
+   wleft::AbstractVector{Float64},
+   wright::AbstractVector{Float64},
+   N::Int, s::Float64)
+
+   fill_meshgrid!(work.t1, work.t2, y1, y2)
+
+   diff_map!(work.DIF, work.Zx, work.Zy, work.DJ,
+      d, α₁, α₂, work.t1, work.t2, d1, d2, k)
+
+   ChebyTN!(work.TN_y1, N, y1)
+   ChebyTN!(work.TN_y2, N, y2)
+
+   @. work.TNL = work.TN_y1' * wleft'
+   @. work.TNR = work.TN_y2 * wright
+
+   @. work.A = expm1(-2.0 * s * log(work.DIF)) * work.DJ
+
+   mul!(work.Tmp, work.TNL, work.A)
+   mul!(Iout, work.Tmp, work.TNR)
+
+   return nothing
+end
+
+function NSclose_Ls!(I::AbstractMatrix{Float64},
+   work, d::abstractdomain, k::Int,
+   α₁::Float64, α₂::Float64, s::Float64,
+   p::Int, N::Int, knbd)
+
+   (; z, z1, z2, fw, d1, d2, y1, y2,
+      y1tmp, wdf, dw, dfy, wr, I₁, I₂) = work
+
+   if 1.0 <= α₁
+      B1 = -winv(p, (α₁ - 1.0) / (α₁ + 1.0))
+   elseif α₁ <= -1.0
+      A1 = -winv(p, (-1.0 - α₁) / (1.0 - α₁))
+   end
+
+   if 1.0 <= α₂
+      B2 = -winv(p, (α₂ - 1.0) / (α₂ + 1.0))
+   elseif α₂ <= -1.0
+      A2 = -winv(p, (-1.0 - α₂) / (1.0 - α₂))
+   end
+
+   if k in knbd
+
+      if 1.0 <= α₁
+
+         wfunc!(d1, p, z1; α=-B1, β=α₁ + 1.0)
+         @. y1 = α₁ - d1
+         @. y1tmp = 1.0 - y1
+
+         dfunc!(dfy, d, k, y1tmp, s)
+
+         dwfunc!(dw, p, z1; α=B1)
+         @. wdf = fw * dw * dfy
+
+         if 1.0 <= α₂
+
+            wfunc!(d2, p, z1; α=-B2, β=α₂ + 1.0)
+            @. y2 = α₂ - d2
+
+            dwfunc!(dw, p, z1; α=B2)
+            @. wr = fw * dw
+
+            eval_close_piece_Ls!(I, work, d, k, α₁, α₂,
+               y1, y2, d1, d2, wdf, wr, N, s)
+
+            I .*= B1 * B2 * (α₁ + 1.0) * (α₂ + 1.0) / 4.0
+
+         elseif -1.0 < α₂ && α₂ < 1.0
+
+            # Lower part in α₂.
+            wfunc!(d2, p, z1; α=-1.0, β=α₂ + 1.0)
+            @. y2 = α₂ - d2
+
+            dwfunc!(dw, p, z1)
+            @. wr = fw * dw
+
+            eval_close_piece_Ls!(I₁, work, d, k, α₁, α₂,
+               y1, y2, d1, d2, wdf, wr, N, s)
+
+            # Upper part in α₂.
+            wfunc!(d2, p, z2; α=-1.0, β=α₂ - 1.0)
+            @. y2 = α₂ - d2
+
+            dwfunc!(dw, p, z2)
+            @. wr = fw * dw
+
+            eval_close_piece_Ls!(I₂, work, d, k, α₁, α₂,
+               y1, y2, d1, d2, wdf, wr, N, s)
+
+            @. I = B1 * (α₁ + 1.0) *
+                   ((α₂ + 1.0) * I₁ + (1.0 - α₂) * I₂) / 4.0
+
+         elseif α₂ <= -1.0
+
+            wfunc!(d2, p, z2; α=-A2, β=α₂ - 1.0)
+            @. y2 = α₂ - d2
+
+            dwfunc!(dw, p, z2; α=A2)
+            @. wr = fw * dw
+
+            eval_close_piece_Ls!(I, work, d, k, α₁, α₂,
+               y1, y2, d1, d2, wdf, wr, N, s)
+
+            I .*= B1 * A2 * (α₁ + 1.0) * (1.0 - α₂) / 4.0
+         end
+
+      elseif -1.0 < α₁ && α₁ < 1.0
+
+         if 1.0 <= α₂
+
+            # Left part in α₁.
+            wfunc!(d1, p, z1; α=-1.0, β=α₁ + 1.0)
+            @. y1 = α₁ - d1
+            @. y1tmp = 1.0 - y1
+
+            dfunc!(dfy, d, k, y1tmp, s)
+
+            dwfunc!(dw, p, z1)
+            @. wdf = fw * dw * dfy
+
+            wfunc!(d2, p, z1; α=-B2, β=α₂ + 1.0)
+            @. y2 = α₂ - d2
+
+            dwfunc!(dw, p, z1; α=B2)
+            @. wr = fw * dw
+
+            eval_close_piece_Ls!(I₁, work, d, k, α₁, α₂,
+               y1, y2, d1, d2, wdf, wr, N, s)
+
+            # Right part in α₁.
+            wfunc!(d1, p, z2; α=-1.0, β=α₁ - 1.0)
+            @. y1 = α₁ - d1
+            @. y1tmp = 1.0 - y1
+
+            dfunc!(dfy, d, k, y1tmp, s)
+
+            dwfunc!(dw, p, z2)
+            @. wdf = fw * dw * dfy
+
+            eval_close_piece_Ls!(I₂, work, d, k, α₁, α₂,
+               y1, y2, d1, d2, wdf, wr, N, s)
+
+            @. I = B2 * (α₂ + 1.0) *
+                   ((α₁ + 1.0) * I₁ + (1.0 - α₁) * I₂) / 4.0
+
+         elseif α₂ <= -1.0
+
+            # Left part in α₁.
+            wfunc!(d1, p, z1; α=-1.0, β=α₁ + 1.0)
+            @. y1 = α₁ - d1
+            @. y1tmp = 1.0 - y1
+
+            dfunc!(dfy, d, k, y1tmp, s)
+
+            dwfunc!(dw, p, z1)
+            @. wdf = fw * dw * dfy
+
+            wfunc!(d2, p, z2; α=-A2, β=α₂ - 1.0)
+            @. y2 = α₂ - d2
+
+            dwfunc!(dw, p, z2; α=A2)
+            @. wr = fw * dw
+
+            eval_close_piece_Ls!(I₁, work, d, k, α₁, α₂,
+               y1, y2, d1, d2, wdf, wr, N, s)
+
+            # Right part in α₁.
+            wfunc!(d1, p, z2; α=-1.0, β=α₁ - 1.0)
+            @. y1 = α₁ - d1
+            @. y1tmp = 1.0 - y1
+
+            dfunc!(dfy, d, k, y1tmp, s)
+
+            dwfunc!(dw, p, z2)
+            @. wdf = fw * dw * dfy
+
+            eval_close_piece_Ls!(I₂, work, d, k, α₁, α₂,
+               y1, y2, d1, d2, wdf, wr, N, s)
+
+            @. I = A2 * (1.0 - α₂) *
+                   ((α₁ + 1.0) * I₁ + (1.0 - α₁) * I₂) / 4.0
+
+         else
+            error("Fatal error! mapinv not working correctly.")
+         end
+
+      elseif α₁ <= -1.0
+
+         wfunc!(d1, p, z2; α=-A1, β=α₁ - 1.0)
+         @. y1 = α₁ - d1
+         @. y1tmp = 1.0 - y1
+
+         dfunc!(dfy, d, k, y1tmp, s)
+
+         dwfunc!(dw, p, z2; α=A1)
+         @. wdf = fw * dw * dfy
+
+         if 1.0 <= α₂
+
+            wfunc!(d2, p, z1; α=-B2, β=α₂ + 1.0)
+            @. y2 = α₂ - d2
+
+            dwfunc!(dw, p, z1; α=B2)
+            @. wr = fw * dw
+
+            eval_close_piece_Ls!(I, work, d, k, α₁, α₂,
+               y1, y2, d1, d2, wdf, wr, N, s)
+
+            I .*= A1 * B2 * (1.0 - α₁) * (α₂ + 1.0) / 4.0
+
+         elseif -1.0 < α₂ && α₂ < 1.0
+
+            # Lower part in α₂.
+            wfunc!(d2, p, z1; α=-1.0, β=α₂ + 1.0)
+            @. y2 = α₂ - d2
+
+            dwfunc!(dw, p, z1)
+            @. wr = fw * dw
+
+            eval_close_piece_Ls!(I₁, work, d, k, α₁, α₂,
+               y1, y2, d1, d2, wdf, wr, N, s)
+
+            # Upper part in α₂.
+            wfunc!(d2, p, z2; α=-1.0, β=α₂ - 1.0)
+            @. y2 = α₂ - d2
+
+            dwfunc!(dw, p, z2)
+            @. wr = fw * dw
+
+            eval_close_piece_Ls!(I₂, work, d, k, α₁, α₂,
+               y1, y2, d1, d2, wdf, wr, N, s)
+
+            @. I = A1 * (1.0 - α₁) *
+                   ((α₂ + 1.0) * I₁ + (1.0 - α₂) * I₂) / 4.0
+
+         elseif α₂ <= -1.0
+
+            wfunc!(d2, p, z2; α=-A2, β=α₂ - 1.0)
+            @. y2 = α₂ - d2
+
+            dwfunc!(dw, p, z2; α=A2)
+            @. wr = fw * dw
+
+            eval_close_piece_Ls!(I, work, d, k, α₁, α₂,
+               y1, y2, d1, d2, wdf, wr, N, s)
+
+            I .*= A1 * A2 * (1.0 - α₁) * (1.0 - α₂) / 4.0
+         end
+      end
+
+   else
+      # Boundary-touching volume patch.
+
+      if 1.0 <= α₁
+
+         # α₁ = 1 boundary-side branch.
+         wfunc!(d1, p, z1; α=-1.0, β=2.0)
+         @. y1 = 1.0 - d1
+
+         dfunc!(dfy, d, k, d1, s)
+
+         dwfunc!(dw, p, z1)
+         @. wdf = fw * dw * dfy
+
+         if 1.0 <= α₂
+
+            wfunc!(d2, p, z1; α=-B2, β=α₂ + 1.0)
+            @. y2 = α₂ - d2
+
+            dwfunc!(dw, p, z1; α=B2)
+            @. wr = fw * dw
+
+            eval_close_piece_Ls!(I, work, d, k, 1.0, α₂,
+               y1, y2, d1, d2, wdf, wr, N, s)
+
+            I .*= B2 * (α₂ + 1.0) / 2.0
+
+         elseif -1.0 < α₂ && α₂ < 1.0
+
+            # Lower part in α₂.
+            wfunc!(d2, p, z1; α=-1.0, β=α₂ + 1.0)
+            @. y2 = α₂ - d2
+
+            dwfunc!(dw, p, z1)
+            @. wr = fw * dw
+
+            eval_close_piece_Ls!(I₁, work, d, k, 1.0, α₂,
+               y1, y2, d1, d2, wdf, wr, N, s)
+
+            # Upper part in α₂.
+            wfunc!(d2, p, z2; α=-1.0, β=α₂ - 1.0)
+            @. y2 = α₂ - d2
+
+            dwfunc!(dw, p, z2)
+            @. wr = fw * dw
+
+            eval_close_piece_Ls!(I₂, work, d, k, 1.0, α₂,
+               y1, y2, d1, d2, wdf, wr, N, s)
+
+            @. I = ((α₂ + 1.0) * I₁ + (1.0 - α₂) * I₂) / 2.0
+
+         elseif α₂ <= -1.0
+
+            wfunc!(d2, p, z2; α=-A2, β=α₂ - 1.0)
+            @. y2 = α₂ - d2
+
+            dwfunc!(dw, p, z2; α=A2)
+            @. wr = fw * dw
+
+            eval_close_piece_Ls!(I, work, d, k, 1.0, α₂,
+               y1, y2, d1, d2, wdf, wr, N, s)
+
+            I .*= A2 * (1.0 - α₂) / 2.0
+         end
+
+      elseif -1.0 < α₁ && α₁ < 1.0
+
+         if 1.0 <= α₂
+
+            # Left part in α₁: regular dfunc treatment.
+            wfunc!(d1, p, z1; α=-1.0, β=α₁ + 1.0)
+            @. y1 = α₁ - d1
+            @. y1tmp = 1.0 - y1
+
+            dfunc!(dfy, d, k, y1tmp, s)
+
+            dwfunc!(dw, p, z1)
+            @. wdf = fw * dw * dfy
+
+            wfunc!(d2, p, z1; α=-B2, β=α₂ + 1.0)
+            @. y2 = α₂ - d2
+
+            dwfunc!(dw, p, z1; α=B2)
+            @. wr = fw * dw
+
+            eval_close_piece_Ls!(I₁, work, d, k, α₁, α₂,
+               y1, y2, d1, d2, wdf, wr, N, s)
+
+            # Right part in α₁: boundary side, still d^s.
+            wfunc!(d1, p, z; α=1.0, β=(α₁ - 1.0) / 2.0)
+            @. y1 = α₁ - d1
+
+            wfunc!(y1tmp, p, z; α=-1.0, β=(1.0 - α₁) / 2.0)
+            dfunc!(dfy, d, k, y1tmp, s)
+
+            dwfunc!(dw, p, z)
+            @. wdf = fw * dw * dfy
+
+            eval_close_piece_Ls!(I₂, work, d, k, α₁, α₂,
+               y1, y2, d1, d2, wdf, wr, N, s)
+
+            @. I = B2 * (α₂ + 1.0) * ((α₁ + 1.0) * I₁ + (1.0 - α₁) * I₂) / 4.0
+
+         elseif α₂ <= -1.0
+
+            # Left part in α₁: regular dfunc treatment.
+            wfunc!(d1, p, z1; α=-1.0, β=α₁ + 1.0)
+            @. y1 = α₁ - d1
+            @. y1tmp = 1.0 - y1
+
+            dfunc!(dfy, d, k, y1tmp, s)
+
+            dwfunc!(dw, p, z1)
+            @. wdf = fw * dw * dfy
+
+            wfunc!(d2, p, z2; α=-A2, β=α₂ - 1.0)
+            @. y2 = α₂ - d2
+
+            dwfunc!(dw, p, z2; α=A2)
+            @. wr = fw * dw
+
+            eval_close_piece_Ls!(I₁, work, d, k, α₁, α₂,
+               y1, y2, d1, d2, wdf, wr, N, s)
+
+            # Right part in α₁: boundary side, still d^s.
+            wfunc!(d1, p, z; α=1.0, β=(α₁ - 1.0) / 2.0)
+            @. y1 = α₁ - d1
+
+            wfunc!(y1tmp, p, z; α=-1.0, β=(1.0 - α₁) / 2.0)
+            dfunc!(dfy, d, k, y1tmp, s)
+
+            dwfunc!(dw, p, z)
+            @. wdf = fw * dw * dfy
+
+            eval_close_piece_Ls!(I₂, work, d, k, α₁, α₂,
+               y1, y2, d1, d2, wdf, wr, N, s)
+
+            @. I = A2 * (1.0 - α₂) * ((α₁ + 1.0) * I₁ + (1.0 - α₁) * I₂) / 4.0
+
+         else
+            error("Fatal error! mapinv not working correctly.")
+         end
+
+      elseif α₁ <= -1.0
+
+         # Special boundary-patch left-side formula from precompsL.
+         A1 = 1.0 - winv(p, 2.0 * (-1.0 - α₁) / (1.0 - α₁))
+
+         wfunc!(d1, p, z2; α=-A1, β=(α₁ - 1.0) / 2.0, γ=1.0)
+         @. y1 = α₁ - d1
+
+         wfunc!(y1tmp, p, z2; α=A1, β=(1.0 - α₁) / 2.0, γ=-1.0)
+
+         dfunc!(dfy, d, k, y1tmp, s)
+
+         dwfunc!(dw, p, z2; α=-A1, β=1.0, γ=1.0)
+         @. wdf = fw * dw * dfy
+
+         if 1.0 <= α₂
+
+            wfunc!(d2, p, z1; α=-B2, β=α₂ + 1.0)
+            @. y2 = α₂ - d2
+
+            dwfunc!(dw, p, z1; α=B2)
+            @. wr = fw * dw
+
+            eval_close_piece_Ls!(I, work, d, k, α₁, α₂,
+               y1, y2, d1, d2, wdf, wr, N, s)
+
+            I .*= A1 * B2 * (1.0 - α₁) * (α₂ + 1.0) / 8.0
+
+         elseif -1.0 < α₂ && α₂ < 1.0
+
+            # Lower part in α₂.
+            wfunc!(d2, p, z1; α=-1.0, β=α₂ + 1.0)
+            @. y2 = α₂ - d2
+
+            dwfunc!(dw, p, z1)
+            @. wr = fw * dw
+
+            eval_close_piece_Ls!(I₁, work, d, k, α₁, α₂,
+               y1, y2, d1, d2, wdf, wr, N, s)
+
+            # Upper part in α₂.
+            wfunc!(d2, p, z2; α=-1.0, β=α₂ - 1.0)
+            @. y2 = α₂ - d2
+
+            dwfunc!(dw, p, z2)
+            @. wr = fw * dw
+
+            eval_close_piece_Ls!(I₂, work, d, k, α₁, α₂,
+               y1, y2, d1, d2, wdf, wr, N, s)
+
+            @. I = A1 * (1.0 - α₁) * ((α₂ + 1.0) * I₁ + (1.0 - α₂) * I₂) / 8.0
+
+         elseif α₂ <= -1.0
+
+            wfunc!(d2, p, z2; α=-A2, β=α₂ - 1.0)
+            @. y2 = α₂ - d2
+
+            dwfunc!(dw, p, z2; α=A2)
+            @. wr = fw * dw
+
+            eval_close_piece_Ls!(I, work, d, k, α₁, α₂,
+               y1, y2, d1, d2, wdf, wr, N, s)
+
+            I .*= A1 * A2 * (1.0 - α₁) * (1.0 - α₂) / 8.0
+         end
+      end
+   end
+
+   return nothing
+end
+
+@inline function eval_piece_Ls!(Iout::AbstractMatrix{Float64},
+   work, d::abstractdomain, k::Int,
+   xt::Float64, yt::Float64,
+   y1::AbstractVector{Float64},
+   y2::AbstractVector{Float64},
+   wleft::AbstractVector{Float64},
+   wright::AbstractVector{Float64},
+   N::Int, s::Float64)
+
+   fill_meshgrid!(work.t1, work.t2, y1, y2)
+
+   mapxy_Dmap!(work.Zx, work.Zy, work.DJ, d, work.t1, work.t2, k)
+
+   ChebyTN!(work.TN_y1, N, y1)
+   ChebyTN!(work.TN_y2, N, y2)
+
+   @. work.TNL = work.TN_y1' * wleft'
+   @. work.TNR = work.TN_y2 * wright
+
+   @. work.A = expm1(-s * log((xt - work.Zx)^2 + (yt - work.Zy)^2)) * work.DJ
+
+   mul!(work.Tmp, work.TNL, work.A)
+   mul!(Iout, work.Tmp, work.TNR)
+
+   return nothing
+end
+
+function NSnear_Ls!(I::AbstractMatrix{Float64},
+   work, d::abstractdomain,
+   k::Int, xt::Float64, yt::Float64,
+   u0::Float64, v0::Float64, s::Float64,
+   pn::Int, N::Int, knbd;
+   tolbd::Float64=1e-12)
+
+   (; z, fw, d1, y1, y2, y1tmp, wdf, dw, dfy, dz, fwm, I₁, I₂) = work
+
+   if k in knbd
+      # Non-boundary volume patch.
+      if abs(u0 - 1.0) < tolbd
+         # Projection on right wall: (1, v0).
+
+         @. y1 = 1.0 - 2.0 * dz
+         @. y1tmp = 2.0 * dz
+         dfunc!(dfy, d, k, y1tmp, s)
+         @. wdf = fwm * dfy
+
+         if abs(v0 - 1.0) < tolbd
+
+            @. y2 = 1.0 - 2.0 * dz
+
+            eval_piece_Ls!(I, work, d, k, xt, yt, y1, y2, wdf, fwm, N, s)
+
+         elseif abs(v0 + 1.0) < tolbd
+
+            @. y2 = -1.0 + 2.0 * dz
+
+            eval_piece_Ls!(I, work, d, k, xt, yt, y1, y2, wdf, fwm, N, s)
+
+         else
+
+            # Lower part in v.
+            @. y2 = v0 - (v0 + 1.0) * dz
+            eval_piece_Ls!(I₁, work, d, k, xt, yt, y1, y2, wdf, fwm, N, s)
+
+            # Upper part in v.
+            @. y2 = v0 - (v0 - 1.0) * dz
+            eval_piece_Ls!(I₂, work, d, k, xt, yt, y1, y2, wdf, fwm, N, s)
+
+            @. I = ((v0 + 1.0) * I₁ + (1.0 - v0) * I₂) / 2.0
+         end
+
+      elseif abs(u0 + 1.0) < tolbd
+         # Projection on left wall: (-1, v0).
+
+         @. y1 = -1.0 + 2.0 * dz
+         @. y1tmp = 2.0 * (1.0 - dz)
+         dfunc!(dfy, d, k, y1tmp, s)
+         @. wdf = fwm * dfy
+
+         if abs(v0 - 1.0) < tolbd
+
+            @. y2 = 1.0 - 2.0 * dz
+
+            eval_piece_Ls!(I, work, d, k, xt, yt, y1, y2, wdf, fwm, N, s)
+
+         elseif abs(v0 + 1.0) < tolbd
+
+            @. y2 = -1.0 + 2.0 * dz
+
+            eval_piece_Ls!(I, work, d, k, xt, yt, y1, y2, wdf, fwm, N, s)
+
+         else
+
+            # Lower part in v.
+            @. y2 = v0 - (v0 + 1.0) * dz
+            eval_piece_Ls!(I₁, work, d, k, xt, yt, y1, y2, wdf, fwm, N, s)
+
+            # Upper part in v.
+            @. y2 = v0 - (v0 - 1.0) * dz
+            eval_piece_Ls!(I₂, work, d, k, xt, yt, y1, y2, wdf, fwm, N, s)
+
+            @. I = ((v0 + 1.0) * I₁ + (1.0 - v0) * I₂) / 2.0
+         end
+
+      elseif abs(v0 - 1.0) < tolbd
+         # Projection on top wall: (u0, 1).
+
+         @. y2 = 1.0 - 2.0 * dz
+
+         # Left part in u.
+         @. y1 = u0 - (u0 + 1.0) * dz
+         @. y1tmp = 1.0 - y1
+         dfunc!(dfy, d, k, y1tmp, s)
+         @. wdf = fwm * dfy
+
+         eval_piece_Ls!(I₁, work, d, k, xt, yt, y1, y2, wdf, fwm, N, s)
+
+         # Right part in u.
+         @. y1 = u0 - (u0 - 1.0) * dz
+         @. y1tmp = 1.0 - y1
+         dfunc!(dfy, d, k, y1tmp, s)
+         @. wdf = fwm * dfy
+
+         eval_piece_Ls!(I₂, work, d, k, xt, yt, y1, y2, wdf, fwm, N, s)
+
+         @. I = ((u0 + 1.0) * I₁ + (1.0 - u0) * I₂) / 2.0
+
+      elseif abs(v0 + 1.0) < tolbd
+         # Projection on bottom wall: (u0, -1).
+
+         @. y2 = -1.0 + 2.0 * dz
+
+         # Left part in u.
+         @. y1 = u0 - (u0 + 1.0) * dz
+         @. y1tmp = 1.0 - y1
+         dfunc!(dfy, d, k, y1tmp, s)
+         @. wdf = fwm * dfy
+
+         eval_piece_Ls!(I₁, work, d, k, xt, yt, y1, y2, wdf, fwm, N, s)
+
+         # Right part in u.
+         @. y1 = u0 - (u0 - 1.0) * dz
+         @. y1tmp = 1.0 - y1
+         dfunc!(dfy, d, k, y1tmp, s)
+         @. wdf = fwm * dfy
+
+         eval_piece_Ls!(I₂, work, d, k, xt, yt, y1, y2, wdf, fwm, N, s)
+
+         @. I = ((u0 + 1.0) * I₁ + (1.0 - u0) * I₂) / 2.0
+
+      else
+         error("VOL_NEAR projection is not on patch boundary: patch=$k, u0=$u0, v0=$v0")
+      end
+
+   else
+      # Boundary-touching patch.
+      if abs(u0 - 1.0) < tolbd
+         # Projection on right wall: (1, v0).
+         # Projection side is also the physical boundary side.
+
+         @. y1 = 1.0 - 2.0 * dz
+         @. y1tmp = 2.0 * dz
+         dfunc!(dfy, d, k, y1tmp, s)
+         @. wdf = fwm * dfy
+
+         if abs(v0 - 1.0) < tolbd
+
+            @. y2 = 1.0 - 2.0 * dz
+
+            eval_piece_Ls!(I, work, d, k, xt, yt, y1, y2, wdf, fwm, N, s)
+
+         elseif abs(v0 + 1.0) < tolbd
+
+            @. y2 = -1.0 + 2.0 * dz
+
+            eval_piece_Ls!(I, work, d, k, xt, yt, y1, y2, wdf, fwm, N, s)
+
+         else
+
+            # Lower part in v.
+            @. y2 = v0 - (v0 + 1.0) * dz
+            eval_piece_Ls!(I₁, work, d, k, xt, yt, y1, y2, wdf, fwm, N, s)
+
+            # Upper part in v.
+            @. y2 = v0 - (v0 - 1.0) * dz
+            eval_piece_Ls!(I₂, work, d, k, xt, yt, y1, y2, wdf, fwm, N, s)
+
+            @. I = ((v0 + 1.0) * I₁ + (1.0 - v0) * I₂) / 2.0
+         end
+
+      elseif abs(u0 + 1.0) < tolbd
+         # Projection on left wall: (-1, v0).
+         # Need smoothing for left projection side and right boundary side.
+
+         wfunc!(y1, pn, z)
+         @. y1 = y1 - 1.0
+
+         wfunc!(y1tmp, pn, z; α=-1.0)   # y1tmp = w(-z) = 1 - y1
+         dfunc!(dfy, d, k, y1tmp, s)
+
+         dwfunc!(dw, pn, z)
+         @. wdf = fw * dw * dfy
+
+         if abs(v0 - 1.0) < tolbd
+
+            @. y2 = 1.0 - 2.0 * dz
+
+            eval_piece_Ls!(I, work, d, k, xt, yt, y1, y2, wdf, fwm, N, s)
+
+         elseif abs(v0 + 1.0) < tolbd
+
+            @. y2 = -1.0 + 2.0 * dz
+
+            eval_piece_Ls!(I, work, d, k, xt, yt, y1, y2, wdf, fwm, N, s)
+
+         else
+
+            # Lower part in v.
+            @. y2 = v0 - (v0 + 1.0) * dz
+            eval_piece_Ls!(I₁, work, d, k, xt, yt, y1, y2, wdf, fwm, N, s)
+
+            # Upper part in v.
+            @. y2 = v0 - (v0 - 1.0) * dz
+            eval_piece_Ls!(I₂, work, d, k, xt, yt, y1, y2, wdf, fwm, N, s)
+
+            @. I = ((v0 + 1.0) * I₁ + (1.0 - v0) * I₂) / 2.0
+         end
+
+      elseif abs(v0 - 1.0) < tolbd
+         # Projection on top wall: (u0, 1).
+         # Split u into regular-left and boundary-right pieces.
+
+         @. y2 = 1.0 - 2.0 * dz
+
+         # Left part in u: regular dfunc.
+         @. y1 = u0 - (u0 + 1.0) * dz
+         @. y1tmp = 1.0 - y1
+         dfunc!(dfy, d, k, y1tmp, s)
+         @. wdf = fwm * dfy
+
+         eval_piece_Ls!(I₁, work, d, k, xt, yt, y1, y2, wdf, fwm, N, s)
+
+         # Right part in u: boundary compensated rule.
+         wfunc!(d1, pn, z)
+         @. y1 = (1.0 - u0) * d1 / 2.0 + u0
+
+         wfunc!(y1tmp, pn, z; α=-1.0, β=(1.0 - u0) / 2.0)
+         dfunc!(dfy, d, k, y1tmp, s)
+
+         dwfunc!(dw, pn, z)
+         @. wdf = fw * dw * dfy
+
+         eval_piece_Ls!(I₂, work, d, k, xt, yt, y1, y2, wdf, fwm, N, s)
+
+         @. I = ((u0 + 1.0) * I₁ + (1.0 - u0) * I₂) / 2.0
+
+      elseif abs(v0 + 1.0) < tolbd
+         # Projection on bottom wall: (u0, -1).
+         # Split u into regular-left and boundary-right pieces.
+
+         @. y2 = -1.0 + 2.0 * dz
+
+         # Left part in u: regular dfunc.
+         @. y1 = u0 - (u0 + 1.0) * dz
+         @. y1tmp = 1.0 - y1
+         dfunc!(dfy, d, k, y1tmp, s)
+         @. wdf = fwm * dfy
+
+         eval_piece_Ls!(I₁, work, d, k, xt, yt, y1, y2, wdf, fwm, N, s)
+
+         # Right part in u: boundary compensated rule.
+         wfunc!(d1, pn, z)
+         @. y1 = (1.0 - u0) * d1 / 2.0 + u0
+
+         wfunc!(y1tmp, pn, z; α=-1.0, β=(1.0 - u0) / 2.0)
+         dfunc!(dfy, d, k, y1tmp, s)
+
+         dwfunc!(dw, pn, z)
+         @. wdf = fw * dw * dfy
+
+         eval_piece_Ls!(I₂, work, d, k, xt, yt, y1, y2, wdf, fwm, N, s)
+
+         @. I = ((u0 + 1.0) * I₁ + (1.0 - u0) * I₂) / 2.0
+
+      else
+         error("VOL_NEAR projection is not on patch boundary: patch=$k, u0=$u0, v0=$v0")
+      end
+   end
+
+   return nothing
+end
+
 function precompsLs(d::abstractdomain, dp::domprop, s::Float64, p::Int
-    ; n::Int=128)::Matrix{Float64}
-
-    #Bookkeeping
-    M = d.Npat  # number of patches
-    N = dp.N    # number of nodes per patch per Axis
-    Np = N * N  # number of nodes per patch
-
-    Mbd= length(d.kd) #Number of bonundary patches
-    nbd = Mbd * N
-    # Col index where the bd near–singular block starts in `prepts`
-    bdnsp = dp.pthgo[M+1] + nbd
-
-    # zp1 = zp+1, zp2 = xp-1 where zp = cos(pi*(2j-1)/(2N))
-    zp  = Vector{Float64}(undef, N)
-    zp1 = Vector{Float64}(undef, N)
-    zp2 = Vector{Float64}(undef, N)
-
-    @inbounds for j in 1:N
-        zp[j]  = cospi((2 * j - 1) / (2N))
-        zp1[j] = 2 * cospi((2 * j - 1) / (4N))^2
-        zp2[j] =-2 * sinpi((2 * j - 1) / (4N))^2
-    end
-
-    # z1 = (1+z)/2, z2 = (1-z)/2 where z = cos(pi*(2j-1)/(2n)) 
-    # are Chebyshev nodes in the interval [-1,1]. This is for 
-    # near singular integrals 
-    #n = n #Maybe n here can be fixed to 128 ? (only for small s)
-    z  = Vector{Float64}(undef, n)
-    z1 = Vector{Float64}(undef, n)
-    z2 = Vector{Float64}(undef, n)
-
-    #Store Fejer 1st quadrature weights for near singular integrals
-    fw = getF1W(n)  
-
-    d1 = Vector{Float64}(undef, n)
-    d2 = Vector{Float64}(undef, n)
-
-    @inbounds for i in 1:n
-        c₁ = π * (2 * i - 1) / (2 * n)
-        z[i] = cos(c₁)
-        z1[i] = cos(c₁ / 2)^2
-        z2[i] = sin(c₁ / 2)^2
-    end
-
-    wmz₂ = Vector{Float64}(undef, n)
-    wz   = Vector{Float64}(undef, n)
-    wmz  = Vector{Float64}(undef, n)
-
-    wfunc!(wz, p, z) #wz = w(z)
-    wfunc!(wmz, p, z; α=-1.0) #wmz = w(z)
-    wfunc!(wmz₂, p, z2; α=-1.0) #wmz₂ = w(-z2)
-
-    fwm = similar(fw)
-    fwl = similar(fw)
-    dwfunc!(fwl, p, z)
-    dwfunc!(fwm, p, z2)   # fwm := dw(z2)
-    @. fwm = fw * fwm
-    @. fwl = fw * fwl
-
-    y1  = Vector{Float64}(undef, n)
-    wdf = similar(y1)
-    y1tmp=similar(y1)
-    y2  = similar(y1)
-    t1  = Matrix{Float64}(undef, n, n)  # meshgrid of y1/y2 
-    t2  = Matrix{Float64}(undef, n, n)  # (column = y2[j], row = y1[i])
-    DJ  = Matrix{Float64}(undef, n, n)  # To store the Jacobian
-    DIF = similar(DJ)
-    Zx  = similar(DJ)
-    Zy  = similar(DJ)
-
-    TN_y1 = Matrix{Float64}(undef, n, N)
-    TN_y2 = Matrix{Float64}(undef, n, N)
-
-    TNL = Matrix{Float64}(undef, N, n)
-    TNR = Matrix{Float64}(undef, n, N)
-    A   = Matrix{Float64}(undef, n, n)    
-    Tmp = Matrix{Float64}(undef, N, n)
-    dw  = Vector{Float64}(undef, n)
-    dfy = Vector{Float64}(undef, n)
-
-    I = Matrix{Float64}(undef, N, N)
-
-    Lₚ = size(dp.prepts,2) # > dp.pthgo[M+1] - 1
-
-    # First we will go over all the points in the interioir
-
-    Dhc = Vector{Float64}(undef,M)
-
-    @inbounds for k = 1:M
-        Dhc[k] = d.pths[k].ck1 - d.pths[k].ck0
-    end
-
-    # knbd are patches which are not the boundary patches
-    # and d.kd are patches are touching the boundary
-    knbd = setdiff(collect(1:M), d.kd)
-
-    IntS = zeros(Float64, Np, Lₚ)
-
-    #--------------------------------------------
-    #------------Singular Integration------------
-    #--Singular Integration of Boundary patches--
-    @inbounds for j in 1:Np
-        # j in the linear index of the Chebyshev
-        # point. We will compute precomps of all 
-        # points τₖ(x₁,x₂) at once by now varying
-        # the patches k. This removes some 
-        # repeated calculations and thereby saves 
-        # time!
-        qq, rr = divrem(j - 1, N)
-        qq = qq + 1
-        rr = rr + 1
-        x1, x2 = zp[rr], zp[qq]
-        x2p = zp1[qq]
-        x1m, x2m = zp2[rr], zp2[qq]
-        x̃₃ = -x1m * x2p / 4.0
-        x̃₄ = x1m * x2m / 4.0
-
-        # Singular and k is a boundary patch!
-        #-----------------3rd part-----------------
-
-        @. d1 = x1m * wz / 2.0
-        @. d2 = x2p * wmz₂
-        @. y1 = x1 - d1
-        @. y2 = x2 - d2
-        @. y1tmp = -x1m * wmz / 2.0
-
-        fill_meshgrid!(t1, t2, y1, y2)
-
-        ChebyTN!(TN_y1, N, y1)
-        ChebyTN!(TN_y2, N, y2)
-
-        @inbounds for k in d.kd
-
-            diff_map!(DIF, Zx, Zy, DJ, d, x1, x2, t1, t2, d1, d2, k)
-
-            dfunc!(dfy, d, k, y1tmp, s)   # dfy = dfac(k, 1-y1)
-
-            #Left weights: fwl .* dfy .* TN(y1)'
-            @. wdf = fwl * dfy
-            @. TNL = TN_y1' * wdf'
-
-            # Right weights: TN(y2).*fwm'
-            @. TNR = TN_y2 * fwm   # n×N scaled row-wise
-            # Middle terms together
-            @. A = expm1(-2 * s * log(DIF)) * DJ
-
-            mul!(Tmp, TNL, A)   # Tmp = TNL * A   (N×n)
-            mul!(I, Tmp, TNR)   # I   = Tmp * TNR (N×N)
-            
-            @inbounds for m in 1:Np
-                IntS[m, dp.pthgo[k]+j-1] += x̃₃ * I[m]
-            end
-        end
-
-        #-----------------4th part-----------------
-        #(reuse d1, y1, TN_y1, y1tmp; update d2,y2,t1,t2)
-        @. d2 = x2m * wmz₂
-        @. y2 = x2 - d2
+   ; n::Int=128)::Matrix{Float64}
+
+   #Bookkeeping
+   M = d.Npat  # number of patches
+   N = dp.N    # number of nodes per patch per Axis
+   Np = N * N  # number of nodes per patch
+   Ni = M * Np
+
+   Mbd = length(d.kd) #Number of bonundary patches
+   nbd = Mbd * N
+
+   # zp1 = zp+1, zp2 = xp-1 where zp = cos(pi*(2j-1)/(2N))
+   zp = Vector{Float64}(undef, N)
+   zp1 = Vector{Float64}(undef, N)
+   zp2 = Vector{Float64}(undef, N)
+
+   @inbounds for j in 1:N
+      zp[j] = cospi((2 * j - 1) / (2N))
+      zp1[j] = 2 * cospi((2 * j - 1) / (4N))^2
+      zp2[j] = -2 * sinpi((2 * j - 1) / (4N))^2
+   end
+
+   # z1 = (1+z)/2, z2 = (1-z)/2 where z = cos(pi*(2j-1)/(2n)) 
+   # are Chebyshev nodes in the interval [-1,1]. This is for 
+   # near singular integrals 
+   #n = n #Maybe n here can be fixed to 128 ? (only for small s)
+   z = Vector{Float64}(undef, n)
+   z1 = Vector{Float64}(undef, n)
+   z2 = Vector{Float64}(undef, n)
+
+   #Store Fejer 1st quadrature weights for near singular integrals
+   fw = getF1W(n)
+
+   d1 = Vector{Float64}(undef, n)
+   d2 = Vector{Float64}(undef, n)
+
+   @inbounds for i in 1:n
+      c₁ = π * (2 * i - 1) / (2 * n)
+      z[i] = cos(c₁)
+      z1[i] = cos(c₁ / 2)^2
+      z2[i] = sin(c₁ / 2)^2
+   end
+
+   wmz₂ = Vector{Float64}(undef, n)
+   wz = Vector{Float64}(undef, n)
+   wmz = Vector{Float64}(undef, n)
+
+   wfunc!(wz, p, z) #wz = w(z)
+   wfunc!(wmz, p, z; α=-1.0) #wmz = w(z)
+   wfunc!(wmz₂, p, z2; α=-1.0) #wmz₂ = w(-z2)
+
+   fwm = similar(fw)
+   fwl = similar(fw)
+   dwfunc!(fwl, p, z)
+   dwfunc!(fwm, p, z2)   # fwm := dw(z2)
+   @. fwm = fw * fwm
+   @. fwl = fw * fwl
+
+   y1 = Vector{Float64}(undef, n)
+   wdf = similar(y1)
+   y1tmp = similar(y1)
+   y2 = similar(y1)
+   t1 = Matrix{Float64}(undef, n, n)  # meshgrid of y1/y2 
+   t2 = Matrix{Float64}(undef, n, n)  # (column = y2[j], row = y1[i])
+   DJ = Matrix{Float64}(undef, n, n)  # To store the Jacobian
+   DIF = similar(DJ)
+   Zx = similar(DJ)
+   Zy = similar(DJ)
+
+   TN_y1 = Matrix{Float64}(undef, n, N)
+   TN_y2 = Matrix{Float64}(undef, n, N)
+
+   TNL = Matrix{Float64}(undef, N, n)
+   TNR = Matrix{Float64}(undef, n, N)
+   A = Matrix{Float64}(undef, n, n)
+   Tmp = Matrix{Float64}(undef, N, n)
+   dw = Vector{Float64}(undef, n)
+   dfy = Vector{Float64}(undef, n)
+
+   I = Matrix{Float64}(undef, N, N)
+
+   Lₚ = dp.pthgo[M+2] - 1
+
+   # knbd are patches which are not the boundary patches
+   # and d.kd are patches are touching the boundary
+   knbd = setdiff(collect(1:M), d.kd)
+
+   IntS = zeros(Float64, Np, Lₚ)
+
+   #--------------------------------------------
+   #------------Singular Integration------------
+   #--Singular Integration of Boundary patches--
+   @inbounds for j in 1:Np
+      # j in the linear index of the Chebyshev
+      # point. We will compute precomps of all 
+      # points τₖ(x₁,x₂) at once by now varying
+      # the patches k. This removes some 
+      # repeated calculations and thereby saves 
+      # time!
+      qq, rr = divrem(j - 1, N)
+      qq = qq + 1
+      rr = rr + 1
+      x1, x2 = zp[rr], zp[qq]
+      x2p = zp1[qq]
+      x1m, x2m = zp2[rr], zp2[qq]
+      x̃₃ = -x1m * x2p / 4.0
+      x̃₄ = x1m * x2m / 4.0
 
-        fill_meshgrid!(t1, t2, y1, y2)
+      # Singular and k is a boundary patch!
+      #-----------------3rd part-----------------
 
-        ChebyTN!(TN_y2, N, y2)
+      @. d1 = x1m * wz / 2.0
+      @. d2 = x2p * wmz₂
+      @. y1 = x1 - d1
+      @. y2 = x2 - d2
+      @. y1tmp = -x1m * wmz / 2.0
 
-        @inbounds for k in d.kd
+      fill_meshgrid!(t1, t2, y1, y2)
 
-            diff_map!(DIF, Zx, Zy, DJ, d, x1, x2, t1, t2, d1, d2, k)
+      ChebyTN!(TN_y1, N, y1)
+      ChebyTN!(TN_y2, N, y2)
 
-            dfunc!(dfy, d, k, y1tmp, s)   # dfy = dfac(k, 1-y1)
+      @inbounds for k in d.kd
 
-            #Left weights: fwl .* dfy .* TN(y1)'
-            @. wdf = fwl * dfy
-            @. TNL = TN_y1' * wdf'
+         diff_map!(DIF, Zx, Zy, DJ, d, x1, x2, t1, t2, d1, d2, k)
 
-            # Right weights: TN(y2).*fwm'
-            @. TNR = TN_y2 * fwm   # n×N scaled row-wise
-            # Middle terms together
-            @. A = expm1(-2 * s * log(DIF)) * DJ
-
-            mul!(Tmp, TNL, A)   # Tmp = TNL * A   (N×n)
-            mul!(I, Tmp, TNR)   # I   = Tmp * TNR (N×N)
-            
-            @inbounds for m in 1:Np
-                IntS[m, dp.pthgo[k]+j-1] += x̃₄ * I[m]
-            end
-        end
-
-    end
-
-    Lₚₛ = dp.pthgo[M+1] - 1
-    #-Singular Integration For pts on bonudary-
-    #These points are ofcourse always on bd patches
-    @inbounds for j in 1:N
-        # j in the linear index of the Chebyshev
-        # point. We will compute precomps of all 
-        # points τₖ(x₁,x₂) at once by now varying
-        # the patches k.
-
-        x2 = zp[j]
-        x2p = zp1[j]
-        x2m = zp2[j]
-        x̃₁ = x2p / 2.0
-        x̃₂ = -x2m / 2.0
-
-        #Singular integration is sum of four parts
-        #I1,I2,I3,I4, they are all N*N matrices
-        #-----------------1st part-----------------
-
-        @. d1 = 2.0 * wmz₂
-        @. d2 = x2p * wmz₂
-        @. y1 = 1.0 - d1
-        @. y2 = x2 - d2
-
-        fill_meshgrid!(t1, t2, y1, y2)
-
-        ChebyTN!(TN_y1, N, y1)
-        ChebyTN!(TN_y2, N, y2)
-
-        @inbounds for ℓ in 1:Mbd
-
-            k = d.kd[ℓ]
-
-            diff_map!(DIF, Zx, Zy, DJ, d, 1.0, x2, t1, t2, d1, d2, k)
-
-            dfunc!(dfy, d, k, d1, s)   # dfy = dfac(k, 1-y1=d1)
-
-            #Left weights: fwm .* dfy .* TN(y1)'
-            @. wdf = fwm * dfy
-            @. TNL = TN_y1' * wdf'
-
-            # Right weights: TN(y2).*fwm'
-            @. TNR = TN_y2 * fwm   # n×N scaled row-wise
-            # Middle terms together
-            @. A = expm1(-2 * s * log(DIF)) * DJ
-
-            mul!(Tmp, TNL, A)   # Tmp = TNL * A   (N×n)
-            mul!(I, Tmp, TNR)   # I   = Tmp * TNR (N×N)
-            
-            @inbounds for m in 1:Np
-                IntS[m, Lₚₛ+(ℓ-1)*N+j] += x̃₁ * I[m]
-            end
-        end
-
-        #-----------------2nd part-----------------
-        #(reuse d1, y1, TN_y1; update d2,y2,t1,t2)
-        @. d2 = x2m * wmz₂
-        @. y2 = x2 - d2
-
-        fill_meshgrid!(t1, t2, y1, y2)
-
-        ChebyTN!(TN_y2, N, y2)
-
-        @inbounds for ℓ in 1:Mbd
-
-            k = d.kd[ℓ]
-
-            diff_map!(DIF, Zx, Zy, DJ, d, 1.0, x2, t1, t2, d1, d2, k)
-
-            dfunc!(dfy, d, k, d1, s)   # dfy = dfac(k, 1-y1)
-
-            #Left weights: fwm .* dfy .* TN(y1)'
-            @. wdf = fwm * dfy
-            @. TNL = TN_y1' * wdf'
-
-            # Right weights: TN(y2).*fwm'
-            @. TNR = TN_y2 * fwm   # n×N scaled row-wise
-            # Middle terms together
-            @. A = expm1(-2 * s * log(DIF)) * DJ
-
-            mul!(Tmp, TNL, A)   # Tmp = TNL * A   (N×n)
-            mul!(I, Tmp, TNR)   # I   = Tmp * TNR (N×N)
-            
-            @inbounds for m in 1:Np
-                IntS[m, Lₚₛ+(ℓ-1)*N+j] += x̃₂ * I[m]
-            end
-        end
-
-    end
-
-    #-Singular Integration of Interior patches-
-    @inbounds for j in 1:Np
-        # j in the linear index of the Chebyshev
-        # point. We will compute precomps of all 
-        # points τₖ(x₁,x₂) at once by now varying
-        # the patches k. This removes some 
-        # repeated calculations and thereby saves 
-        # time!
-        qq, rr = divrem(j - 1, N)
-        qq = qq + 1
-        rr = rr + 1
-
-        x1, x2 = zp[rr], zp[qq]
-        x1p, x2p = zp1[rr], zp1[qq]
-        x1m, x2m = zp2[rr], zp2[qq]
-        x̃₁ = x1p * x2p / 4.0
-        x̃₂ = -x1p * x2m / 4.0
-        x̃₃ = -x1m * x2p / 4.0
-        x̃₄ = x1m * x2m / 4.0
-       
-        #Singular integration is sum of four parts
-        #I1,I2,I3,I4, they are all N*N matrices
-        #-----------------1st part-----------------
-
-        @. d1 = x1p * wmz₂
-        @. d2 = x2p * wmz₂
-        @. y1 = x1 - d1
-        @. y2 = x2 - d2
-        @. y1tmp = 1 - y1
-
-        fill_meshgrid!(t1, t2, y1, y2)
-
-        ChebyTN!(TN_y1, N, y1)
-        ChebyTN!(TN_y2, N, y2)
-
-        @inbounds for k in 1:M
-
-            diff_map!(DIF, Zx, Zy, DJ, d, x1, x2, t1, t2, d1, d2, k)
+         dfunc!(dfy, d, k, y1tmp, s)   # dfy = dfac(k, 1-y1)
 
-            dfunc!(dfy, d, k, y1tmp, s)   # dfy = dfac(k, 1-y1)
+         #Left weights: fwl .* dfy .* TN(y1)'
+         @. wdf = fwl * dfy
+         @. TNL = TN_y1' * wdf'
 
-            #Left weights: fwm .* dfy .* TN(y1)'
-            @. wdf = fwm * dfy
-            @. TNL = TN_y1' * wdf'
+         # Right weights: TN(y2).*fwm'
+         @. TNR = TN_y2 * fwm   # n×N scaled row-wise
+         # Middle terms together
+         @. A = expm1(-2 * s * log(DIF)) * DJ
 
-            # Right weights: TN(y2).*fwm'
-            @. TNR = TN_y2 * fwm   # n×N scaled row-wise
-            # Middle terms together
-            @. A = expm1(-2 * s * log(DIF)) * DJ
+         mul!(Tmp, TNL, A)   # Tmp = TNL * A   (N×n)
+         mul!(I, Tmp, TNR)   # I   = Tmp * TNR (N×N)
 
-            mul!(Tmp, TNL, A)   # Tmp = TNL * A   (N×n)
-            mul!(I, Tmp, TNR)   # I   = Tmp * TNR (N×N)
-            
-            @inbounds for m in 1:Np
-                IntS[m, dp.pthgo[k]+j-1] += x̃₁ * I[m]
-            end
-        end
-
-        #-----------------2nd part-----------------
-        #(reuse d1, y1, TN_y1, y1tmp; update d2,y2,t1,t2)
-        @. d2 = x2m * wmz₂
-        @. y2 = x2 - d2
+         @inbounds for m in 1:Np
+            IntS[m, dp.pthgo[k]+j-1] += x̃₃ * I[m]
+         end
+      end
 
-        fill_meshgrid!(t1, t2, y1, y2)
-
-        ChebyTN!(TN_y2, N, y2)
+      #-----------------4th part-----------------
+      #(reuse d1, y1, TN_y1, y1tmp; update d2,y2,t1,t2)
+      @. d2 = x2m * wmz₂
+      @. y2 = x2 - d2
 
-        @inbounds for k in 1:M
-
-            diff_map!(DIF, Zx, Zy, DJ, d, x1, x2, t1, t2, d1, d2, k)
-
-            dfunc!(dfy, d, k, y1tmp, s)   # dfy = dfac(k, 1-y1)
-
-            #Left weights: fwm .* dfy .* TN(y1)'
-            @. wdf = fwm * dfy
-            @. TNL = TN_y1' * wdf'
-
-            # Right weights: TN(y2).*fwm'
-            @. TNR = TN_y2 * fwm   # n×N scaled row-wise
-            # Middle terms together
-            @. A = expm1(-2 * s * log(DIF)) * DJ
-
-            mul!(Tmp, TNL, A)   # Tmp = TNL * A   (N×n)
-            mul!(I, Tmp, TNR)   # I   = Tmp * TNR (N×N)
-            
-            @inbounds for m in 1:Np
-                IntS[m, dp.pthgo[k]+j-1] += x̃₂ * I[m]
-            end
-        end
-
-        #-----------------3rd part-----------------
-
-        @. d1 = x1m * wmz₂
-        @. d2 = x2p * wmz₂
-        @. y1 = x1 - d1
-        @. y2 = x2 - d2
-        @. y1tmp = 1 - y1
-
-        fill_meshgrid!(t1, t2, y1, y2)
-
-        ChebyTN!(TN_y1, N, y1)
-        ChebyTN!(TN_y2, N, y2)
-
-        @inbounds for k in knbd
-
-            diff_map!(DIF, Zx, Zy, DJ, d, x1, x2, t1, t2, d1, d2, k)
-
-            dfunc!(dfy, d, k, y1tmp, s)   # dfy = dfac(k, 1-y1)
-
-            #Left weights: fwm .* dfy .* TN(y1)'
-            @. wdf = fwm * dfy
-            @. TNL = TN_y1' * wdf'
-
-            # Right weights: TN(y2).*fwm'
-            @. TNR = TN_y2 * fwm   # n×N scaled row-wise
-            # Middle terms together
-            @. A = expm1(-2 * s * log(DIF)) * DJ
-
-            mul!(Tmp, TNL, A)   # Tmp = TNL * A   (N×n)
-            mul!(I, Tmp, TNR)   # I   = Tmp * TNR (N×N)
-            
-            @inbounds for m in 1:Np
-                IntS[m, dp.pthgo[k]+j-1] += x̃₃ * I[m]
-            end
-        end
-
-        #-----------------4th part-----------------
-        #(reuse d1, y1, TN_y1, y1tmp; update d2,y2,t1,t2)
-        @. d2 = x2m * wmz₂
-        @. y2 = x2 - d2
-
-        fill_meshgrid!(t1, t2, y1, y2)
-
-        ChebyTN!(TN_y2, N, y2)
-
-        @inbounds for k in knbd
-
-            diff_map!(DIF, Zx, Zy, DJ, d, x1, x2, t1, t2, d1, d2, k)
-
-            dfunc!(dfy, d, k, y1tmp, s)   # dfy = dfac(k, 1-y1)
-
-            #Left weights: fwm .* dfy .* TN(y1)'
-            @. wdf = fwm * dfy
-            @. TNL = TN_y1' * wdf'
-
-            # Right weights: TN(y2).*fwm'
-            @. TNR = TN_y2 * fwm   # n×N scaled row-wise
-            # Middle terms together
-            @. A = expm1(-2 * s * log(DIF)) * DJ
-
-            mul!(Tmp, TNL, A)   # Tmp = TNL * A   (N×n)
-            mul!(I, Tmp, TNR)   # I   = Tmp * TNR (N×N)
-            
-            @inbounds for m in 1:Np
-                IntS[m, dp.pthgo[k]+j-1] += x̃₄ * I[m]
-            end
-        end
-
-    end
-
-    #--------------------------------------------
-    #----------Near Singular Integration---------
-    #-------------------------------------------
-    I₁ = Matrix{Float64}(undef, N, N)
-    I₂ = Matrix{Float64}(undef, N, N)
-
-    #-------------------------------------------
-    #A vector of Bool, initialized to true for all
-    #indices from 1:Lₚ. They will be updated as 
-    #False  for singular points. (and ofcourse the
-    #points left are near singular, which are true)
-    NSI = trues(Lₚ)
-
-    @inbounds for j in 1:Np
-        @inbounds for k in 1:M
-            NSI[dp.pthgo[k]+j-1] = false
-        end
-    end
-
-    @inbounds for j in dp.pthgo[M+1]:bdnsp-1
-        NSI[j] = false
-    end
-
-    #Now the big for loop for near singular points
-    @inbounds for i in 1:Lₚ
-        if NSI[i] == true
-
-            k = dp.prepts[2,i]
-
-            # (prepts index) -> `ll` (column in invpts)
-            ll = if i < bdnsp
-                # interior near–singular to patch k
-                i - k * Np
-            else
-                # boundary near–singulars
-                i - M * Np - nbd
-            end
-
-            α₁ = dp.invpts[1, ll]
-            α₂ = dp.invpts[2, ll]
-
-            if 1 ≤ α₁
-                B1 = -winv(p, (α₁ - 1) / (α₁ + 1))
-            elseif α₁ ≤ -1
-                A1 = -winv(p, (-1 - α₁) / (1 - α₁))
-            end
+      fill_meshgrid!(t1, t2, y1, y2)
 
-            if 1 ≤ α₂
-                B2 = -winv(p, (α₂ - 1) / (α₂ + 1))
-            elseif α₂ ≤ -1
-                A2 = -winv(p, (-1 - α₂) / (1 - α₂))
-            end
+      ChebyTN!(TN_y2, N, y2)
 
-            #Not a boundary patch
-            if k in knbd
-                if 1 ≤ α₁
-                    wfunc!(d1, p, z1; α=-B1, β=α₁ + 1.0)
-                    @. y1 = α₁ - d1
-                    @. y1tmp = 1 - y1
-                    if 1 ≤ α₂
-                        wfunc!(d2, p, z1; α=-B2, β=α₂ + 1.0)
-                        @. y2 = α₂ - d2
+      @inbounds for k in d.kd
 
-                        fill_meshgrid!(t1, t2, y1, y2)
+         diff_map!(DIF, Zx, Zy, DJ, d, x1, x2, t1, t2, d1, d2, k)
 
-                        diff_map!(DIF, Zx, Zy, DJ, d, α₁, α₂, t1, t2, d1, d2, k)
+         dfunc!(dfy, d, k, y1tmp, s)   # dfy = dfac(k, 1-y1)
 
-                        dfunc!(dfy, d, k, y1tmp, s)   # dfy = dfac(k, 1-y1)
-
-                        ChebyTN!(TN_y1, N, y1)
-                        ChebyTN!(TN_y2, N, y2)
-
-                        #Left weights: fw .* dw(B1*z1) .* dfy .* TN(y1)'
-                        dwfunc!(dw, p, z1; α=B1)
-                        @. wdf = fw * dw * dfy
-                        @. TNL = TN_y1' * wdf'
-
-                        # Right weights: TN(y2).*dw(B2*z1)'.*fw'
-                        dwfunc!(dw, p, z1; α=B2)
-                        @. TNR = TN_y2 * dw * fw   # n×N scaled row-wise
-                        # Middle terms together
-                        @. A = expm1(-2*s*log(DIF)) * DJ   
+         #Left weights: fwl .* dfy .* TN(y1)'
+         @. wdf = fwl * dfy
+         @. TNL = TN_y1' * wdf'
 
-                        mul!(Tmp, TNL, A)   # Tmp = TNL * A   (N×n)
-                        mul!(I, Tmp, TNR)   # I   = Tmp * TNR (N×N)
+         # Right weights: TN(y2).*fwm'
+         @. TNR = TN_y2 * fwm   # n×N scaled row-wise
+         # Middle terms together
+         @. A = expm1(-2 * s * log(DIF)) * DJ
 
-                        I .*= B1 * B2 * (α₁ + 1) * (α₂ + 1) / 4
+         mul!(Tmp, TNL, A)   # Tmp = TNL * A   (N×n)
+         mul!(I, Tmp, TNR)   # I   = Tmp * TNR (N×N)
 
-                    elseif -1 < α₂ && α₂ < 1
-                        wfunc!(d2, p, z1; α=-1.0, β=α₂ + 1.0)
-                        @. y2 = α₂ - d2
-
-                        fill_meshgrid!(t1, t2, y1, y2)
+         @inbounds for m in 1:Np
+            IntS[m, dp.pthgo[k]+j-1] += x̃₄ * I[m]
+         end
+      end
 
-                        diff_map!(DIF, Zx, Zy, DJ, d, α₁, α₂, t1, t2, d1, d2, k)
-
-                        dfunc!(dfy, d, k, y1tmp, s)   # dfy = dfac(k, 1-y1)
+   end
 
-                        ChebyTN!(TN_y1, N, y1)
-                        ChebyTN!(TN_y2, N, y2)
-
-                        # Left weights: fw .* dw(B1*z1) .* dfy .* TN(y1)'
-                        dwfunc!(dw, p, z1; α=B1)
-                        @. wdf = fw * dw * dfy
-                        @. TNL = TN_y1' * wdf'
+   Lₚₛ = dp.pthgo[M+1] - 1
+   #-Singular Integration For pts on bonudary-
+   #These points are ofcourse always on bd patches
+   @inbounds for j in 1:N
+      # j in the linear index of the Chebyshev
+      # point. We will compute precomps of all 
+      # points τₖ(x₁,x₂) at once by now varying
+      # the patches k.
 
-                        # Right weights: TN(y2).*dw(z1)'.*fw'
-                        dwfunc!(dw, p, z1)
-                        @. TNR = TN_y2 * dw * fw   # n×N scaled row-wise
-                        # Middle terms together
-                        @. A = expm1(-2*s*log(DIF)) * DJ   
+      x2 = zp[j]
+      x2p = zp1[j]
+      x2m = zp2[j]
+      x̃₁ = x2p / 2.0
+      x̃₂ = -x2m / 2.0
 
-                        mul!(Tmp, TNL, A)   # Tmp = TNL * A   (N×n)
-                        mul!(I₁, Tmp, TNR)   # I   = Tmp * TNR (N×N)
+      #Singular integration is sum of four parts
+      #I1,I2,I3,I4, they are all N*N matrices
+      #-----------------1st part-----------------
 
-                        #------------2ⁿᵈ half ------------
-                        wfunc!(d2, p, z2; α=-1.0, β=α₂ - 1.0)
-                        @. y2 = α₂ - d2
+      @. d1 = 2.0 * wmz₂
+      @. d2 = x2p * wmz₂
+      @. y1 = 1.0 - d1
+      @. y2 = x2 - d2
 
-                        fill_meshgrid!(t1, t2, y1, y2)
+      fill_meshgrid!(t1, t2, y1, y2)
 
-                        diff_map!(DIF, Zx, Zy, DJ, d, α₁, α₂, t1, t2, d1, d2, k)
+      ChebyTN!(TN_y1, N, y1)
+      ChebyTN!(TN_y2, N, y2)
 
-                        #Left weights same as before
-                        #Right weights: TN(y2).*dw(z2)'.*fw'
-                        ChebyTN!(TN_y2, N, y2)
-                        dwfunc!(dw, p, z2)
-                        @. TNR = TN_y2 * dw * fw   # n×N scaled row-wise
-                        # Middle terms together
-                        @. A = expm1(-2*s*log(DIF)) * DJ   
+      @inbounds for ℓ in 1:Mbd
 
-                        mul!(Tmp, TNL, A)   # Tmp = TNL * A   (N×n)
-                        mul!(I₂, Tmp, TNR)  # I   = Tmp * TNR (N×N)
+         k = d.kd[ℓ]
 
-                        @. I = B1*(α₁ + 1)*( (α₂ + 1)*I₁ + (1 - α₂)*I₂ )/4
+         diff_map!(DIF, Zx, Zy, DJ, d, 1.0, x2, t1, t2, d1, d2, k)
 
-                    elseif α₂ ≤ -1
-                        wfunc!(d2, p, z2; α=-A2, β=α₂ - 1.0)
-                        @. y2 = α₂ - d2
+         dfunc!(dfy, d, k, d1, s)   # dfy = dfac(k, 1-y1=d1)
 
-                        fill_meshgrid!(t1, t2, y1, y2)
+         #Left weights: fwm .* dfy .* TN(y1)'
+         @. wdf = fwm * dfy
+         @. TNL = TN_y1' * wdf'
 
-                        diff_map!(DIF, Zx, Zy, DJ, d, α₁, α₂, t1, t2, d1, d2, k)
+         # Right weights: TN(y2).*fwm'
+         @. TNR = TN_y2 * fwm   # n×N scaled row-wise
+         # Middle terms together
+         @. A = expm1(-2 * s * log(DIF)) * DJ
 
-                        dfunc!(dfy, d, k, y1tmp, s)   # dfy = dfac(k, 1-y1)
+         mul!(Tmp, TNL, A)   # Tmp = TNL * A   (N×n)
+         mul!(I, Tmp, TNR)   # I   = Tmp * TNR (N×N)
 
-                        ChebyTN!(TN_y1, N, y1)
-                        ChebyTN!(TN_y2, N, y2)
+         @inbounds for m in 1:Np
+            IntS[m, Lₚₛ+(ℓ-1)*N+j] += x̃₁ * I[m]
+         end
+      end
 
-                        # Left weights: fw .* dw(B1*z1) .* dfy .* TN(y1)'
-                        dwfunc!(dw, p, z1; α=B1)
-                        @. wdf = fw * dw * dfy
-                        @. TNL = TN_y1' * wdf'
+      #-----------------2nd part-----------------
+      #(reuse d1, y1, TN_y1; update d2,y2,t1,t2)
+      @. d2 = x2m * wmz₂
+      @. y2 = x2 - d2
 
-                        # Right weights: TN(y2).*dw(A2*z2)'.*fw'
-                        dwfunc!(dw, p, z2; α=A2)
-                        @. TNR = TN_y2 * dw * fw   # n×N scaled row-wise
-                        # Middle terms together
-                        @. A = expm1(-2*s*log(DIF)) * DJ   
+      fill_meshgrid!(t1, t2, y1, y2)
 
-                        mul!(Tmp, TNL, A)   # Tmp = TNL * A   (N×n)
-                        mul!(I, Tmp, TNR)   # I   = Tmp * TNR (N×N)
+      ChebyTN!(TN_y2, N, y2)
 
-                        I .*= B1 * A2 * (α₁ + 1) * (1 - α₂) / 4
-                    end
-                elseif -1 < α₁ && α₁ < 1
-                    if 1 ≤ α₂
-                        wfunc!(d1, p, z1; α=-1.0, β=α₁ + 1.0)
-                        wfunc!(d2, p, z1; α=-B2, β=α₂ + 1.0)
-                        @. y1 = α₁ - d1
-                        @. y2 = α₂ - d2 
-                        @. y1tmp = 1 - y1
+      @inbounds for ℓ in 1:Mbd
 
-                        fill_meshgrid!(t1, t2, y1, y2)
+         k = d.kd[ℓ]
 
-                        diff_map!(DIF, Zx, Zy, DJ, d, α₁, α₂, t1, t2, d1, d2, k)
+         diff_map!(DIF, Zx, Zy, DJ, d, 1.0, x2, t1, t2, d1, d2, k)
 
-                        dfunc!(dfy, d, k, y1tmp, s)   # dfy = dfac(k, 1-y1)
+         dfunc!(dfy, d, k, d1, s)   # dfy = dfac(k, 1-y1)
 
-                        ChebyTN!(TN_y1, N, y1)
-                        ChebyTN!(TN_y2, N, y2)
+         #Left weights: fwm .* dfy .* TN(y1)'
+         @. wdf = fwm * dfy
+         @. TNL = TN_y1' * wdf'
 
-                        # Left weights: fw .* dw(z1) .* dfy .* TN(y1)'
-                        dwfunc!(dw, p, z1)
-                        @. wdf = fw * dw * dfy
-                        @. TNL = TN_y1' * wdf'
+         # Right weights: TN(y2).*fwm'
+         @. TNR = TN_y2 * fwm   # n×N scaled row-wise
+         # Middle terms together
+         @. A = expm1(-2 * s * log(DIF)) * DJ
 
-                        # Right weights: TN(y2).*dw(B2*z1)'.*fw'
-                        dwfunc!(dw, p, z1; α=B2)
-                        @. TNR = TN_y2 * dw * fw   # n×N scaled row-wise
-                        # Middle terms together
-                        @. A = expm1(-2*s*log(DIF)) * DJ   
+         mul!(Tmp, TNL, A)   # Tmp = TNL * A   (N×n)
+         mul!(I, Tmp, TNR)   # I   = Tmp * TNR (N×N)
 
-                        mul!(Tmp, TNL, A)   # Tmp = TNL * A   (N×n)
-                        mul!(I₁, Tmp, TNR)  # I   = Tmp * TNR (N×N)
+         @inbounds for m in 1:Np
+            IntS[m, Lₚₛ+(ℓ-1)*N+j] += x̃₂ * I[m]
+         end
+      end
 
-                        #------------2ⁿᵈ half ------------
-                        wfunc!(d1, p, z2; α=-1.0, β=α₁ - 1.0)
-                        wfunc!(d2, p, z1; α=-B2, β=α₂ + 1.0)
-                        @. y1 = α₁ - d1
-                        @. y2 = α₂ - d2 
-                        @. y1tmp = 1 - y1
+   end
 
-                        fill_meshgrid!(t1, t2, y1, y2)
+   #-Singular Integration of Interior patches-
+   @inbounds for j in 1:Np
+      # j in the linear index of the Chebyshev
+      # point. We will compute precomps of all 
+      # points τₖ(x₁,x₂) at once by now varying
+      # the patches k. This removes some 
+      # repeated calculations and thereby saves 
+      # time!
+      qq, rr = divrem(j - 1, N)
+      qq = qq + 1
+      rr = rr + 1
 
-                        diff_map!(DIF, Zx, Zy, DJ, d, α₁, α₂, t1, t2, d1, d2, k)
+      x1, x2 = zp[rr], zp[qq]
+      x1p, x2p = zp1[rr], zp1[qq]
+      x1m, x2m = zp2[rr], zp2[qq]
+      x̃₁ = x1p * x2p / 4.0
+      x̃₂ = -x1p * x2m / 4.0
+      x̃₃ = -x1m * x2p / 4.0
+      x̃₄ = x1m * x2m / 4.0
 
-                        dfunc!(dfy, d, k, y1tmp, s)   # dfy = dfac(k, 1-y1)
+      #Singular integration is sum of four parts
+      #I1,I2,I3,I4, they are all N*N matrices
+      #-----------------1st part-----------------
 
-                        ChebyTN!(TN_y1, N, y1)
-                        ChebyTN!(TN_y2, N, y2)
+      @. d1 = x1p * wmz₂
+      @. d2 = x2p * wmz₂
+      @. y1 = x1 - d1
+      @. y2 = x2 - d2
+      @. y1tmp = 1 - y1
 
-                        # Left weights: fw .* dw(z2) .* dfy .* TN(y1)'
-                        dwfunc!(dw, p, z2)
-                        @. wdf = fw * dw * dfy
-                        @. TNL = TN_y1' * wdf'
+      fill_meshgrid!(t1, t2, y1, y2)
 
-                        # Right weights: TN(y2).*dw(B2*z1)'.*fw'
-                        dwfunc!(dw, p, z1; α=B2)
-                        @. TNR = TN_y2 * dw * fw   # n×N scaled row-wise
-                        # Middle terms together
-                        @. A = expm1(-2*s*log(DIF)) * DJ   
+      ChebyTN!(TN_y1, N, y1)
+      ChebyTN!(TN_y2, N, y2)
 
-                        mul!(Tmp, TNL, A)   # Tmp = TNL * A   (N×n)
-                        mul!(I₂, Tmp, TNR)  # I   = Tmp * TNR (N×N)
+      @inbounds for k in 1:M
 
-                        @. I = B2*(α₂ + 1)*( (α₁ + 1)*I₁ + (1 - α₁)*I₂ )/4
+         diff_map!(DIF, Zx, Zy, DJ, d, x1, x2, t1, t2, d1, d2, k)
 
-                    elseif α₂ ≤ -1
-                        wfunc!(d1, p, z1; α=-1.0, β=α₁ + 1.0)
-                        wfunc!(d2, p, z2; α=-A2, β=α₂ - 1.0)
-                        @. y1 = α₁ - d1
-                        @. y2 = α₂ - d2 
-                        @. y1tmp = 1 - y1
+         dfunc!(dfy, d, k, y1tmp, s)   # dfy = dfac(k, 1-y1)
 
-                        fill_meshgrid!(t1, t2, y1, y2)
+         #Left weights: fwm .* dfy .* TN(y1)'
+         @. wdf = fwm * dfy
+         @. TNL = TN_y1' * wdf'
 
-                        diff_map!(DIF, Zx, Zy, DJ, d, α₁, α₂, t1, t2, d1, d2, k)
+         # Right weights: TN(y2).*fwm'
+         @. TNR = TN_y2 * fwm   # n×N scaled row-wise
+         # Middle terms together
+         @. A = expm1(-2 * s * log(DIF)) * DJ
 
-                        dfunc!(dfy, d, k, y1tmp, s)   # dfy = dfac(k, 1-y1)
+         mul!(Tmp, TNL, A)   # Tmp = TNL * A   (N×n)
+         mul!(I, Tmp, TNR)   # I   = Tmp * TNR (N×N)
 
-                        ChebyTN!(TN_y1, N, y1)
-                        ChebyTN!(TN_y2, N, y2)
+         @inbounds for m in 1:Np
+            IntS[m, dp.pthgo[k]+j-1] += x̃₁ * I[m]
+         end
+      end
 
-                        # Left weights: fw .* dw(z1) .* dfy .* TN(y1)'
-                        dwfunc!(dw, p, z1)
-                        @. wdf = fw * dw * dfy
-                        @. TNL = TN_y1' * wdf'
+      #-----------------2nd part-----------------
+      #(reuse d1, y1, TN_y1, y1tmp; update d2,y2,t1,t2)
+      @. d2 = x2m * wmz₂
+      @. y2 = x2 - d2
 
-                        # Right weights: TN(y2).*dw(A2*z2)'.*fw'
-                        dwfunc!(dw, p, z2; α=A2)
-                        @. TNR = TN_y2 * dw * fw   # n×N scaled row-wise
-                        # Middle terms together
-                        @. A = expm1(-2*s*log(DIF)) * DJ   
+      fill_meshgrid!(t1, t2, y1, y2)
 
-                        mul!(Tmp, TNL, A)   # Tmp = TNL * A   (N×n)
-                        mul!(I₁, Tmp, TNR)  # I   = Tmp * TNR (N×N)
+      ChebyTN!(TN_y2, N, y2)
 
-                        #------------2ⁿᵈ half ------------
-                        wfunc!(d1, p, z2; α=-1.0, β=α₁ - 1.0)
-                        wfunc!(d2, p, z2; α=-A2, β=α₂ - 1.0)
-                        @. y1 = α₁ - d1
-                        @. y2 = α₂ - d2 
-                        @. y1tmp = 1 - y1
+      @inbounds for k in 1:M
 
-                        fill_meshgrid!(t1, t2, y1, y2)
+         diff_map!(DIF, Zx, Zy, DJ, d, x1, x2, t1, t2, d1, d2, k)
 
-                        diff_map!(DIF, Zx, Zy, DJ, d, α₁, α₂, t1, t2, d1, d2, k)
+         dfunc!(dfy, d, k, y1tmp, s)   # dfy = dfac(k, 1-y1)
 
-                        dfunc!(dfy, d, k, y1tmp, s)   # dfy = dfac(k, 1-y1)
+         #Left weights: fwm .* dfy .* TN(y1)'
+         @. wdf = fwm * dfy
+         @. TNL = TN_y1' * wdf'
 
-                        ChebyTN!(TN_y1, N, y1)
-                        ChebyTN!(TN_y2, N, y2)
+         # Right weights: TN(y2).*fwm'
+         @. TNR = TN_y2 * fwm   # n×N scaled row-wise
+         # Middle terms together
+         @. A = expm1(-2 * s * log(DIF)) * DJ
 
-                        # Left weights: fw .* dw(z2) .* dfy .* TN(y1)'
-                        dwfunc!(dw, p, z2)
-                        @. wdf = fw * dw * dfy
-                        @. TNL = TN_y1' * wdf'
+         mul!(Tmp, TNL, A)   # Tmp = TNL * A   (N×n)
+         mul!(I, Tmp, TNR)   # I   = Tmp * TNR (N×N)
 
-                        # Right weights: TN(y2).*dw(A2*z2)'.*fw'
-                        dwfunc!(dw, p, z2; α=A2)
-                        @. TNR = TN_y2 * dw * fw   # n×N scaled row-wise
-                        # Middle terms together
-                        @. A = expm1(-2*s*log(DIF)) * DJ   
+         @inbounds for m in 1:Np
+            IntS[m, dp.pthgo[k]+j-1] += x̃₂ * I[m]
+         end
+      end
 
-                        mul!(Tmp, TNL, A)   # Tmp = TNL * A   (N×n)
-                        mul!(I₂, Tmp, TNR)  # I   = Tmp * TNR (N×N)
+      #-----------------3rd part-----------------
 
-                        @. I = A2*(1 - α₂)*( (α₁ + 1)*I₁ + (1 - α₁)*I₂ )/4
-                    else
-                        error("Fatal error! mapinv not working correctly.")
-                    end
+      @. d1 = x1m * wmz₂
+      @. d2 = x2p * wmz₂
+      @. y1 = x1 - d1
+      @. y2 = x2 - d2
+      @. y1tmp = 1 - y1
 
-                elseif α₁ ≤ -1
-                    wfunc!(d1, p, z2; α=-A1, β=α₁ - 1.0)
-                    @. y1 = α₁ - d1
-                    @. y1tmp = 1 - y1
-                    if 1 ≤ α₂
-                        wfunc!(d2, p, z1; α=-B2, β=α₂ + 1.0)
-                        @. y2 = α₂ - d2
+      fill_meshgrid!(t1, t2, y1, y2)
 
-                        fill_meshgrid!(t1, t2, y1, y2)
+      ChebyTN!(TN_y1, N, y1)
+      ChebyTN!(TN_y2, N, y2)
 
-                        diff_map!(DIF, Zx, Zy, DJ, d, α₁, α₂, t1, t2, d1, d2, k)
+      @inbounds for k in knbd
 
-                        dfunc!(dfy, d, k, y1tmp, s)   # dfy = dfac(k, 1-y1)
+         diff_map!(DIF, Zx, Zy, DJ, d, x1, x2, t1, t2, d1, d2, k)
 
-                        ChebyTN!(TN_y1, N, y1)
-                        ChebyTN!(TN_y2, N, y2)
+         dfunc!(dfy, d, k, y1tmp, s)   # dfy = dfac(k, 1-y1)
 
-                        #Left weights: fw .* dw(A1*z2) .* dfy .* TN(y1)'
-                        dwfunc!(dw, p, z2; α=A1)
-                        @. wdf = fw * dw * dfy
-                        @. TNL = TN_y1' * wdf'
+         #Left weights: fwm .* dfy .* TN(y1)'
+         @. wdf = fwm * dfy
+         @. TNL = TN_y1' * wdf'
 
-                        # Right weights: TN(y2).*dw(B2*z1)'.*fw'
-                        dwfunc!(dw, p, z1; α=B2)
-                        @. TNR = TN_y2 * dw * fw   # n×N scaled row-wise
-                        # Middle terms together
-                        @. A = expm1(-2*s*log(DIF)) * DJ   
+         # Right weights: TN(y2).*fwm'
+         @. TNR = TN_y2 * fwm   # n×N scaled row-wise
+         # Middle terms together
+         @. A = expm1(-2 * s * log(DIF)) * DJ
 
-                        mul!(Tmp, TNL, A)   # Tmp = TNL * A   (N×n)
-                        mul!(I, Tmp, TNR)   # I   = Tmp * TNR (N×N)
+         mul!(Tmp, TNL, A)   # Tmp = TNL * A   (N×n)
+         mul!(I, Tmp, TNR)   # I   = Tmp * TNR (N×N)
 
-                        I .*= A1 * B2 * (1 - α₁) * (α₂ + 1) / 4
+         @inbounds for m in 1:Np
+            IntS[m, dp.pthgo[k]+j-1] += x̃₃ * I[m]
+         end
+      end
 
-                    elseif -1 < α₂ && α₂ < 1
-                        wfunc!(d2, p, z1; α=-1.0, β=α₂ + 1.0)
-                        @. y2 = α₂ - d2
+      #-----------------4th part-----------------
+      #(reuse d1, y1, TN_y1, y1tmp; update d2,y2,t1,t2)
+      @. d2 = x2m * wmz₂
+      @. y2 = x2 - d2
 
-                        fill_meshgrid!(t1, t2, y1, y2)
+      fill_meshgrid!(t1, t2, y1, y2)
 
-                        diff_map!(DIF, Zx, Zy, DJ, d, α₁, α₂, t1, t2, d1, d2, k)
+      ChebyTN!(TN_y2, N, y2)
 
-                        dfunc!(dfy, d, k, y1tmp, s)   # dfy = dfac(k, 1-y1)
+      @inbounds for k in knbd
 
-                        ChebyTN!(TN_y1, N, y1)
-                        ChebyTN!(TN_y2, N, y2)
+         diff_map!(DIF, Zx, Zy, DJ, d, x1, x2, t1, t2, d1, d2, k)
 
-                        # Left weights: fw .* dw(A1*z2) .* dfy .* TN(y1)'
-                        dwfunc!(dw, p, z2; α=A1)
-                        @. wdf = fw * dw * dfy
-                        @. TNL = TN_y1' * wdf'
+         dfunc!(dfy, d, k, y1tmp, s)   # dfy = dfac(k, 1-y1)
 
-                        # Right weights: TN(y2).*dw(z1)'.*fw'
-                        dwfunc!(dw, p, z1)
-                        @. TNR = TN_y2 * dw * fw   # n×N scaled row-wise
-                        # Middle terms together
-                        @. A = expm1(-2*s*log(DIF)) * DJ   
+         #Left weights: fwm .* dfy .* TN(y1)'
+         @. wdf = fwm * dfy
+         @. TNL = TN_y1' * wdf'
 
-                        mul!(Tmp, TNL, A)   # Tmp = TNL * A   (N×n)
-                        mul!(I₁, Tmp, TNR)   # I   = Tmp * TNR (N×N)
+         # Right weights: TN(y2).*fwm'
+         @. TNR = TN_y2 * fwm   # n×N scaled row-wise
+         # Middle terms together
+         @. A = expm1(-2 * s * log(DIF)) * DJ
 
-                        #------------2ⁿᵈ half ------------
-                        wfunc!(d2, p, z2; α=-1.0, β=α₂ - 1.0)
-                        @. y2 = α₂ - d2
+         mul!(Tmp, TNL, A)   # Tmp = TNL * A   (N×n)
+         mul!(I, Tmp, TNR)   # I   = Tmp * TNR (N×N)
 
-                        fill_meshgrid!(t1, t2, y1, y2)
+         @inbounds for m in 1:Np
+            IntS[m, dp.pthgo[k]+j-1] += x̃₄ * I[m]
+         end
+      end
 
-                        diff_map!(DIF, Zx, Zy, DJ, d, α₁, α₂, t1, t2, d1, d2, k)
+   end
 
-                        #Left weights same as before
-                        #Right weights: TN(y2).*dw(z2)'.*fw'
-                        ChebyTN!(TN_y2, N, y2)
-                        dwfunc!(dw, p, z2)
-                        @. TNR = TN_y2 * dw * fw   # n×N scaled row-wise
-                        # Middle terms together
-                        @. A = expm1(-2*s*log(DIF)) * DJ   
+   #--------------------------------------------
+   #----------Near Singular Integration---------
+   #-------------------------------------------
+   I₁ = Matrix{Float64}(undef, N, N)
+   I₂ = Matrix{Float64}(undef, N, N)
+   wr = Vector{Float64}(undef, n)
 
-                        mul!(Tmp, TNL, A)   # Tmp = TNL * A   (N×n)
-                        mul!(I₂, Tmp, TNR)  # I   = Tmp * TNR (N×N)
+   NSwork = (
+      z=z, z1=z1, z2=z2, d1=d1, d2=d2,
+      fw=fw, dz = wmz₂, fwm=fwm,
+      y1=y1, y2=y2, y1tmp=y1tmp,
+      wdf=wdf, dw=dw, dfy=dfy, t1=t1,
+      t2=t2, DJ=DJ, DIF=DIF, Zx=Zx,
+      Zy=Zy, TN_y1=TN_y1, TN_y2=TN_y2,
+      TNL=TNL, TNR=TNR, A=A,
+      Tmp=Tmp, wr=wr, I₁=I₁, I₂=I₂)
 
-                        @. I = A1*(1 - α₁)*( (α₂ + 1)*I₁ + (1 - α₂)*I₂ )/4
-                    elseif α₂ ≤ -1
-                        wfunc!(d2, p, z2; α=-A2, β=α₂ - 1.0)
-                        @. y2 = α₂ - d2;
+   #Now the big for loop for near singular points
+   #--------------------------------------------
+   # Near Singular Integration
+   Nt = size(dp.tgtpts, 2)
 
-                        fill_meshgrid!(t1, t2, y1, y2)
+   VOL_FAR = UInt8(0)
+   VOL_NEAR = UInt8(1)
+   VOL_CLOSE = UInt8(2)
 
-                        diff_map!(DIF, Zx, Zy, DJ, d, α₁, α₂, t1, t2, d1, d2, k)
+   # --------------------
+   # Interior target rows
+   # --------------------
+   @inbounds for k in 1:M
 
-                        dfunc!(dfy, d, k, y1tmp, s)   # dfy = dfac(k, 1-y1)
+      col = dp.pthgo[k] + Np
+      qin = dp.invgo[k]
 
-                        ChebyTN!(TN_y1, N, y1)
-                        ChebyTN!(TN_y2, N, y2)
+      @inbounds for row in 1:Ni
 
-                        # Left weights: fw .* dw(A1*z2) .* dfy .* TN(y1)'
-                        dwfunc!(dw, p, z2; α=A1)
-                        @. wdf = fw * dw * dfy
-                        @. TNL = TN_y1' * wdf'
+         mode = dp.volmode[row, k]
+         mode == VOL_FAR && continue
 
-                        # Right weights: TN(y2).*dw(A2*z2)'.*fw'
-                        dwfunc!(dw, p, z2; α=A2)
-                        @. TNR = TN_y2 * dw * fw   # n×N scaled row-wise
-                        # Middle terms together
-                        @. A = expm1(-2*s*log(DIF)) * DJ   
+         if mode == VOL_CLOSE
 
-                        mul!(Tmp, TNL, A)   # Tmp = TNL * A   (N×n)
-                        mul!(I, Tmp, TNR)   # I   = Tmp * TNR (N×N)
+            α₁ = dp.invpts[1, qin]
+            α₂ = dp.invpts[2, qin]
+            qin += 1
 
-                        I .*= A1 * A2 * (1 - α₁) * (1 - α₂) / 4
-                    end
-                end
-            else
-                #Near singular for boundary patches.
-                if 1 ≤ α₁ 
-                    #α₁ = 1
-                    wfunc!(d1, p, z1; α=-1.0, β=2.0)
-                    @. y1 = 1 - d1
-                    if 1 ≤ α₂
-                        wfunc!(d2, p, z1; α=-B2, β=α₂ + 1.0)
-                        @. y2 = α₂ - d2
+            NSclose_Ls!(I, NSwork, d, k, α₁, α₂, s, p, N, knbd)
 
-                        fill_meshgrid!(t1, t2, y1, y2)
+         elseif mode == VOL_NEAR
 
-                        diff_map!(DIF, Zx, Zy, DJ, d, 1.0, α₂, t1, t2, d1, d2, k)
+            u0 = dp.invpts[1, qin]
+            v0 = dp.invpts[2, qin]
+            qin += 1
 
-                        dfunc!(dfy, d, k, d1, s)   # dfy = dfac(k, 1-y1) = dfac(k, d1)
+            xt = dp.tgtpts[1, row]
+            yt = dp.tgtpts[2, row]
 
-                        ChebyTN!(TN_y1, N, y1)
-                        ChebyTN!(TN_y2, N, y2)
+            NSnear_Ls!(I, NSwork, d, k, xt, yt, u0, v0, s, p, N, knbd)
 
-                        #Left weights: fw .* dw(z1) .* dfy .* TN(y1)'
-                        dwfunc!(dw, p, z1; α=1.0)
-                        @. wdf = fw * dw * dfy
-                        @. TNL = TN_y1' * wdf'
+         else
+            error("Unexpected volume mode = $mode for row=$row, patch=$k")
+         end
 
-                        # Right weights: TN(y2).*dw(B2*z1)'.*fw'
-                        dwfunc!(dw, p, z1; α=B2)
-                        @. TNR = TN_y2 * dw * fw   # n×N scaled row-wise
-                        # Middle terms together
-                        @. A = expm1(-2*s*log(DIF)) * DJ   
+         @inbounds for m in 1:Np
+            IntS[m, col] = I[m]
+         end
 
-                        mul!(Tmp, TNL, A)   # Tmp = TNL * A   (N×n)
-                        mul!(I, Tmp, TNR)   # I   = Tmp * TNR (N×N)
+         col += 1
+      end
 
-                        I .*= B2 * (α₂ + 1) / 2
+      @assert qin == dp.invgo[k+1]
+      @assert col == dp.pthgo[k+1]
+   end
 
-                    elseif -1 < α₂ && α₂ < 1
-                        wfunc!(d2, p, z1; α=-1.0, β=α₂ + 1.0)
-                        @. y2 = α₂ - d2
+   # -------------------------------
+   # Boundary target rows
+   # -------------------------------
+   col = dp.pthgo[M+1] + nbd
 
-                        fill_meshgrid!(t1, t2, y1, y2)
+   @inbounds for k in 1:M
 
-                        diff_map!(DIF, Zx, Zy, DJ, d, 1.0, α₂, t1, t2, d1, d2, k)
+      qbd = dp.invgo[M+k]
 
-                        dfunc!(dfy, d, k, d1, s)   # dfy = dfac(k, 1-y1)
+      @inbounds for row in Ni+1:Nt
 
-                        ChebyTN!(TN_y1, N, y1)
-                        ChebyTN!(TN_y2, N, y2)
+         mode = dp.volmode[row, k]
+         mode == VOL_FAR && continue
 
-                        # Left weights: fw .* dw(z1) .* dfy .* TN(y1)'
-                        dwfunc!(dw, p, z1)
-                        @. wdf = fw * dw * dfy
-                        @. TNL = TN_y1' * wdf'
+         if mode == VOL_CLOSE
 
-                        # Right weights: TN(y2).*dw(z1)'.*fw'
-                        @. TNR = TN_y2 * dw * fw   # n×N scaled row-wise
-                        # Middle terms together
-                        @. A = expm1(-2*s*log(DIF)) * DJ
+            α₁ = dp.invpts[1, qbd]
+            α₂ = dp.invpts[2, qbd]
+            qbd += 1
 
-                        mul!(Tmp, TNL, A)   # Tmp = TNL * A   (N×n)
-                        mul!(I₁, Tmp, TNR)   # I   = Tmp * TNR (N×N)
+            NSclose_Ls!(I, NSwork, d, k, α₁, α₂, s, p, N, knbd)
 
-                        #------------2ⁿᵈ half ------------
-                        wfunc!(d2, p, z2; α=-1.0, β=α₂ - 1.0)
-                        @. y2 = α₂ - d2
+         elseif mode == VOL_NEAR
 
-                        fill_meshgrid!(t1, t2, y1, y2)
+            u0 = dp.invpts[1, qbd]
+            v0 = dp.invpts[2, qbd]
+            qbd += 1
 
-                        diff_map!(DIF, Zx, Zy, DJ, d, 1.0, α₂, t1, t2, d1, d2, k)
+            xt = dp.tgtpts[1, row]
+            yt = dp.tgtpts[2, row]
 
-                        #Left weights same as before
-                        #Right weights: TN(y2).*dw(z2)'.*fw'
-                        ChebyTN!(TN_y2, N, y2)
-                        dwfunc!(dw, p, z2)
-                        @. TNR = TN_y2 * dw * fw   # n×N scaled row-wise
-                        # Middle terms together
-                        @. A = expm1(-2*s*log(DIF)) * DJ
+            NSnear_Ls!(I, NSwork, d, k, xt, yt, u0, v0, s, p, N, knbd)
 
-                        mul!(Tmp, TNL, A)   # Tmp = TNL * A   (N×n)
-                        mul!(I₂, Tmp, TNR)  # I   = Tmp * TNR (N×N)
+         else
+            error("Unexpected volume mode = $mode for row=$row, patch=$k")
+         end
 
-                        @. I = ((α₂ + 1) * I₁ + (1 - α₂) * I₂) / 2
+         @inbounds for m in 1:Np
+            IntS[m, col] = I[m]
+         end
 
-                    elseif α₂ ≤ -1
-                        wfunc!(d2, p, z2; α=-A2, β=α₂ - 1.0)
-                        @. y2 = α₂ - d2
+         col += 1
+      end
 
-                        fill_meshgrid!(t1, t2, y1, y2)
+      @assert qbd == dp.invgo[M+k+1]
+   end
 
-                        diff_map!(DIF, Zx, Zy, DJ, d, 1.0, α₂, t1, t2, d1, d2, k)
+   @assert col == dp.pthgo[M+2]
+   return IntS
 
-                        dfunc!(dfy, d, k, d1, s)   # dfy = dfac(k, 1-y1)
-
-                        ChebyTN!(TN_y1, N, y1)
-                        ChebyTN!(TN_y2, N, y2)
-
-                        # Left weights: fw .* dw(z1) .* dfy .* TN(y1)'
-                        dwfunc!(dw, p, z1)
-                        @. wdf = fw * dw * dfy
-                        @. TNL = TN_y1' * wdf'
-
-                        # Right weights: TN(y2).*dw(A2*z2)'.*fw'
-                        dwfunc!(dw, p, z2; α=A2)
-                        @. TNR = TN_y2 * dw * fw   # n×N scaled row-wise
-                        # Middle terms together
-                        @. A = expm1(-2*s*log(DIF)) * DJ   
-
-                        mul!(Tmp, TNL, A)   # Tmp = TNL * A   (N×n)
-                        mul!(I, Tmp, TNR)   # I   = Tmp * TNR (N×N)
-
-                        I .*=  A2 * (1 - α₂) / 2
-                    end
-                elseif -1 < α₁ && α₁ < 1
-                    if 1 ≤ α₂
-                        wfunc!(d1, p, z1; α=-1.0, β=α₁ + 1.0)
-                        wfunc!(d2, p, z1; α=-B2, β=α₂ + 1.0)
-                        @. y1 = α₁ - d1
-                        @. y2 = α₂ - d2 
-                        @. y1tmp = 1 - y1
-
-                        fill_meshgrid!(t1, t2, y1, y2)
-
-                        diff_map!(DIF, Zx, Zy, DJ, d, α₁, α₂, t1, t2, d1, d2, k)
-
-                        dfunc!(dfy, d, k, y1tmp, s)   # dfy = dfac(k, 1-y1)
-
-                        ChebyTN!(TN_y1, N, y1)
-                        ChebyTN!(TN_y2, N, y2)
-
-                        # Left weights: fw .* dw .* dfy .* TN(y1)'
-                        dwfunc!(dw, p, z1)
-                        @. wdf = fw * dw * dfy
-                        @. TNL = TN_y1' * wdf'
-
-                        # Right weights: TN(y2).*dw(B2*z1)'.*fw'
-                        dwfunc!(dw, p, z1; α=B2)
-                        @. TNR = TN_y2 * dw * fw   # n×N scaled row-wise
-                        # Middle terms together
-                        @. A = expm1(-2*s*log(DIF)) * DJ   
-
-                        mul!(Tmp, TNL, A)   # Tmp = TNL * A   (N×n)
-                        mul!(I₁, Tmp, TNR)  # I   = Tmp * TNR (N×N)
-
-                        #------------2ⁿᵈ half ------------
-                        wfunc!(d1, p, z; α=1.0, β=(α₁ - 1.0) / 2)
-                        wfunc!(d2, p, z1; α=-B2, β=α₂ + 1.0)
-                        @. y1 = α₁ - d1
-                        @. y2 = α₂ - d2 
-                        wfunc!(y1tmp, p, z; α=-1.0, β=(1.0 - α₁) / 2)
-
-                        fill_meshgrid!(t1, t2, y1, y2)
-
-                        diff_map!(DIF, Zx, Zy, DJ, d, α₁, α₂, t1, t2, d1, d2, k)
-
-                        dfunc!(dfy, d, k, y1tmp, s)   # dfy = dfac(k, 1-y1)
-
-                        ChebyTN!(TN_y1, N, y1)
-                        ChebyTN!(TN_y2, N, y2)
-
-                        # Left weights: fw .* dw .* dfy .* TN(y1)'
-                        dwfunc!(dw, p, z)
-                        @. wdf = fw * dw * dfy
-                        @. TNL = TN_y1' * wdf'
-
-                        # Right weights: TN(y2).*dw(B2*z1)'.*fw'
-                        dwfunc!(dw, p, z1; α=B2)
-                        @. TNR = TN_y2 * dw * fw   # n×N scaled row-wise
-                        # Middle terms together
-                        @. A = expm1(-2*s*log(DIF)) * DJ   
-
-                        mul!(Tmp, TNL, A)   # Tmp = TNL * A   (N×n)
-                        mul!(I₂, Tmp, TNR)  # I   = Tmp * TNR (N×N)
-
-                        @. I = B2*(α₂ + 1)*( (α₁ + 1)*I₁ + (1 - α₁) * I₂ )/4
-
-                    elseif α₂ ≤ -1
-                        wfunc!(d1, p, z1; α=-1.0, β=α₁ + 1.0)
-                        wfunc!(d2, p, z2; α=-A2, β=α₂ - 1.0)
-                        @. y1 = α₁ - d1
-                        @. y2 = α₂ - d2 
-                        @. y1tmp = 1 - y1
-
-                        fill_meshgrid!(t1, t2, y1, y2)
-
-                        diff_map!(DIF, Zx, Zy, DJ, d, α₁, α₂, t1, t2, d1, d2, k)
-
-                        dfunc!(dfy, d, k, y1tmp, s)   # dfy = dfac(k, 1-y1)
-
-                        ChebyTN!(TN_y1, N, y1)
-                        ChebyTN!(TN_y2, N, y2)
-
-                        # Left weights: fw .* dw(z1) .* dfy .* TN(y1)'
-                        dwfunc!(dw, p, z1)
-                        @. wdf = fw * dw * dfy
-                        @. TNL = TN_y1' * wdf'
-
-                        # Right weights: TN(y2).*dw(A2*z2)'.*fw'
-                        dwfunc!(dw, p, z2; α=A2)
-                        @. TNR = TN_y2 * dw * fw   # n×N scaled row-wise
-                        # Middle terms together
-                        @. A = expm1(-2*s*log(DIF)) * DJ   
-
-                        mul!(Tmp, TNL, A)   # Tmp = TNL * A   (N×n)
-                        mul!(I₁, Tmp, TNR)  # I   = Tmp * TNR (N×N)
-
-                        #------------2ⁿᵈ half ------------
-                        wfunc!(d1, p, z; α=1.0, β=(α₁ - 1.0) / 2)
-                        wfunc!(d2, p, z2; α=-A2, β=α₂ - 1.0)
-                        @. y1 = α₁ - d1
-                        @. y2 = α₂ - d2 
-                        wfunc!(y1tmp, p, z; α=-1.0, β=(1.0 - α₁) / 2)
-
-                        fill_meshgrid!(t1, t2, y1, y2)
-
-                        diff_map!(DIF, Zx, Zy, DJ, d, α₁, α₂, t1, t2, d1, d2, k)
-
-                        dfunc!(dfy, d, k, y1tmp, s)   # dfy = dfac(k, 1-y1)
-
-                        ChebyTN!(TN_y1, N, y1)
-                        ChebyTN!(TN_y2, N, y2)
-
-                        # Left weights: fw .* dw .* dfy .* TN(y1)'
-                        dwfunc!(dw, p, z)
-                        @. wdf = fw * dw * dfy
-                        @. TNL = TN_y1' * wdf'
-
-                        # Right weights: TN(y2).*dw(A2*z2)'.*fw'
-                        dwfunc!(dw, p, z2; α=A2)
-                        @. TNR = TN_y2 * dw * fw   # n×N scaled row-wise
-                        # Middle terms together
-                        @. A = expm1(-2*s*log(DIF)) * DJ   
-
-                        mul!(Tmp, TNL, A)   # Tmp = TNL * A   (N×n)
-                        mul!(I₂, Tmp, TNR)  # I   = Tmp * TNR (N×N)
-
-                        @. I = A2*(1 - α₂)*( (α₁ + 1) * I₁ + (1 - α₁) * I₂ )/4
-                    else
-                        error("Fatal error! mapinv not working correctly.")
-                    end
-
-                elseif α₁ ≤ -1
-                    A1 = 1 - winv(p, 2 * (-1 - α₁) / (1 - α₁))
-                    wfunc!(d1, p, z2; α=-A1, β=(α₁ - 1.0) / 2, γ=1.0)
-                    @. y1 = α₁ - d1
-                    if 1 ≤ α₂
-                        wfunc!(d2, p, z1; α=-B2, β=α₂ + 1.0)
-                        @. y2 = α₂ - d2
-
-                        wfunc!(y1tmp, p, z2; α=A1, β=(1.0 - α₁) / 2, γ=-1.0)
-
-                        fill_meshgrid!(t1, t2, y1, y2)
-
-                        diff_map!(DIF, Zx, Zy, DJ, d, α₁, α₂, t1, t2, d1, d2, k)
-
-                        dfunc!(dfy, d, k, y1tmp, s)   # dfy = dfac(k, 1-y1)
-
-                        ChebyTN!(TN_y1, N, y1)
-                        ChebyTN!(TN_y2, N, y2)
-
-                        #Left weights: fw .* dw .* dfy .* TN(y1)'
-                        dwfunc!(dw, p, z2; α=-A1, β=1.0, γ=1.0)
-                        @. wdf = fw * dw * dfy
-                        @. TNL = TN_y1' * wdf'
-
-                        # Right weights: TN(y2).*dw(B2*z1)'.*fw'
-                        dwfunc!(dw, p, z1; α=B2)
-                        @. TNR = TN_y2 * dw * fw   # n×N scaled row-wise
-                        # Middle terms together
-                        @. A = expm1(-2*s*log(DIF)) * DJ   
-
-                        mul!(Tmp, TNL, A)   # Tmp = TNL * A   (N×n)
-                        mul!(I, Tmp, TNR)   # I   = Tmp * TNR (N×N)
-
-                        I .*=  A1 * B2 * (1-α₁)*(α₂+1)/8
-
-                    elseif -1 < α₂ && α₂ < 1
-                        wfunc!(d2, p, z1; α=-1.0, β=α₂ + 1.0)
-                        @. y2 = α₂ - d2
-
-                        wfunc!(y1tmp, p, z2; α=A1, β=(1.0 - α₁) / 2, γ=-1.0)
-
-                        fill_meshgrid!(t1, t2, y1, y2)
-
-                        diff_map!(DIF, Zx, Zy, DJ, d, α₁, α₂, t1, t2, d1, d2, k)
-
-                        dfunc!(dfy, d, k, y1tmp, s)   # dfy = dfac(k, 1-y1)
-
-                        ChebyTN!(TN_y1, N, y1)
-                        ChebyTN!(TN_y2, N, y2)
-
-                        #Left weights: fw .* dw .* dfy .* TN(y1)'
-                        dwfunc!(dw, p, z2; α=-A1, β=1.0, γ=1.0)
-                        @. wdf = fw * dw * dfy
-                        @. TNL = TN_y1' * wdf'
-
-                        # Right weights: TN(y2).*dw(z1)'.*fw'
-                        dwfunc!(dw, p, z1)
-                        @. TNR = TN_y2 * dw * fw   # n×N scaled row-wise
-                        # Middle terms together
-                        @. A = expm1(-2*s*log(DIF)) * DJ   
-
-                        mul!(Tmp, TNL, A)   # Tmp = TNL * A   (N×n)
-                        mul!(I₁, Tmp, TNR)   # I   = Tmp * TNR (N×N)
-
-                        #------------2ⁿᵈ half ------------
-                        wfunc!(d2, p, z2; α=-1.0, β=α₂ - 1.0)
-                        @. y2 = α₂ - d2
-
-                        fill_meshgrid!(t1, t2, y1, y2)
-
-                        diff_map!(DIF, Zx, Zy, DJ, d, α₁, α₂, t1, t2, d1, d2, k)
-
-                        #Left weights same as before
-                        #Right weights: TN(y2).*dw(z2)'.*fw'
-                        ChebyTN!(TN_y2, N, y2)
-                        dwfunc!(dw, p, z2)
-                        @. TNR = TN_y2 * dw * fw   # n×N scaled row-wise
-                        # Middle terms together
-                        @. A = expm1(-2*s*log(DIF)) * DJ   
-
-                        mul!(Tmp, TNL, A)   # Tmp = TNL * A   (N×n)
-                        mul!(I₂, Tmp, TNR)  # I   = Tmp * TNR (N×N)
-
-                        @. I = A1*(1-α₁)*( (α₂+1)*I₁ + (1-α₂)*I₂ )/8
-                        
-                    elseif α₂ ≤ -1
-                        wfunc!(d2, p, z2; α=-A2, β=α₂ - 1.0)
-                        @. y2 = α₂ - d2
-
-                        wfunc!(y1tmp, p, z2; α=A1, β=(1.0 - α₁) / 2, γ=-1.0)
-
-                        fill_meshgrid!(t1, t2, y1, y2)
-
-                        diff_map!(DIF, Zx, Zy, DJ, d, α₁, α₂, t1, t2, d1, d2, k)
-
-                        dfunc!(dfy, d, k, y1tmp, s)   # dfy = dfac(k, 1-y1)
-
-                        ChebyTN!(TN_y1, N, y1)
-                        ChebyTN!(TN_y2, N, y2)
-
-                        #Left weights: fw .* dw .* dfy .* TN(y1)'
-                        dwfunc!(dw, p, z2; α=-A1, β=1.0, γ=1.0)
-                        @. wdf = fw * dw * dfy
-                        @. TNL = TN_y1' * wdf'
-
-                        # Right weights: TN(y2).*dw(A2*z2)'.*fw'
-                        dwfunc!(dw, p, z2; α=A2)
-                        @. TNR = TN_y2 * dw * fw   # n×N scaled row-wise
-                        # Middle terms together
-                        @. A = expm1(-2*s*log(DIF)) * DJ   
-                        
-                        mul!(Tmp, TNL, A)   # Tmp = TNL * A   (N×n)
-                        mul!(I, Tmp, TNR)   # I   = Tmp * TNR (N×N)
-
-                        I .*= A1*A2*(1-α₁)*(1-α₂)/8
-
-                    end
-                end
-            end
-
-            #Allocation free version of IntS[:,i] = reshape(I,(Np,1));
-            @inbounds for m in 1:Np
-                IntS[m, i] = I[m]
-            end
-
-        end
-    end
-  
-    return IntS
 end

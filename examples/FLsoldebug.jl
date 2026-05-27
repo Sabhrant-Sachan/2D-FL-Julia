@@ -2,8 +2,6 @@ using Revise, FL2D
 
 import FL2D.FLdata as FLdata
 
-using GLMakie
-
 d = FL2D.peanut(b=[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1])
 
 d = FL2D.peanut(b=[6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6]);
@@ -87,16 +85,17 @@ d = FL2D.disc(b=[1, 1, 1, 1, 1], L1=0.8, L2=0.8)
 
 dp = FL2D.domprop(12, 0.15, 8e-3, 0.15, 5e-3, d; Lᵢₙ=5)
 
-s, p, n = 0.9, 5, 128
+s, p, n = 0.1, 4, 128
 
-IntSex = FL2D.precompsH(d, dp, s, p; n=512);
+IntSex = FL2D.precompsLs(d, dp, s, p; n=512);
 
-for n in [16,32,64,128,256]
-   IntS = FL2D.precompsH(d, dp, s, p; n=n);
+for n in [16,32,64,128]
+   IntS = FL2D.precompsLs(d, dp, s, p; n=n);
    display(maximum(abs.(IntS .- IntSex)))
 end
 
-IntS = FL2D.precompsH(d, dp, s, p; n=256);
+IntS = FL2D.precompsLs(d, dp, s, p; n=256);
+display(maximum(abs.(IntS .- IntSex)))
 
 for k in 1:d.Npat
     S = dp.pthgo[k] + dp.N^2
@@ -105,12 +104,6 @@ for k in 1:d.Npat
 end
 
 # Singular/self blocks only
-for k in 1:d.Npat
-    S = dp.pthgo[k]
-    E = dp.pthgo[k] + dp.N^2 - 1
-    println("singular ", k, " ", maximum(abs.(IntS[:, S:E] .- IntSex[:, S:E])))
-end
-
 for k in 1:d.Npat
     S = dp.pthgo[k]
     E = dp.pthgo[k] + dp.N^2 - 1
