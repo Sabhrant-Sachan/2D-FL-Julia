@@ -652,7 +652,7 @@ function bdinv(d::disc, t::Float64, l::Int, k::Int)::Float64
         # the same physical angle. We only need to convert ξ_l to the local
         # coordinate on patch k.
         if pl.reg == pk.reg
-            return xi_inv(pk.tk0, pk.tk1, ξl)
+            return xi_inv(ξl, pk.tk0, pk.tk1)
         end
 
         # Angle representation on patch l:
@@ -682,7 +682,7 @@ function bdinv(d::disc, t::Float64, l::Int, k::Int)::Float64
         ξk = (2 / π) * (θs - ck)
 
         # Convert ξ_k to local Chebyshev coordinate s on patch k.
-        return xi_inv(pk.tk0, pk.tk1, ξk)
+        return xi_inv(ξk, pk.tk0, pk.tk1)
     end
 end
 
@@ -1639,7 +1639,7 @@ function diff_rmap!(out::Matrix{Float64},
   d::disc, u::Float64, v::Float64,
   u2::Matrix{Float64}, v2::Matrix{Float64}, r::Matrix{Float64},
   du::AbstractVector, dv::AbstractVector, k::Int;
-  tol::Float64=1e-3)
+  tol::Float64=7e-4)
 
   nt = size(out, 1)   # angular
   nr = size(out, 2)   # radial

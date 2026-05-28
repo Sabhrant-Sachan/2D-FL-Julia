@@ -48,7 +48,7 @@ mutable struct domprop
    # volmode[row,k] gives the volume interaction type between target row
    # and integration patch k.
    #
-   # 0 = regular/far
+   # 0 = regular/far (or singular, but that can be checked by k == ℓ)
    # 1 = near: invpts stores projected boundary point (u0,v0)
    # 2 = close: invpts stores true inverse point (α1,α2)
    # During invpts fill, candidate VOL_CLOSE entries are validated.
@@ -2404,7 +2404,7 @@ function Base.show(io::IO, ::MIME"text/plain", d::domprop)
     # ------------------------------------------------------------
     # Volume classification counts
     # ------------------------------------------------------------
-    nvol_far   = count(==(VOL_FAR), d.volmode)
+    nvol_far   = count(==(VOL_FAR), d.volmode) - Nt
     nvol_near  = count(==(VOL_NEAR), d.volmode)
     nvol_close = count(==(VOL_CLOSE), d.volmode)
 

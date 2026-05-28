@@ -5,9 +5,9 @@ function getfield_default(x, name::Symbol, default)
    return name in propertynames(x) ? getproperty(x, name) : default
 end
 
-function run_one_squircle!(io, case; s::Float64, p::Int, nJac::Int=5)
+function run_one_bean!(io, case; s::Float64, p::Int, nJac::Int=5)
 
-   f!, uex, _ = makesquirclefuex(nJac, s, 4)
+   f!, uex, _ = makebeanfuex(nJac, s)
 
    # New domprop controls
    δv_near = getfield_default(case, :δv_near, 0.15)
@@ -60,7 +60,7 @@ function run_one_squircle!(io, case; s::Float64, p::Int, nJac::Int=5)
    return nothing
 end
 
-open("test_temp.txt", "w") do io
+open("test_temp_bean.txt", "w") do io
 
    s, p = 0.25, 4
 
@@ -68,7 +68,7 @@ open("test_temp.txt", "w") do io
    println(io, "p = ", p)
    flush(io)
 
-   case = (dom=FL2D.squircle(b=[1, 1, 1, 1, 1], P=4.0),
+   case = (dom=FL2D.bean(b=[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]),
       N=12, nₚᵣ=128,
       δv_near=0.15, δv_close=8e-3,
       δ_near=0.15, δ_intp=5e-3,
@@ -76,10 +76,9 @@ open("test_temp.txt", "w") do io
       s_small=false,
       benchmark=false,
       cond_num=false,
-      plot=true)
+      plot=false)
 
-   run_one_squircle!(io, case; s=s, p=p, nJac=5)
+   run_one_bean!(io, case; s=s, p=p, nJac=5)
 
    flush(io)
 end
-

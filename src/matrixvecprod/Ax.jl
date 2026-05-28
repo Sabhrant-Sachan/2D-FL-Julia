@@ -1,868 +1,887 @@
 function Ax!(v::AbstractVector{Float64}, u::AbstractVector{Float64}, IntS::Matrix{Float64},
-    d::D, dp::domprop, s::Float64, IV::IVT) where {D<:abstractdomain,IVT}
-    # Ax! :Matrix-vector product v = A*u (matrix-free), for GMRES and 
-    #      other iterative solvers. This subroutine computes the Matrix vector 
-    #      product Au without constructing the matrix A.
-    #      This function is given as a function handle to GMRES
-    #      to solve the linear system Au=B without storing the matrix A.
+   d::D, dp::domprop, s::Float64, IV::IVT) where {D<:abstractdomain,IVT}
+   # Ax! :Matrix-vector product v = A*u (matrix-free), for GMRES and 
+   #      other iterative solvers. This subroutine computes the Matrix vector 
+   #      product Au without constructing the matrix A.
+   #      This function is given as a function handle to GMRES
+   #      to solve the linear system Au=B without storing the matrix A.
 
-    # INPUTS :
-    #     u - Input vector u of size M*Np+Mbd*N for which we compute Au
-    #         We will not mutate u. Mutation in vector v is fine. 
-    #     v - Input vector v of size M*Np+Mbd*N which is v=Au 
-    #  IntS - Precomputation matrix of size Np*(M*Np+Dp.Tnsp+Mbd*N) given using
-    #         "precomps.jl" subroutine. Np is number of points per patch.
-    #     d - An instance of the domain d
-    #    dp - This is an instance of the class domprop. For more
-    #          information on dp, see comments in "domprop.jl" file.
-    #     s - A parameter in (0,1) for the fractional laplacian operator.
-    #    IV - A structure which contains packaged variables.
+   # INPUTS :
+   #     u - Input vector u of size M*Np+Mbd*N for which we compute Au
+   #         We will not mutate u. Mutation in vector v is fine. 
+   #     v - Input vector v of size M*Np+Mbd*N which is v=Au 
+   #  IntS - Precomputation matrix of size Np*(M*Np+Dp.Tnsp+Mbd*N) given using
+   #         "precomps.jl" subroutine. Np is number of points per patch.
+   #     d - An instance of the domain d
+   #    dp - This is an instance of the class domprop. For more
+   #          information on dp, see comments in "domprop.jl" file.
+   #     s - A parameter in (0,1) for the fractional laplacian operator.
+   #    IV - A structure which contains packaged variables.
 
-    # OUTPUTS: None
-    #     
-    # Author:
-    #      Sabhrant Sachan
-    #      Email : ssachan@caletch.edu
+   # OUTPUTS: None
+   #     
+   # Author:
+   #      Sabhrant Sachan
+   #      Email : ssachan@caletch.edu
 
-    # --------- Unpack IV ---------
-    (; IV1, IVr, IVbdth, IVbd, IVt, IVbt2,
-        IVbdt1, IVbdt2, IVbdt3, IVAf, IVAdct, IVgeom) = IV
+   # --------- Unpack IV ---------
+   (; IV1, IVr, IVbdth, IVbd, IVt, IVbt2,
+      IVbdt1, IVbdt2, IVbdt3, IVAf, IVAdct, IVgeom) = IV
 
-    (; Zx_all, Zy_all, DJ_all, Df_all,
-        Zx2_all, Zy2_all, DJ2_all, Dhc_bd) = IVgeom
+   (; Zx_all, Zy_all, DJ_all, Df_all,
+      Zx2_all, Zy2_all, DJ2_all, Dhc_bd) = IVgeom
 
-    (; p_dct2_dim2, p_dct2_dim1,
-        p_dct3_dim2, p_dct3_dim1,
-        p_dct2_N, p_dct3_bdy) = IVAdct
+   (; p_dct2_dim2, p_dct2_dim1,
+      p_dct3_dim2, p_dct3_dim1,
+      p_dct2_N, p_dct3_bdy) = IVAdct
 
-    (; chebcoef, ufin,
-        ζ_bdy, ζ_neart1, ζ_neart2,
-        UV, UFV, ζv, ζfv_bdy,
-        CNnr, TzT) = IVAf
+   (; chebcoef, ufin,
+      ζ_bdy, ζ_neart1, ζ_neart2,
+      UV, UFV, ζv, ζfv_bdy,
+      CNnr, TzT) = IVAf
 
-    (; N, Np, Cs, M, Mbd) = IV1
+   (; N, Np, Cs, M, Mbd, Nb, Ni) = IV1
 
-    (; nr, fwr, nrp) = IVr
+   (; nr, fwr, nrp) = IVr
 
-    (; nbd, Tz1) = IVbdth
+   (; nbd, Tz1) = IVbdth
 
-    (; nr_bdy, ns_near, fwr_bdy, fw_near, zr_bdy,
-        inv2π, BD_FAR, BD_NEAR, BD_INTP, bdloc) = IVbd
+   (; nr_bdy, ns_near, fwr_bdy, fw_near, zr_bdy,
+      inv2π, BD_FAR, BD_NEAR, BD_INTP, bdloc) = IVbd
 
-    (; KIr, Ur, CN) = IVt
+   (; KIr, Ur, CN) = IVt
 
-    (; Ubd, mfw, CT, KIbd) = IVbt2
+   (; Ubd, mfw, CT, KIbd) = IVbt2
 
-    (; y₁, y₂, wmz₁, wmz₂, dwz₁, dwz₂,
-        gamkbdy_all, gampkbdy_all,
-        gamks₁, gamks₂,
-        gamperpks₁, gamperpks₂,
-        gamkt1_all, gamkt2_all,
-        gamperpkt1_all, gamperpkt2_all) = IVbdt1
+   (; y₁, y₂, wmz₁, wmz₂, dwz₁, dwz₂,
+      gamkbdy_all, gampkbdy_all,
+      gamks₁, gamks₂,
+      gamperpks₁, gamperpks₂,
+      gamkt1_all, gamkt2_all,
+      gamperpkt1_all, gamperpkt2_all) = IVbdt1
 
-    (; kbd_bdy, kbd₁, kbd₂, μ₀, γt1, γt2) = IVbdt2
+   (; kbd_bdy, kbd₁, kbd₂, μ₀, γt1, γt2) = IVbdt2
 
-    (; fvals, γxbd, Tbd, Tbdt₀, Tbdt1, Tbdt2) = IVbdt3
+   (; fvals, γxbd, Tbd, Tbdt₀, Tbdt1, Tbdt2) = IVbdt3
 
-    Ni = M * Np
-    Nb = Mbd * N
-    Nbdr = nbd * nr
+   Nb = Mbd * N
+   Nbdr = nbd * nr
 
-    # ----- STEP 1: Get chebyshev coefficients and finer function values -----
-    # ----- Compute Chebyshev coeffs for interior patches + refined ufin -----
-    # Fill chebcoef for interior patches:
-    @inbounds for k in 1:M
-        ak₁ = (k - 1) * Np
-        ak₂ = (k - 1) * nrp
-        # load function values UV from u (fill UV directly)
-        # UV is a matrix of size N * N of type Float64
-        # capital letters matrix, lowercase vectors
-        # UV, UFV (u values and u finer values). 
-        @inbounds for i in 1:Np
-            UV[i] = u[ak₁+i]
-        end
+   # ----- STEP 1: Get chebyshev coefficients and finer function values -----
+   # ----- Compute Chebyshev coeffs for interior patches + refined ufin -----
+   # Fill chebcoef for interior patches:
+   @inbounds for k in 1:M
+      ak₁ = (k - 1) * Np
+      ak₂ = (k - 1) * nrp
+      # load function values UV from u (fill UV directly)
+      # UV is a matrix of size N * N of type Float64
+      # capital letters matrix, lowercase vectors
+      # UV, UFV (u values and u finer values). 
+      @inbounds for i in 1:Np
+         UV[i] = u[ak₁+i]
+      end
 
-        # DCT-II along dim2, then dim1
-        mul!(UV, p_dct2_dim2, UV)
+      # DCT-II along dim2, then dim1
+      mul!(UV, p_dct2_dim2, UV)
 
-        UV .*= 1 / N
+      UV .*= 1 / N
 
-        # UV[:, 1] ./= 2
-        @inbounds for i in 1:N
-            UV[i, 1] /= 2
-        end
+      # UV[:, 1] ./= 2
+      @inbounds for i in 1:N
+         UV[i, 1] /= 2
+      end
 
-        mul!(UV, p_dct2_dim1, UV)
+      mul!(UV, p_dct2_dim1, UV)
 
-        UV .*= 1 / N
+      UV .*= 1 / N
 
-        # UV[1, :] ./= 2
-        @inbounds for i in 1:N
-            UV[1, i] /= 2
-        end
+      # UV[1, :] ./= 2
+      @inbounds for i in 1:N
+         UV[1, i] /= 2
+      end
 
-        # store into chebcoef
-        @inbounds for i in 1:Np
-            chebcoef[ak₁+i] = UV[i]
-        end
+      # store into chebcoef
+      @inbounds for i in 1:Np
+         chebcoef[ak₁+i] = UV[i]
+      end
 
-        #UFV is a nr * nr zero float64 matrix 
-        UFV .= 0
-        # UFV[1:N, 1:N] .= UV
-        @inbounds for j in 1:N
-            @inbounds for i in 1:N
-                UFV[i, j] = UV[i, j]
+      #UFV is a nr * nr zero float64 matrix 
+      UFV .= 0
+      # UFV[1:N, 1:N] .= UV
+      @inbounds for j in 1:N
+         @inbounds for i in 1:N
+            UFV[i, j] = UV[i, j]
+         end
+      end
+
+      # Undo the first-mode scaling for dim = 2
+      #UFV[:, 1] .*= 2
+      @inbounds for i in 1:nr
+         UFV[i, 1] *= 2
+      end
+
+      # Invert along dim = 2
+      # UFV = 0.5 .* FFTW.r2r(UFV, FFTW.REDFT01, 2)
+      mul!(UFV, p_dct3_dim2, UFV)
+
+      UFV .*= 0.5
+
+      # Undo the first-mode scaling for dim = 1
+      # UFV[1, :] .*= 2
+      @inbounds for i in 1:nr
+         UFV[1, i] *= 2
+      end
+
+      # Invert along dim = 1
+      # UFV = 0.5 .* FFTW.r2r(UFV, FFTW.REDFT01, 1)
+      mul!(UFV, p_dct3_dim1, UFV)
+
+      UFV .*= 0.5
+
+      # store into chebcoef
+      @inbounds for i in 1:nrp
+         ufin[ak₂+i] = UFV[i]
+      end
+
+   end
+
+   # ----- Boundary ζ: coefficients + values on fixed boundary grids -----
+   # For k=1:Mbd boundary patches, u has ζ values on N Cheby nodes for each bd patch.
+   # We will also compute and store ζ_neart1 and ζ_neart2 once over all bd patches.
+   @inbounds for kb in 1:Mbd
+      ak = Ni + (kb - 1) * N
+      ibd = (kb - 1) * nr_bdy
+      inear = (kb - 1) * ns_near
+
+      # Load ζ values on N boundary Chebyshev nodes.
+      for i in 1:N
+         ζv[i] = u[ak+i]
+      end
+
+      # Convert to Chebyshev coefficients.
+      mul!(ζv, p_dct2_N, ζv)
+
+      ζv .*= 1 / N
+      ζv[1] /= 2
+
+      # Store coefficients in the global coefficient vector.
+      for i in 1:N
+         chebcoef[ak+i] = ζv[i]
+      end
+
+      # Fixed endpoint-smoothed grids yt1/yt2:
+      # these are not Chebyshev grids, so use Chebyshev interpolation.
+      mul!(y₁, Tbdt1, ζv)
+      mul!(y₂, Tbdt2, ζv)
+
+      for i in 1:ns_near
+         ζ_neart1[inear+i] = y₁[i]
+         ζ_neart2[inear+i] = y₂[i]
+      end
+
+      # Regular boundary quadrature grid zr_bdy:
+      # this is a Chebyshev grid of size nr_bdy, so use DCT-III.
+      ζv[1] *= 2
+
+      fill!(ζfv_bdy, 0.0)
+
+      for i in 1:N
+         ζfv_bdy[i] = ζv[i]
+      end
+
+      mul!(ζfv_bdy, p_dct3_bdy, ζfv_bdy)
+
+      ζfv_bdy .*= 0.5
+
+      for i in 1:nr_bdy
+         ζ_bdy[ibd+i] = ζfv_bdy[i]
+      end
+   end
+
+   # ----- STEP 2: Singular Integrals over all rows and DLP contributions -----
+   @inbounds for row in 1:Ni
+
+      ℓ = cld(row, Np)
+      j = row - (ℓ - 1) * Np
+
+      col = dp.pthgo[ℓ] + j - 1
+
+      @views cf = chebcoef[((ℓ-1)*Np+1):(ℓ*Np)]
+
+      @views SI = IntS[:, col]
+
+      v[row] = Cs * dot(SI, cf)
+   end
+
+   if s < 0.5
+
+      Lₚₘ = Ni + 1
+      Lₚₙ = Ni + Nb
+
+      @inbounds for row in Lₚₘ:Lₚₙ
+
+         k₀ = cld(row - Ni, N)
+
+         ℓ = d.kd[k₀]
+
+         j = row - M * Np - (k₀ - 1) * N
+
+         #---- Add singular contributions first ----
+         col = dp.pthgo[M+1] + j - 1 + N * (k₀ - 1)
+
+         @views cf = chebcoef[((ℓ-1)*Np+1):(ℓ*Np)]
+
+         @views SI = IntS[:, col]
+
+         v[row] = Cs * dot(SI, cf)
+
+      end
+
+   end
+
+   #If s<0.5, all values of vector v are now initlized.
+   #If s>=0.5, all rows from 1:Ni of v are now initlized.
+
+   # ----- Contribution from DLP starts here -----
+
+   @inbounds for ll in 1:Mbd
+      a_ll = Ni + (ll - 1) * N
+
+      k = d.kd[ll]
+
+      jnear = 0
+
+      rb = ((ll-1)*nr_bdy+1):(ll*nr_bdy)
+      rs = ((ll-1)*ns_near+1):(ll*ns_near)
+
+      @views gamkbdy = gamkbdy_all[:, rb]
+      @views gampkbdy = gampkbdy_all[:, rb]
+
+      @views gamkt1 = gamkt1_all[:, rs]
+      @views gamkt2 = gamkt2_all[:, rs]
+      @views gamperpkt1 = gamperpkt1_all[:, rs]
+      @views gamperpkt2 = gamperpkt2_all[:, rs]
+
+      #Contribution of all points for the kth patch
+      @inbounds for row in 1:Ni
+
+         x1 = dp.tgtpts[1, row]
+         x2 = dp.tgtpts[2, row]
+
+         if dp.bdmode[row] == BD_FAR
+            # Mode-0 point, far from all panels, direct computation
+            @inbounds for j in 1:nr_bdy
+               dx1 = gamkbdy[1, j] - x1
+               dx2 = gamkbdy[2, j] - x2
+
+               num = dx1 * gampkbdy[1, j] + dx2 * gampkbdy[2, j]
+               den = dx1 * dx1 + dx2 * dx2
+
+               kbd_bdy[j] = (num * fwr_bdy[j] * inv2π) / den
             end
-        end
 
-        # Undo the first-mode scaling for dim = 2
-        #UFV[:, 1] .*= 2
-        @inbounds for i in 1:nr
-            UFV[i, 1] *= 2
-        end
+            @views ζfv = ζ_bdy[(1+(ll-1)*nr_bdy):(ll*nr_bdy)]
 
-        # Invert along dim = 2
-        # UFV = 0.5 .* FFTW.r2r(UFV, FFTW.REDFT01, 2)
-        mul!(UFV, p_dct3_dim2, UFV)
+            v[row] += dot(ζfv, kbd_bdy)
 
-        UFV .*= 0.5
+         elseif dp.bdmode[row] == BD_NEAR
+            # Mode-1 point, near to some panels, but not close enough
+            jnear += 1
 
-        # Undo the first-mode scaling for dim = 1
-        # UFV[1, :] .*= 2
-        @inbounds for i in 1:nr
-            UFV[1, i] *= 2
-        end
+            q1 = dp.bdnearptr[jnear]
+            q2 = dp.bdnearptr[jnear+1] - 1
 
-        # Invert along dim = 1
-        # UFV = 0.5 .* FFTW.r2r(UFV, FFTW.REDFT01, 1)
-        mul!(UFV, p_dct3_dim1, UFV)
+            near_flag = false
+            @inbounds for q in q1:q2
+               if dp.bdneark[q] == k
+                  t₀ = dp.bdneart[q]
+                  near_flag = true
+                  if t₀ == 1.0
 
-        UFV .*= 0.5
+                     @inbounds for j in 1:ns_near
+                        dx1 = gamkt1[1, j] - x1
+                        dx2 = gamkt1[2, j] - x2
 
-        # store into chebcoef
-        @inbounds for i in 1:nrp
-            ufin[ak₂+i] = UFV[i]
-        end
+                        num = dx1 * gamperpkt1[1, j] + dx2 * gamperpkt1[2, j]
+                        den = dx1 * dx1 + dx2 * dx2
 
-    end
+                        kbd₁[j] = (num * fw_near[j] * dwz₁[j] * inv2π) / den
+                     end
 
-    # ----- Boundary ζ: coefficients + values on fixed boundary grids -----
-    # For k=1:Mbd boundary patches, u has ζ values on N Cheby nodes for each bd patch.
-    # We will also compute and store ζ_neart1 and ζ_neart2 once over all bd patches.
-    @inbounds for kb in 1:Mbd
-        ak = Ni + (kb - 1) * N
-        ibd = (kb - 1) * nr_bdy
-        inear = (kb - 1) * ns_near
+                     @views ζfv = ζ_neart1[(1+(ll-1)*ns_near):(ll*ns_near)]
 
-        # Load ζ values on N boundary Chebyshev nodes.
-        for i in 1:N
-            ζv[i] = u[ak+i]
-        end
+                     v[row] = v[row] + dot(ζfv, kbd₁)
 
-        # Convert to Chebyshev coefficients.
-        mul!(ζv, p_dct2_N, ζv)
+                  elseif t₀ == -1.0
+                     # So only the y₂-side contributes.
 
-        ζv .*= 1 / N
-        ζv[1] /= 2
+                     @inbounds for j in 1:ns_near
+                        dx1 = gamkt2[1, j] - x1
+                        dx2 = gamkt2[2, j] - x2
 
-        # Store coefficients in the global coefficient vector.
-        for i in 1:N
-            chebcoef[ak+i] = ζv[i]
-        end
+                        num = dx1 * gamperpkt2[1, j] + dx2 * gamperpkt2[2, j]
+                        den = dx1 * dx1 + dx2 * dx2
 
-        # Fixed endpoint-smoothed grids yt1/yt2:
-        # these are not Chebyshev grids, so use Chebyshev interpolation.
-        mul!(y₁, Tbdt1, ζv)
-        mul!(y₂, Tbdt2, ζv)
+                        kbd₂[j] = (num * fw_near[j] * dwz₂[j] * inv2π) / den
+                     end
 
-        for i in 1:ns_near
-            ζ_neart1[inear+i] = y₁[i]
-            ζ_neart2[inear+i] = y₂[i]
-        end
+                     @views ζfv = ζ_neart2[(1+(ll-1)*ns_near):(ll*ns_near)]
 
-        # Regular boundary quadrature grid zr_bdy:
-        # this is a Chebyshev grid of size nr_bdy, so use DCT-III.
-        ζv[1] *= 2
+                     v[row] = v[row] + dot(ζfv, kbd₂)
+                  else
+                     # Both sides contribute:
+                     @. y₁ = t₀ - (t₀ + 1.0) * wmz₁
+                     @. y₂ = t₀ + (1.0 - t₀) * wmz₂
 
-        fill!(ζfv_bdy, 0.0)
+                     # First side: y₁.
+                     gam!(gamks₁, d, y₁, k)
+                     gamp!(gamperpks₁, d, y₁, k)
 
-        for i in 1:N
-            ζfv_bdy[i] = ζv[i]
-        end
+                     ChebyTN!(Tbdt₀, N, y₁)
 
-        mul!(ζfv_bdy, p_dct3_bdy, ζfv_bdy)
+                     @views ζfv = chebcoef[a_ll+1:a_ll+N]
+                     #Re-using y₁ here, which is fine
+                     mul!(y₁, Tbdt₀, ζfv)
 
-        ζfv_bdy .*= 0.5
+                     @inbounds for j in 1:ns_near
+                        dx1 = gamks₁[1, j] - x1
+                        dx2 = gamks₁[2, j] - x2
 
-        for i in 1:nr_bdy
-            ζ_bdy[ibd+i] = ζfv_bdy[i]
-        end
-    end
+                        num = dx1 * gamperpks₁[1, j] + dx2 * gamperpks₁[2, j]
+                        den = dx1 * dx1 + dx2 * dx2
 
-    # ----- STEP 2: Singular Integrals over all rows and DLP contributions -----
-    @inbounds for row in 1:Ni
+                        kbd₁[j] = (num * fw_near[j] * dwz₁[j] * inv2π) / den
+                     end
 
-        ℓ = cld(row, Np)
-        j = row - (ℓ - 1) * Np
+                     # Second side: y₂.
+                     gam!(gamks₂, d, y₂, k)
+                     gamp!(gamperpks₂, d, y₂, k)
 
-        col = dp.pthgo[ℓ] + j - 1
+                     ChebyTN!(Tbdt₀, N, y₂)
+                     #Re-using y₂ here, which is fine
+                     mul!(y₂, Tbdt₀, ζfv)
 
-        @views cf = chebcoef[((ℓ-1)*Np+1):(ℓ*Np)]
+                     @inbounds for j in 1:ns_near
+                        dx1 = gamks₂[1, j] - x1
+                        dx2 = gamks₂[2, j] - x2
 
-        @views SI = IntS[:, col]
+                        num = dx1 * gamperpks₂[1, j] + dx2 * gamperpks₂[2, j]
+                        den = dx1 * dx1 + dx2 * dx2
 
-        v[row] = Cs * dot(SI, cf)
-    end
+                        kbd₂[j] = (num * fw_near[j] * dwz₂[j] * inv2π) / den
+                     end
 
-    if s < 0.5
+                     v[row] = v[row] + ((t₀ + 1.0) * dot(kbd₁, y₁)
+                                        +
+                                        (1.0 - t₀) * dot(kbd₂, y₂)) / 2.0
 
-        Lₚₘ = Ni + 1
-        Lₚₙ = Ni + Nb
+                  end
 
-        @inbounds for row in Lₚₘ:Lₚₙ
+                  break
+               end
+            end
 
-            k₀ = cld(row - Ni, N)
+            if !near_flag
+               @inbounds for j in 1:nr_bdy
+                  dx1 = gamkbdy[1, j] - x1
+                  dx2 = gamkbdy[2, j] - x2
 
-            ℓ = d.kd[k₀]
+                  num = dx1 * gampkbdy[1, j] + dx2 * gampkbdy[2, j]
+                  den = dx1 * dx1 + dx2 * dx2
 
-            j = row - M * Np - (k₀ - 1) * N
+                  kbd_bdy[j] = (num * fwr_bdy[j] * inv2π) / den
+               end
 
-            #---- Add singular contributions first ----
-            col = dp.pthgo[M+1] + j - 1 + N * (k₀ - 1)
+               @views ζfv = ζ_bdy[(1+(ll-1)*nr_bdy):(ll*nr_bdy)]
 
-            @views cf = chebcoef[((ℓ-1)*Np+1):(ℓ*Np)]
+               v[row] = v[row] + dot(ζfv, kbd_bdy)
+            end
 
-            @views SI = IntS[:, col]
+         end
 
-            v[row] = Cs * dot(SI, cf)
+      end
 
-        end
+   end
 
-    end
+   jintp = 0
 
-    #If s<0.5, all values of vector v are now initlized.
-    #If s>=0.5, all rows from 1:Ni of v are now initlized.
+   @inbounds for row in 1:Ni
+      dp.bdmode[row] != BD_INTP && continue
 
-    # ----- Contribution from DLP starts here -----
+      jintp += 1
 
-    @inbounds for ll in 1:Mbd
-        a_ll = Ni + (ll - 1) * N
+      l = dp.bdclosest[jintp]
+      tₛ = dp.bdt[jintp]
+      ϵ = dp.bddist[jintp]
 
-        k = d.kd[ll]
+      gam!(γxbd, d, tₛ, l)
 
-        jnear = 0
+      # Find boundary-local index of closest patch l.
+      ll_l = bdloc[l]
 
-        rb = ((ll-1)*nr_bdy+1):(ll*nr_bdy)
-        rs = ((ll-1)*ns_near+1):(ll*ns_near)
+      a_l = Ni + (ll_l - 1) * N
 
-        @views gamkbdy = gamkbdy_all[:, rb]
-        @views gampkbdy = gampkbdy_all[:, rb]
+      # ------------------------------------------------------------
+      # m = 1: boundary interpolation value.
+      # ------------------------------------------------------------
+      @views Cbd = chebcoef[(a_l+1):(a_l+N)]
 
-        @views gamkt1 = gamkt1_all[:, rs]
-        @views gamkt2 = gamkt2_all[:, rs]
-        @views gamperpkt1 = gamperpkt1_all[:, rs]
-        @views gamperpkt2 = gamperpkt2_all[:, rs]
+      ChebyTN!(Tbd, N, tₛ)
 
-        #Contribution of all points for the kth patch
-        @inbounds for row in 1:Ni
+      ζₛ = dot(Tbd, Cbd)
+
+      fvals[1] = 0.5 * ζₛ
+
+      a = (jintp - 1) * dp.Lᵢₙ + 1
+
+      q1 = dp.bdintpptr[a]
+      q2 = dp.bdintpptr[a+1] - 1
+
+      @inbounds for ll in 1:Mbd
+         k = d.kd[ll]
+
+         @views ζb = ζ_bdy[(1+(ll-1)*nr_bdy):(ll*nr_bdy)]
+
+         if k == l
+            DLP!(kbd_bdy, d, tₛ, zr_bdy, k, μ₀, γt1, γt2)
+
+            @. kbd_bdy = kbd_bdy * fwr_bdy * inv2π
+
+            fvals[1] += dot(ζb, kbd_bdy)
+
+         else
+            near_flag = false
+            s_inv = 0.0
+
+            for q in q1:q2
+               if dp.bdintpk[q] == k
+                  near_flag = true
+                  s_inv = dp.bdintpt[q]
+                  break
+               end
+            end
+
+            if near_flag
+               # Near off-diagonal boundary panel.
+               # bdintpt stores extended inverse s on source patch k.
+               DLP!(kbd_bdy, d, s_inv, zr_bdy, k, μ₀, γt1, γt2)
+
+               @. kbd_bdy = kbd_bdy * fwr_bdy * inv2π
+
+               fvals[1] += dot(ζb, kbd_bdy)
+
+            else
+               r = (ll-1)*nr_bdy+1:ll*nr_bdy
+               @views gamkbdy = gamkbdy_all[:, r]
+               @views gampkbdy = gampkbdy_all[:, r]
+
+               for j in 1:nr_bdy
+                  dx1 = gamkbdy[1, j] - γxbd[1]
+                  dx2 = gamkbdy[2, j] - γxbd[2]
+
+                  num = dx1 * gampkbdy[1, j] + dx2 * gampkbdy[2, j]
+                  den = dx1 * dx1 + dx2 * dx2
+
+                  kbd_bdy[j] = (num * fwr_bdy[j] * inv2π) / den
+               end
+
+               fvals[1] += dot(ζb, kbd_bdy)
+            end
+         end
+      end
+
+      # ------------------------------------------------------------
+      # m = 2:Lᵢₙ: auxiliary interior interpolation nodes.
+      # ------------------------------------------------------------
+      nu!(γt1, d, tₛ, l)
+
+      @inbounds for m in 2:dp.Lᵢₙ
+
+         δ = dp.bdxvals[m]
+
+         μ₀[1] = γxbd[1] - δ * γt1[1]
+         μ₀[2] = γxbd[2] - δ * γt1[2]
+
+         fvals[m] = 0.0
+
+         a = (jintp - 1) * dp.Lᵢₙ + m
+
+         q1 = dp.bdintpptr[a]
+         q2 = dp.bdintpptr[a+1] - 1
+
+         for ll in 1:Mbd
+            k = d.kd[ll]
+
+            near_flag = false
+            tnear = 0.0
+
+            for q in q1:q2
+               if dp.bdintpk[q] == k
+                  near_flag = true
+                  tnear = dp.bdintpt[q]
+                  break
+               end
+            end
+
+            if near_flag
+
+               t₀ = tnear
+
+               if t₀ == 1.0
+
+                  rs = ((ll-1)*ns_near+1):(ll*ns_near)
+
+                  @views gamkt1 = gamkt1_all[:, rs]
+                  @views gamperpkt1 = gamperpkt1_all[:, rs]
+
+                  for j in 1:ns_near
+                     dx1 = gamkt1[1, j] - μ₀[1]
+                     dx2 = gamkt1[2, j] - μ₀[2]
+
+                     num = dx1 * gamperpkt1[1, j] + dx2 * gamperpkt1[2, j]
+                     den = dx1 * dx1 + dx2 * dx2
+
+                     kbd₁[j] = (num * fw_near[j] * dwz₁[j] * inv2π) / den
+                  end
+
+                  @views ζn = ζ_neart1[(1+(ll-1)*ns_near):(ll*ns_near)]
+
+                  fvals[m] += dot(ζn, kbd₁)
+
+               elseif t₀ == -1.0
+
+                  rs = ((ll-1)*ns_near+1):(ll*ns_near)
+
+                  @views gamkt2 = gamkt2_all[:, rs]
+                  @views gamperpkt2 = gamperpkt2_all[:, rs]
+
+                  for j in 1:ns_near
+                     dx1 = gamkt2[1, j] - μ₀[1]
+                     dx2 = gamkt2[2, j] - μ₀[2]
+
+                     num = dx1 * gamperpkt2[1, j] + dx2 * gamperpkt2[2, j]
+                     den = dx1 * dx1 + dx2 * dx2
+
+                     kbd₂[j] = (num * fw_near[j] * dwz₂[j] * inv2π) / den
+                  end
+
+                  @views ζn = ζ_neart2[(1+(ll-1)*ns_near):(ll*ns_near)]
+
+                  fvals[m] += dot(ζn, kbd₂)
+
+               else
+                  # Both sides contribute.
+                  @. y₁ = t₀ - (t₀ + 1.0) * wmz₁
+                  @. y₂ = t₀ + (1.0 - t₀) * wmz₂
+
+                  # Source-panel boundary coefficients.
+                  a_k = Ni + (ll - 1) * N
+                  @views ζcoefk = chebcoef[(a_k+1):(a_k+N)]
+
+                  # First side.
+                  gam!(gamks₁, d, y₁, k)
+                  gamp!(gamperpks₁, d, y₁, k)
+
+                  ChebyTN!(Tbdt₀, N, y₁)
+                  mul!(y₁, Tbdt₀, ζcoefk)
+
+                  for j in 1:ns_near
+                     dx1 = gamks₁[1, j] - μ₀[1]
+                     dx2 = gamks₁[2, j] - μ₀[2]
+
+                     num = dx1 * gamperpks₁[1, j] + dx2 * gamperpks₁[2, j]
+                     den = dx1 * dx1 + dx2 * dx2
+
+                     kbd₁[j] = (num * fw_near[j] * dwz₁[j] * inv2π) / den
+                  end
+
+                  # Second side.
+                  gam!(gamks₂, d, y₂, k)
+                  gamp!(gamperpks₂, d, y₂, k)
+
+                  ChebyTN!(Tbdt₀, N, y₂)
+                  mul!(y₂, Tbdt₀, ζcoefk)
+
+                  for j in 1:ns_near
+                     dx1 = gamks₂[1, j] - μ₀[1]
+                     dx2 = gamks₂[2, j] - μ₀[2]
+
+                     num = dx1 * gamperpks₂[1, j] + dx2 * gamperpks₂[2, j]
+                     den = dx1 * dx1 + dx2 * dx2
+
+                     kbd₂[j] = (num * fw_near[j] * dwz₂[j] * inv2π) / den
+                  end
+
+                  fvals[m] += ((t₀ + 1.0) * dot(kbd₁, y₁) +
+                               (1.0 - t₀) * dot(kbd₂, y₂)) / 2.0
+               end
+
+            else
+               r = (ll-1)*nr_bdy+1:ll*nr_bdy
+               @views gamkbdy = gamkbdy_all[:, r]
+               @views gampkbdy = gampkbdy_all[:, r]
+
+               for j in 1:nr_bdy
+                  dx1 = gamkbdy[1, j] - μ₀[1]
+                  dx2 = gamkbdy[2, j] - μ₀[2]
+
+                  num = dx1 * gampkbdy[1, j] + dx2 * gampkbdy[2, j]
+                  den = dx1 * dx1 + dx2 * dx2
+
+                  kbd_bdy[j] = (num * fwr_bdy[j] * inv2π) / den
+               end
+
+               @views ζb = ζ_bdy[(1+(ll-1)*nr_bdy):(ll*nr_bdy)]
+
+               fvals[m] += dot(ζb, kbd_bdy)
+            end
+         end
+      end
+
+      v[row] += nevill!(dp.bdxvals, fvals, ϵ)
+   end
+
+   # ----- STEP 3: Volumetric Integrals over all rows -----
+   VOL_FAR = UInt8(0)
+
+   @inbounds for k in 1:M
+
+      kb = get(bdloc, k, 0)
+      isbdflag = kb != 0
+
+      if isbdflag
+         # Cached boundary-patch quadrature geometry.
+         @views begin
+            Zx2v = Zx2_all[:, kb]
+            Zy2v = Zy2_all[:, kb]
+            DJ2v = DJ2_all[:, kb]
+         end
+
+         Dhc = Dhc_bd[kb]
+
+         ak = (k - 1) * Np
+
+         @inbounds for i in 1:Np
+            CN[i] = chebcoef[ak+i]
+         end
+
+         mul!(CNnr, CN, TzT)   # N × nr
+         mul!(Ubd, Tz1, CNnr)  # nbd × nr
+
+         @inbounds for i in 1:Nbdr
+            Ubd[i] *= DJ2v[i]
+         end
+
+      else
+         # Cached regular volume-patch geometry.
+         @views begin
+            Zxv = Zx_all[:, k]
+            Zyv = Zy_all[:, k]
+            DJv = DJ_all[:, k]
+            Dfv = Df_all[:, k]
+         end
+
+         ak = (k - 1) * nrp
+
+         @inbounds for i in 1:nrp
+            Ur[i] = ufin[ak+i] * DJv[i] * Dfv[i]
+         end
+      end
+
+      # ------------------------------------------------------------
+      # Interior target rows
+      # ------------------------------------------------------------
+      colns = dp.pthgo[k] + Np
+
+      @inbounds for row in 1:Ni
+
+         ℓ = cld(row, Np)
+
+         # Self/singular contribution was already initialized in STEP 2.
+         k == ℓ && continue
+
+         if dp.volmode[row, k] != VOL_FAR
+
+            @views ck = chebcoef[(k-1)*Np+1:k*Np]
+            @views NSI = IntS[:, colns]
+
+            v[row] += Cs * dot(ck, NSI)
+
+            colns += 1
+
+         else
 
             x1 = dp.tgtpts[1, row]
             x2 = dp.tgtpts[2, row]
 
-            if dp.bdmode[row] == BD_FAR
-                # Mode-0 point, far from all panels, direct computation
-                @inbounds for j in 1:nr_bdy
-                    dx1 = gamkbdy[1, j] - x1
-                    dx2 = gamkbdy[2, j] - x2
+            if isbdflag
+               @inbounds for i in 1:Nbdr
+                  KIbd[i] = Ubd[i] * ((x1 - Zx2v[i])^2 + (x2 - Zy2v[i])^2)^(-s)
+               end
 
-                    num = dx1 * gampkbdy[1, j] + dx2 * gampkbdy[2, j]
-                    den = dx1 * dx1 + dx2 * dx2
-
-                    kbd_bdy[j] = (num * fwr_bdy[j] * inv2π) / den
-                end
-
-                @views ζfv = ζ_bdy[(1+(ll-1)*nr_bdy):(ll*nr_bdy)]
-
-                v[row] += dot(ζfv, kbd_bdy)
-
-            elseif dp.bdmode[row] == BD_NEAR
-                # Mode-1 point, near to some panels, but not close enough
-                jnear += 1
-
-                q1 = dp.bdnearptr[jnear]
-                q2 = dp.bdnearptr[jnear+1] - 1
-
-                near_flag = false
-                @inbounds for q in q1:q2
-                    if dp.bdneark[q] == k
-                        t₀ = dp.bdneart[q]
-                        near_flag = true
-                        if t₀ == 1.0
-
-                            @inbounds for j in 1:ns_near
-                                dx1 = gamkt1[1, j] - x1
-                                dx2 = gamkt1[2, j] - x2
-
-                                num = dx1 * gamperpkt1[1, j] + dx2 * gamperpkt1[2, j]
-                                den = dx1 * dx1 + dx2 * dx2
-
-                                kbd₁[j] = (num * fw_near[j] * dwz₁[j] * inv2π) / den
-                            end
-
-                            @views ζfv = ζ_neart1[(1+(ll-1)*ns_near):(ll*ns_near)]
-
-                            v[row] = v[row] + dot(ζfv, kbd₁)
-
-                        elseif t₀ == -1.0
-                            # So only the y₂-side contributes.
-
-                            @inbounds for j in 1:ns_near
-                                dx1 = gamkt2[1, j] - x1
-                                dx2 = gamkt2[2, j] - x2
-
-                                num = dx1 * gamperpkt2[1, j] + dx2 * gamperpkt2[2, j]
-                                den = dx1 * dx1 + dx2 * dx2
-
-                                kbd₂[j] = (num * fw_near[j] * dwz₂[j] * inv2π) / den
-                            end
-
-                            @views ζfv = ζ_neart2[(1+(ll-1)*ns_near):(ll*ns_near)]
-
-                            v[row] = v[row] + dot(ζfv, kbd₂)
-                        else
-                            # Both sides contribute:
-                            @. y₁ = t₀ - (t₀ + 1.0) * wmz₁
-                            @. y₂ = t₀ + (1.0 - t₀) * wmz₂
-
-                            # First side: y₁.
-                            gam!(gamks₁, d, y₁, k)
-                            gamp!(gamperpks₁, d, y₁, k)
-
-                            ChebyTN!(Tbdt₀, N, y₁)
-
-                            @views ζfv = chebcoef[a_ll+1:a_ll+N]
-                            #Re-using y₁ here, which is fine
-                            mul!(y₁, Tbdt₀, ζfv)
-
-                            @inbounds for j in 1:ns_near
-                                dx1 = gamks₁[1, j] - x1
-                                dx2 = gamks₁[2, j] - x2
-
-                                num = dx1 * gamperpks₁[1, j] + dx2 * gamperpks₁[2, j]
-                                den = dx1 * dx1 + dx2 * dx2
-
-                                kbd₁[j] = (num * fw_near[j] * dwz₁[j] * inv2π) / den
-                            end
-
-                            # Second side: y₂.
-                            gam!(gamks₂, d, y₂, k)
-                            gamp!(gamperpks₂, d, y₂, k)
-
-                            ChebyTN!(Tbdt₀, N, y₂)
-                            #Re-using y₂ here, which is fine
-                            mul!(y₂, Tbdt₀, ζfv)
-
-                            @inbounds for j in 1:ns_near
-                                dx1 = gamks₂[1, j] - x1
-                                dx2 = gamks₂[2, j] - x2
-
-                                num = dx1 * gamperpks₂[1, j] + dx2 * gamperpks₂[2, j]
-                                den = dx1 * dx1 + dx2 * dx2
-
-                                kbd₂[j] = (num * fw_near[j] * dwz₂[j] * inv2π) / den
-                            end
-
-                            v[row] = v[row] + ((t₀ + 1.0) * dot(kbd₁, y₁)
-                                               +
-                                               (1.0 - t₀) * dot(kbd₂, y₂)) / 2.0
-
-                        end
-
-                        break
-                    end
-                end
-
-                if !near_flag
-                    @inbounds for j in 1:nr_bdy
-                        dx1 = gamkbdy[1, j] - x1
-                        dx2 = gamkbdy[2, j] - x2
-
-                        num = dx1 * gampkbdy[1, j] + dx2 * gampkbdy[2, j]
-                        den = dx1 * dx1 + dx2 * dx2
-
-                        kbd_bdy[j] = (num * fwr_bdy[j] * inv2π) / den
-                    end
-
-                    @views ζfv = ζ_bdy[(1+(ll-1)*nr_bdy):(ll*nr_bdy)]
-
-                    v[row] = v[row] + dot(ζfv, kbd_bdy)
-                end
-
-            end
-
-        end
-
-    end
-
-    jintp = 0
-
-    @inbounds for row in 1:Ni
-        dp.bdmode[row] != BD_INTP && continue
-
-        jintp += 1
-
-        l = dp.bdclosest[jintp]
-        tₛ = dp.bdt[jintp]
-        ϵ = dp.bddist[jintp]
-
-        gam!(γxbd, d, tₛ, l)
-
-        # Find boundary-local index of closest patch l.
-        ll_l = bdloc[l]
-
-        a_l = Ni + (ll_l - 1) * N
-
-        # ------------------------------------------------------------
-        # m = 1: boundary interpolation value.
-        # ------------------------------------------------------------
-        @views Cbd = chebcoef[(a_l+1):(a_l+N)]
-
-        ChebyTN!(Tbd, N, tₛ)
-
-        ζₛ = dot(Tbd, Cbd)
-
-        fvals[1] = 0.5 * ζₛ
-
-        a = (jintp - 1) * dp.Lᵢₙ + 1
-
-        q1 = dp.bdintpptr[a]
-        q2 = dp.bdintpptr[a+1] - 1
-
-        @inbounds for ll in 1:Mbd
-            k = d.kd[ll]
-
-            @views ζb = ζ_bdy[(1+(ll-1)*nr_bdy):(ll*nr_bdy)]
-
-            if k == l
-                DLP!(kbd_bdy, d, tₛ, zr_bdy, k, μ₀, γt1, γt2)
-
-                @. kbd_bdy = kbd_bdy * fwr_bdy * inv2π
-
-                fvals[1] += dot(ζb, kbd_bdy)
+               v[row] += Cs * Dhc * dot(mfw, KIbd, fwr)
 
             else
-                near_flag = false
-                s_inv = 0.0
+               @inbounds for i in 1:nrp
+                  KIr[i] = Ur[i] * ((x1 - Zxv[i])^2 + (x2 - Zyv[i])^2)^(-s)
+               end
 
-                for q in q1:q2
-                    if dp.bdintpk[q] == k
-                        near_flag = true
-                        s_inv = dp.bdintpt[q]
-                        break
-                    end
-                end
-
-                if near_flag
-                    # Near off-diagonal boundary panel.
-                    # bdintpt stores extended inverse s on source patch k.
-                    DLP!(kbd_bdy, d, s_inv, zr_bdy, k, μ₀, γt1, γt2)
-
-                    @. kbd_bdy = kbd_bdy * fwr_bdy * inv2π
-
-                    fvals[1] += dot(ζb, kbd_bdy)
-
-                else
-                    r = (ll-1)*nr_bdy+1:ll*nr_bdy
-                    @views gamkbdy = gamkbdy_all[:, r]
-                    @views gampkbdy = gampkbdy_all[:, r]
-
-                    for j in 1:nr_bdy
-                        dx1 = gamkbdy[1, j] - γxbd[1]
-                        dx2 = gamkbdy[2, j] - γxbd[2]
-
-                        num = dx1 * gampkbdy[1, j] + dx2 * gampkbdy[2, j]
-                        den = dx1 * dx1 + dx2 * dx2
-
-                        kbd_bdy[j] = (num * fwr_bdy[j] * inv2π) / den
-                    end
-
-                    fvals[1] += dot(ζb, kbd_bdy)
-                end
+               v[row] += Cs * dot(fwr, KIr, fwr)
             end
-        end
+         end
+      end
 
-        # ------------------------------------------------------------
-        # m = 2:Lᵢₙ: auxiliary interior interpolation nodes.
-        # ------------------------------------------------------------
-        nu!(γt1, d, tₛ, l)
+      # ------------------------------------------------------------
+      # Boundary target rows, only for s < 0.5
+      # ------------------------------------------------------------
+      if s < 0.5
 
-        @inbounds for m in 2:dp.Lᵢₙ
+         Lₚₘ = Ni + 1
+         Lₚₙ = Ni + Nb
 
-            δ = dp.bdxvals[m]
+         bcol = dp.pthgo[M+1] + Nb + (dp.invgo[M+k] - dp.invgo[M+1])
 
-            μ₀[1] = γxbd[1] - δ * γt1[1]
-            μ₀[2] = γxbd[2] - δ * γt1[2]
-
-            fvals[m] = 0.0
-
-            a = (jintp - 1) * dp.Lᵢₙ + m
-
-            q1 = dp.bdintpptr[a]
-            q2 = dp.bdintpptr[a+1] - 1
-
-            for ll in 1:Mbd
-                k = d.kd[ll]
-
-                near_flag = false
-                tnear = 0.0
-
-                for q in q1:q2
-                    if dp.bdintpk[q] == k
-                        near_flag = true
-                        tnear = dp.bdintpt[q]
-                        break
-                    end
-                end
-
-                if near_flag
-
-                    t₀ = tnear
-
-                    if t₀ == 1.0
-
-                        rs = ((ll-1)*ns_near+1):(ll*ns_near)
-
-                        @views gamkt1 = gamkt1_all[:, rs]
-                        @views gamperpkt1 = gamperpkt1_all[:, rs]
-
-                        for j in 1:ns_near
-                            dx1 = gamkt1[1, j] - μ₀[1]
-                            dx2 = gamkt1[2, j] - μ₀[2]
-
-                            num = dx1 * gamperpkt1[1, j] + dx2 * gamperpkt1[2, j]
-                            den = dx1 * dx1 + dx2 * dx2
-
-                            kbd₁[j] = (num * fw_near[j] * dwz₁[j] * inv2π) / den
-                        end
-
-                        @views ζn = ζ_neart1[(1+(ll-1)*ns_near):(ll*ns_near)]
-
-                        fvals[m] += dot(ζn, kbd₁)
-
-                    elseif t₀ == -1.0
-
-                        rs = ((ll-1)*ns_near+1):(ll*ns_near)
-
-                        @views gamkt2 = gamkt2_all[:, rs]
-                        @views gamperpkt2 = gamperpkt2_all[:, rs]
-
-                        for j in 1:ns_near
-                            dx1 = gamkt2[1, j] - μ₀[1]
-                            dx2 = gamkt2[2, j] - μ₀[2]
-
-                            num = dx1 * gamperpkt2[1, j] + dx2 * gamperpkt2[2, j]
-                            den = dx1 * dx1 + dx2 * dx2
-
-                            kbd₂[j] = (num * fw_near[j] * dwz₂[j] * inv2π) / den
-                        end
-
-                        @views ζn = ζ_neart2[(1+(ll-1)*ns_near):(ll*ns_near)]
-
-                        fvals[m] += dot(ζn, kbd₂)
-
-                    else
-                        # Both sides contribute.
-                        @. y₁ = t₀ - (t₀ + 1.0) * wmz₁
-                        @. y₂ = t₀ + (1.0 - t₀) * wmz₂
-
-                        # Source-panel boundary coefficients.
-                        a_k = Ni + (ll - 1) * N
-                        @views ζcoefk = chebcoef[(a_k+1):(a_k+N)]
-
-                        # First side.
-                        gam!(gamks₁, d, y₁, k)
-                        gamp!(gamperpks₁, d, y₁, k)
-
-                        ChebyTN!(Tbdt₀, N, y₁)
-                        mul!(y₁, Tbdt₀, ζcoefk)
-
-                        for j in 1:ns_near
-                            dx1 = gamks₁[1, j] - μ₀[1]
-                            dx2 = gamks₁[2, j] - μ₀[2]
-
-                            num = dx1 * gamperpks₁[1, j] + dx2 * gamperpks₁[2, j]
-                            den = dx1 * dx1 + dx2 * dx2
-
-                            kbd₁[j] = (num * fw_near[j] * dwz₁[j] * inv2π) / den
-                        end
-
-                        # Second side.
-                        gam!(gamks₂, d, y₂, k)
-                        gamp!(gamperpks₂, d, y₂, k)
-
-                        ChebyTN!(Tbdt₀, N, y₂)
-                        mul!(y₂, Tbdt₀, ζcoefk)
-
-                        for j in 1:ns_near
-                            dx1 = gamks₂[1, j] - μ₀[1]
-                            dx2 = gamks₂[2, j] - μ₀[2]
-
-                            num = dx1 * gamperpks₂[1, j] + dx2 * gamperpks₂[2, j]
-                            den = dx1 * dx1 + dx2 * dx2
-
-                            kbd₂[j] = (num * fw_near[j] * dwz₂[j] * inv2π) / den
-                        end
-
-                        fvals[m] += ((t₀ + 1.0) * dot(kbd₁, y₁) +
-                                     (1.0 - t₀) * dot(kbd₂, y₂)) / 2.0
-                    end
-
-                else
-                    r = (ll-1)*nr_bdy+1:ll*nr_bdy
-                    @views gamkbdy = gamkbdy_all[:, r]
-                    @views gampkbdy = gampkbdy_all[:, r]
-
-                    for j in 1:nr_bdy
-                        dx1 = gamkbdy[1, j] - μ₀[1]
-                        dx2 = gamkbdy[2, j] - μ₀[2]
-
-                        num = dx1 * gampkbdy[1, j] + dx2 * gampkbdy[2, j]
-                        den = dx1 * dx1 + dx2 * dx2
-
-                        kbd_bdy[j] = (num * fwr_bdy[j] * inv2π) / den
-                    end
-
-                    @views ζb = ζ_bdy[(1+(ll-1)*nr_bdy):(ll*nr_bdy)]
-
-                    fvals[m] += dot(ζb, kbd_bdy)
-                end
-            end
-        end
-
-        v[row] += nevill!(dp.bdxvals, fvals, ϵ)
-    end
-
-    # ----- STEP 3: Volumetric Integrals over all rows -----
-    @inbounds for k in 1:M
-
-        kb = get(bdloc, k, 0)
-        isbdflag = kb != 0
-
-        if isbdflag
-            # Cached boundary-patch quadrature geometry.
-            @views begin
-                Zx2v = Zx2_all[:, kb]
-                Zy2v = Zy2_all[:, kb]
-                DJ2v = DJ2_all[:, kb]
-            end
-
-            Dhc = Dhc_bd[kb]
-
-            ak = (k - 1) * Np
-
-            @inbounds for i in 1:Np
-                CN[i] = chebcoef[ak+i]
-            end
-
-            mul!(CNnr, CN, TzT)   # N × nr
-            mul!(Ubd, Tz1, CNnr)  # nbd × nr
-
-            @inbounds for i in 1:Nbdr
-                Ubd[i] *= DJ2v[i]
-            end
-
-        else
-            # Cached regular volume-patch geometry.
-            @views begin
-                Zxv = Zx_all[:, k]
-                Zyv = Zy_all[:, k]
-                DJv = DJ_all[:, k]
-                Dfv = Df_all[:, k]
-            end
-
-            ak = (k - 1) * nrp
-
-            @inbounds for i in 1:nrp
-                Ur[i] = ufin[ak+i] * DJv[i] * Dfv[i]
-            end
-        end
-
-        for row in 1:Ni
-            ℓ = cld(row, Np)
-            k == ℓ && continue
-
-            Ikey = packkey(row, k)
-            col = get(dp.hmap, Ikey, 0)
-
-            if col != 0
-                @views ck = chebcoef[(k-1)*Np+1:k*Np]
-                @views NSI = IntS[:, col]
-
-                v[row] += Cs * dot(ck, NSI)
-
-            else
-                x1 = dp.tgtpts[1, row]
-                x2 = dp.tgtpts[2, row]
-
-                if isbdflag
-                    @inbounds for i in 1:Nbdr
-                        KIbd[i] = Ubd[i] * ((x1 - Zx2v[i])^2 + (x2 - Zy2v[i])^2)^(-s)
-                    end
-
-                    v[row] += Cs * Dhc * dot(mfw, KIbd, fwr)
-
-                else
-                    @inbounds for i in 1:nrp
-                        KIr[i] = Ur[i] * ((x1 - Zxv[i])^2 + (x2 - Zyv[i])^2)^(-s)
-                    end
-
-                    v[row] += Cs * dot(fwr, KIr, fwr)
-                end
-            end
-        end
-
-        if s < 0.5
-            Lₚₘ = Ni + 1
-            Lₚₙ = Ni + Nb
-
-            for row in Lₚₘ:Lₚₙ
-                k₀ = cld(row - Ni, N)
-                ℓ = d.kd[k₀]
-
-                k == ℓ && continue
-
-                Ikey = packkey(row, k)
-                col = get(dp.hmap, Ikey, 0)
-
-                if col != 0
-                    @views ck = chebcoef[(k-1)*Np+1:k*Np]
-                    @views NSI = IntS[:, col]
-
-                    v[row] += Cs * dot(ck, NSI)
-
-                else
-                    x1 = dp.tgtpts[1, row]
-                    x2 = dp.tgtpts[2, row]
-
-                    if isbdflag
-                        @inbounds for i in 1:Nbdr
-                            KIbd[i] = Ubd[i] * ((x1 - Zx2v[i])^2 + (x2 - Zy2v[i])^2)^(-s)
-                        end
-
-                        v[row] += Cs * Dhc * dot(mfw, KIbd, fwr)
-
-                    else
-                        @inbounds for i in 1:nrp
-                            KIr[i] = Ur[i] * ((x1 - Zxv[i])^2 + (x2 - Zyv[i])^2)^(-s)
-                        end
-
-                        v[row] += Cs * dot(fwr, KIr, fwr)
-                    end
-                end
-            end
-        end
-    end
-
-    # ----- STEP 4: Remaining boundary rows -----
-    if s >= 0.5
-
-        @inbounds for j in 1:N
-            @views Ct = CT[:, j]
-            @inbounds for k in 1:Mbd
-                row = Ni + (k - 1) * N + j
-                ℓ = d.kd[k]
-                #CN .= reshape(chebcoef[(ℓ - 1) * Np + 1 : ℓ * Np], N, N)
-                aℓ = (ℓ - 1) * Np
-                @inbounds for i in 1:Np
-                    CN[i] = chebcoef[aℓ+i]
-                end
-                #ζv is a vector if size N, temporarily being used!
-                mul!(ζv, CN, Ct)
-                v[row] = sum(ζv)
-            end
-        end
-
-    else #s<0.5 case
-
-        Lₚₘ = Ni + 1
-        Lₚₙ = Ni + Nb
-
-        for row in Lₚₘ:Lₚₙ
+         @inbounds for row in Lₚₘ:Lₚₙ
 
             k₀ = cld(row - Ni, N)
+            ℓ = d.kd[k₀]
 
-            #Boundary patch number
-            ptl = d.kd[k₀]
+            # Boundary self/singular contribution was initialized in STEP 2.
+            k == ℓ && continue
 
-            #Linear index of point on the boundary patch
-            ptj = row - Ni - (k₀ - 1) * N
+            if dp.volmode[row, k] != VOL_FAR
 
-            gam!(γxbd, d, CT[2, ptj], ptl)
+               @views ck = chebcoef[(k-1)*Np+1:k*Np]
+               @views NSI = IntS[:, bcol]
 
-            # ---- boundary base term ----
-            v[row] += u[row] / 2
+               v[row] += Cs * dot(ck, NSI)
 
-            for ll in 1:Mbd
-                k = d.kd[ll]
-                @views ζfv = ζ_bdy[(1+(ll-1)*nr_bdy):(ll*nr_bdy)]
+               bcol += 1
 
-                if k == ptl
-                    # Self-panel boundary principal value.
-                    DLP!(kbd_bdy, d, CT[2, ptj], zr_bdy, k, μ₀, γt1, γt2)
+            else
 
-                    @. kbd_bdy = kbd_bdy * fwr_bdy * inv2π
+               x1 = dp.tgtpts[1, row]
+               x2 = dp.tgtpts[2, row]
 
-                    v[row] += dot(ζfv, kbd_bdy)
+               if isbdflag
+                  @inbounds for i in 1:Nbdr
+                     KIbd[i] = Ubd[i] * ((x1 - Zx2v[i])^2 + (x2 - Zy2v[i])^2)^(-s)
+                  end
 
-                else
-                    near_flag = false
-                    s_inv = 0.0
+                  v[row] += Cs * Dhc * dot(mfw, KIbd, fwr)
 
-                    gam!(γt1, d, 1.0, k)
-                    gam!(γt2, d, -1.0, k)
+               else
+                  @inbounds for i in 1:nrp
+                     KIr[i] = Ur[i] * ((x1 - Zxv[i])^2 + (x2 - Zyv[i])^2)^(-s)
+                  end
 
-                    if (hypot(γt1[1] - γxbd[1], γt1[2] - γxbd[2]) < dp.del_intp ||
-                        hypot(γt2[1] - γxbd[1], γt2[2] - γxbd[2]) < dp.del_intp)
-                        #This should rarely occur 
-                        near_flag = true
-                        s_inv = bdinv(d, CT[2, ptj], ptl, k)
-                    end
-
-                    if near_flag
-                        # Near off-diagonal boundary panel.
-                        # Use the extended inverse parameter on patch k.
-                        DLP!(kbd_bdy, d, s_inv, zr_bdy, k, μ₀, γt1, γt2)
-
-                        @. kbd_bdy = kbd_bdy * fwr_bdy * inv2π
-
-                        v[row] += dot(ζfv, kbd_bdy)
-
-                    else
-                        # Far off-diagonal panel: ordinary direct quadrature.
-                        rb = ((ll-1)*nr_bdy+1):(ll*nr_bdy)
-
-                        @views gamkbdy = gamkbdy_all[:, rb]
-                        @views gampkbdy = gampkbdy_all[:, rb]
-
-                        @inbounds for j in 1:nr_bdy
-                            dx1 = gamkbdy[1, j] - γxbd[1]
-                            dx2 = gamkbdy[2, j] - γxbd[2]
-
-                            num = dx1 * gampkbdy[1, j] + dx2 * gampkbdy[2, j]
-                            den = dx1 * dx1 + dx2 * dx2
-
-                            kbd_bdy[j] = (num * fwr_bdy[j] * inv2π) / den
-                        end
-
-                        v[row] += dot(ζfv, kbd_bdy)
-                    end
-                end
+                  v[row] += Cs * dot(fwr, KIr, fwr)
+               end
             end
+         end
+      end
+   end
 
-        end
+   # ----- STEP 4: Remaining boundary rows -----
+   if s >= 0.5
 
-    end
+      @inbounds for j in 1:N
+         @views Ct = CT[:, j]
+         @inbounds for k in 1:Mbd
+            row = Ni + (k - 1) * N + j
+            ℓ = d.kd[k]
+            #CN .= reshape(chebcoef[(ℓ - 1) * Np + 1 : ℓ * Np], N, N)
+            aℓ = (ℓ - 1) * Np
+            @inbounds for i in 1:Np
+               CN[i] = chebcoef[aℓ+i]
+            end
+            #ζv is a vector if size N, temporarily being used!
+            mul!(ζv, CN, Ct)
+            v[row] = sum(ζv)
+         end
+      end
 
-    return nothing
+   else #s<0.5 case
+
+      Lₚₘ = Ni + 1
+      Lₚₙ = Ni + Nb
+
+      for row in Lₚₘ:Lₚₙ
+
+         k₀ = cld(row - Ni, N)
+
+         #Boundary patch number
+         ptl = d.kd[k₀]
+
+         #Linear index of point on the boundary patch
+         ptj = row - Ni - (k₀ - 1) * N
+
+         gam!(γxbd, d, CT[2, ptj], ptl)
+
+         # ---- boundary base term ----
+         v[row] += u[row] / 2
+
+         for ll in 1:Mbd
+            k = d.kd[ll]
+            @views ζfv = ζ_bdy[(1+(ll-1)*nr_bdy):(ll*nr_bdy)]
+
+            if k == ptl
+               # Self-panel boundary principal value.
+               DLP!(kbd_bdy, d, CT[2, ptj], zr_bdy, k, μ₀, γt1, γt2)
+
+               @. kbd_bdy = kbd_bdy * fwr_bdy * inv2π
+
+               v[row] += dot(ζfv, kbd_bdy)
+
+            else
+               near_flag = false
+               s_inv = 0.0
+
+               gam!(γt1, d, 1.0, k)
+               gam!(γt2, d, -1.0, k)
+
+               if (hypot(γt1[1] - γxbd[1], γt1[2] - γxbd[2]) < dp.del_intp ||
+                   hypot(γt2[1] - γxbd[1], γt2[2] - γxbd[2]) < dp.del_intp)
+                  #This should rarely occur 
+                  near_flag = true
+                  s_inv = bdinv(d, CT[2, ptj], ptl, k)
+               end
+
+               if near_flag
+                  # Near off-diagonal boundary panel.
+                  # Use the extended inverse parameter on patch k.
+                  DLP!(kbd_bdy, d, s_inv, zr_bdy, k, μ₀, γt1, γt2)
+
+                  @. kbd_bdy = kbd_bdy * fwr_bdy * inv2π
+
+                  v[row] += dot(ζfv, kbd_bdy)
+
+               else
+                  # Far off-diagonal panel: ordinary direct quadrature.
+                  rb = ((ll-1)*nr_bdy+1):(ll*nr_bdy)
+
+                  @views gamkbdy = gamkbdy_all[:, rb]
+                  @views gampkbdy = gampkbdy_all[:, rb]
+
+                  @inbounds for j in 1:nr_bdy
+                     dx1 = gamkbdy[1, j] - γxbd[1]
+                     dx2 = gamkbdy[2, j] - γxbd[2]
+
+                     num = dx1 * gampkbdy[1, j] + dx2 * gampkbdy[2, j]
+                     den = dx1 * dx1 + dx2 * dx2
+
+                     kbd_bdy[j] = (num * fwr_bdy[j] * inv2π) / den
+                  end
+
+                  v[row] += dot(ζfv, kbd_bdy)
+               end
+            end
+         end
+
+      end
+
+   end
+
+   return nothing
 end
 

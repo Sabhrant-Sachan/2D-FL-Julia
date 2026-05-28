@@ -3,8 +3,8 @@
 # =========================
 
 export Problem, Options, Result, CoreResult, SolveView,
-       solveFL, solveFL_core, solveFL_post, plot_result,
-       save_uapp_mat, save_uapp_bin, load_vec_bin
+   solveFL, solveFL_core, solveFL_post, plot_result,
+   save_uapp_mat, save_uapp_bin, load_vec_bin
 
 using LinearAlgebra
 using Printf
@@ -15,90 +15,89 @@ using MAT
 #-------------------------
 
 Base.@kwdef struct Options
-    plot::Bool = false
-    benchmark::Bool = false
-    solver::Symbol = :gmres
-    cond_num::Bool = false
+   plot::Bool = false
+   benchmark::Bool = false
+   solver::Symbol = :gmres
+   cond_num::Bool = false
 
-    # solver controls, gmres
-    reltol::Float64 = 3e-15
-    abstol::Float64 = 0.0
-    restart::Int = 450
-    matrixfree::Bool = false
-    s_small::Bool = false
+   # solver controls, gmres
+   reltol::Float64 = 3e-15
+   abstol::Float64 = 0.0
+   restart::Int = 450
+   matrixfree::Bool = false
+   s_small::Bool = false
 
-    # quadrature controls
-    nr::Int = 32          # regular volume integration: nr × nr
-    nbd::Int = 128        # boundary-touching volume integration: nbd × nr
-    nr_bdy::Int = 64      # DLP mode-0 regular boundary quadrature
-    ns_near::Int = 128    # DLP mode-1 near-boundary split quadrature
-    pbd::Int = 2          # DLP boundary smoothing order
+   # quadrature controls
+   nr::Int = 32          # regular volume integration: nr × nr
+   nbd::Int = 128        # boundary-touching volume integration: nbd × nr
+   nr_bdy::Int = 64      # DLP mode-0 regular boundary quadrature
+   ns_near::Int = 128    # DLP mode-1 near-boundary split quadrature
+   pbd::Int = 2          # DLP boundary smoothing order
 end
 
 """
-    Problem(; N, s, p, δ, δclsbd, dₙₕ, f!, dom, uex=nothing)
-
-- `uex` may be:
-  - `nothing`         → no errors computed
-  - `Function`        → exact function uex(x,y)
-  - `String` path     → a .bin` file containing the full exact vector `uexv`
-                        must be the raw binary format written by `save_uapp_bin`
+Problem(; N, nₚᵣ, s, p, δv_near, δv_close, δ_near, δ_intp, f!, dom, uex=nothing)
+- `δv_near`: volume near/projection cutoff.
+- `δv_close`: volume close/inverse cutoff.
+- `δ_near`: boundary DLP near cutoff.
+- `δ_intp`: boundary DLP interpolation cutoff.
 """
 Base.@kwdef struct Problem
-    N::Int
-    nₚᵣ::Int
-    s::Float64
-    p::Int
-    δ::Float64
-    δ_near::Float64
-    δ_intp::Float64
-    f!::Function
-    dom::abstractdomain
-    #This uex is not multiplied by d^s vector
-    uex::Union{Nothing,Function,String,Vector{Float64}} = nothing
+   N::Int
+   nₚᵣ::Int
+   s::Float64
+   p::Int
+   δv_near::Float64
+   δv_close::Float64
+   δ_near::Float64
+   δ_intp::Float64
+   f!::Function
+   dom::abstractdomain
+   #This uex is not multiplied by d^s vector
+   uex::Union{Nothing,Function,String,Vector{Float64}} = nothing
 end
 
 Base.@kwdef struct ErrorMetrics
-    max::Float64 = NaN
-    relmax::Float64 = NaN
-    l2::Float64 = NaN
-    rmse::Float64 = NaN
+   max::Float64 = NaN
+   relmax::Float64 = NaN
+   l2::Float64 = NaN
+   rmse::Float64 = NaN
 end
 
 Base.@kwdef struct SolveInfo
-    solver::Symbol = :gmres
-    iters::Int = 0
-    converged::Bool = false
-    reltol::Float64 = 0
+   solver::Symbol = :gmres
+   iters::Int = 0
+   converged::Bool = false
+   reltol::Float64 = 0
 end
 
 Base.@kwdef struct Result
-    dp
-    d
-    problem::Problem
-    options::Options
-    Uapp::Vector{Float64}                   # Before d^s multiplication
-    cond_num::Float64 = -1
-    # evaluated fields (for plotting/errors/saving)
-    uappv::Vector{Float64}
-    uexv::Union{Vector{Float64},Nothing} = nothing
-    err::Union{Vector{Float64},Nothing} = nothing
-    errors::ErrorMetrics = ErrorMetrics()
+   dp
+   d
+   problem::Problem
+   options::Options
+   Uapp::Vector{Float64}                   # Before d^s multiplication
+   cond_num::Float64 = -1
+   # evaluated fields (for plotting/errors/saving)
+   uappv::Vector{Float64}
+   uexv::Union{Vector{Float64},Nothing} = nothing
+   err::Union{Vector{Float64},Nothing} = nothing
+   errors::ErrorMetrics = ErrorMetrics()
 
-    info::SolveInfo = SolveInfo()
+   info::SolveInfo = SolveInfo()
 end
 
 #CoreResult holds only the essential computation outputs
 #that is, stuff to be benchmarked. Plots/error NOT benchmarked!
 Base.@kwdef struct CoreResult
-    dp
-    d
-    IntS
-    A::Union{Matrix{Float64},Nothing}
-    b::Vector{Float64}
-    Uapp::Vector{Float64}
-    info::SolveInfo
-    bench = nothing
+   dp
+   d
+   IntS
+   A::Union{Matrix{Float64},Nothing}
+   b::Vector{Float64}
+   Uapp::Vector{Float64}
+   info::SolveInfo
+   bench = nothing
 end
 
 """
@@ -106,20 +105,20 @@ Save a Float64 vector to a raw .bin file:
 Format: n Float64 values when n is length of the vector
 """
 function save_uapp_bin(path::String, v::Vector{Float64})
-    open(path, "w") do io
-        write(io, v)
-    end
-    return nothing
+   open(path, "w") do io
+      write(io, v)
+   end
+   return nothing
 end
 
 "Load the raw .bin format written by save_uapp_bin."
 function load_vec_bin(path::String)::Vector{Float64}
-    open(path, "r") do io
-        n = filesize(io) ÷ sizeof(Float64)
-        v = Vector{Float64}(undef, n)
-        read!(io, v)
-        return v
-    end
+   open(path, "r") do io
+      n = filesize(io) ÷ sizeof(Float64)
+      v = Vector{Float64}(undef, n)
+      read!(io, v)
+      return v
+   end
 end
 # -------------------------
 # Internal computation helpers
@@ -127,86 +126,85 @@ end
 
 "Compute uappv from vector Uapp."
 function _compute_uappv(dp, d, Uapp::Vector{Float64}, N::Int, s::Float64)
-    Np = N^2
-    M  = d.Npat
-    uappv = Vector{Float64}(undef, M * Np)
+   Np = N^2
+   M = d.Npat
+   uappv = Vector{Float64}(undef, M * Np)
 
-    @inbounds for i in 1:(M*Np)
-        ℓ = cld(i, Np)
-        j = i - (ℓ - 1) * Np
-        _, r = divrem(j - 1, N)
-        j1 = r + 1
-        uappv[i] = Float64(Uapp[i]) * dfunc(d, ℓ, 2 * sinpi((2*j1 - 1) / (4N))^2, s)
-    end
+   @inbounds for i in 1:(M*Np)
+      ℓ = cld(i, Np)
+      j = i - (ℓ - 1) * Np
+      _, r = divrem(j - 1, N)
+      j1 = r + 1
+      uappv[i] = Uapp[i] * dfunc(d, ℓ, 2 * sinpi((2 * j1 - 1) / (4N))^2, s)
+   end
 
-    return uappv
+   return uappv
 end
 
 "Compute exact vector from a pointwise function uex(x,y) (if given)."
 function _compute_uexv_from_function(dp, uex::Function, n::Int)
-    uexv = Vector{Float64}(undef, n)
-    @inbounds for i in 1:n
-        x = dp.tgtpts[1, i]
-        y = dp.tgtpts[2, i]
-        uexv[i] = uex(x, y)
-    end
-    return uexv
+   uexv = Vector{Float64}(undef, n)
+   @inbounds for i in 1:n
+      x = dp.tgtpts[1, i]
+      y = dp.tgtpts[2, i]
+      uexv[i] = uex(x, y)
+   end
+   return uexv
 end
 
 "Compute error vector and metrics."
 function _compute_errors(uappv::Vector{Float64}, uexv::Vector{Float64})
-    err = Float64.(uappv) .- Float64.(uexv)
-    maxerr = maximum(abs.(err))
-    relmax = maxerr / maximum(abs.(uexv))
-    l2err  = norm(err, 2)
-    rmse   = sqrt(mean(err.^2))
-    return err, ErrorMetrics(max=maxerr, relmax=relmax, l2=l2err, rmse=rmse)
+   err = Float64.(uappv) .- Float64.(uexv)
+   maxerr = maximum(abs.(err))
+   relmax = maxerr / maximum(abs.(uexv))
+   l2err = norm(err, 2)
+   rmse = sqrt(mean(err .^ 2))
+   return err, ErrorMetrics(max=maxerr, relmax=relmax, l2=l2err, rmse=rmse)
 end
 
 "Load exact vector uexv from .bin path."
 function _load_uexv(path::String)
-    if endswith(lowercase(path), ".bin")
-        return load_vec_bin(path)
-    else
-        error("Unknown uex file extension: $path. Use .bin.")
-    end
+   if endswith(lowercase(path), ".bin")
+      return load_vec_bin(path)
+   else
+      error("Unknown uex file extension: $path. Use .bin.")
+   end
 end
 
 function _assemble_matrix(dp, d, IntS, s, IV; s_small::Bool=false)
-    (; N, Np, M, Mbd) = IV.IV1
+   (; N, Np, M, Mbd, Ni) = IV.IV1
 
-    Lpn = M * Np
-    Lp  = Lpn + Mbd * N
+   Lp = Ni + Mbd * N
 
-    A = zeros(Float64, Lp, Lp)
+   A = zeros(Float64, Lp, Lp)
 
-    if s_small
-        for k in 1:M
-            @views v = A[:, (1 + Np*(k-1)):(Np*k)]
-            if k in d.kd
-                Axbdpth_small!(v, k, IntS, d, dp, s, IV)
-            else
-                Axintpth_small!(v, k, IntS, d, dp, s, IV)
-            end
-        end
+   if s_small
+      for k in 1:M
+         @views v = A[:, (1+Np*(k-1)):(Np*k)]
+         if k in d.kd
+            Axbdpth_small!(v, k, IntS, d, dp, s, IV)
+         else
+            Axintpth_small!(v, k, IntS, d, dp, s, IV)
+         end
+      end
 
-    else
-        for k in 1:M
-            @views v = A[:, (1 + Np*(k-1)):(Np*k)]
-            if k in d.kd
-                Axbdpth!(v, k, IntS, d, dp, s, IV)
-            else
-                Axintpth!(v, k, IntS, d, dp, s, IV)
-            end
-        end
-    end
+   else
+      for k in 1:M
+         @views v = A[:, (1+Np*(k-1)):(Np*k)]
+         if k in d.kd
+            Axbdpth!(v, k, IntS, d, dp, s, IV)
+         else
+            Axintpth!(v, k, IntS, d, dp, s, IV)
+         end
+      end
+   end
 
-    for k in 1:Mbd
-        @views v = A[:, Lpn+N*(k-1)+1:Lpn+N*k]
-        Axbdop!(v, k, d, dp, s, IV)
-    end
+   for k in 1:Mbd
+      @views v = A[:, Ni+N*(k-1)+1:Ni+N*k]
+      Axbdop!(v, k, d, dp, s, IV)
+   end
 
-    return A
+   return A
 end
 
 # -------------------------
@@ -215,7 +213,9 @@ end
 function solveFL_core(prob::Problem; opts::Options=Options())
    d = prob.dom
    n = prob.nₚᵣ
-   dp = domprop(prob.N, prob.δ, prob.δ_near, prob.δ_intp, d)
+   dp = domprop(prob.N,
+      prob.δv_near, prob.δv_close,
+      prob.δ_near, prob.δ_intp, d)
 
    #b vec computed first and then precomps
    b = bvec(d, dp, prob.s, prob.f!)
@@ -240,21 +240,21 @@ function solveFL_core(prob::Problem; opts::Options=Options())
       if opts.matrixfree
          #Matrix free approach is not for domains with holes in it
          IV = compress_vars(d, dp, prob.s, prob.p;
-         matrix_form=false, nr=opts.nr, nbd=opts.nbd,
-         nr_bdy=opts.nr_bdy, ns_near=opts.ns_near, pbd=opts.pbd)
+            matrix_form=false, nr=opts.nr, nbd=opts.nbd,
+            nr_bdy=opts.nr_bdy, ns_near=opts.ns_near, pbd=opts.pbd)
 
          Uapp = copy(b)
-         (; N, Np, M, Mbd) = IV.IV1
-         Ltot = M * Np + Mbd * N
-         restart_eff = min(opts.restart, Ltot)
+         (; N, Np, M, Mbd, Ni) = IV.IV1
+         Nt = Ni + Mbd * N
+         restart_eff = min(opts.restart, Nt)
 
          #===
          The argument is an in-place function
              (v, x) -> Ax!(v, x, IntS, d, dp, prob.s, IV)
          which means:
          given an input vector x, compute A*x and write the result into v.
-         The two Ltot arguments specify the size of the linear operator:
-             size(Aop) == (Ltot, Ltot)
+         The two Nt arguments specify the size of the linear operator:
+             size(Aop) == (Nt, Nt)
          This is necessary because gmres! needs to know the dimensions of the
          linear system, even though A is not stored explicitly.
          The keyword ismutating=true tells LinearMap that the supplied function
@@ -262,7 +262,7 @@ function solveFL_core(prob::Problem; opts::Options=Options())
          function of the form f(x) that returns a new vector.
          ===#
          Aop = LinearMap{Float64}((v, x) -> Ax!(v, x, IntS, d, dp, prob.s, IV),
-            Ltot, Ltot; ismutating=true)
+            Nt, Nt; ismutating=true)
 
          Uapp, ch = gmres!(Uapp, Aop, b;
             reltol=opts.reltol, abstol=opts.abstol, restart=restart_eff, log=true)
@@ -300,7 +300,7 @@ function solveFL_core(prob::Problem; opts::Options=Options())
          # A is rank-deficient by d.nh. We use SLP basis functions
          # to modify the RHS so that it is in the image of A.
 
-         (; N, Np, M, Mbd) = IV.IV1
+         (; N, Np, M, Mbd, Ni) = IV.IV1
 
          # bZ : The single layer potential on all the
          #      target points (including the boundary).
@@ -311,10 +311,10 @@ function solveFL_core(prob::Problem; opts::Options=Options())
          bZ = SLPeval(d, dp, IV)
 
          if !opts.s_small && prob.s >= 0.5
-            bZ[(M*Np+1):(M*Np+Mbd*N), 1:d.nh] .= 0.0
+            bZ[(Ni+1):(Ni+Mbd*N), 1:d.nh] .= 0.0
          end
 
-         Lp = M * Np + Mbd * N
+         Lp = Ni + Mbd * N
          indx = (Lp-d.nh+1):Lp
 
          # Use pivoted QR for rank-deficient A.
@@ -360,8 +360,8 @@ function solveFL_core(prob::Problem; opts::Options=Options())
 
       if d.nh == 0
          Uapp = copy(b)
-         (; N, Np, M, Mbd) = IV.IV1
-         Lp = M * Np + Mbd * N
+         (; N, Np, M, Mbd, Ni) = IV.IV1
+         Lp = Ni + Mbd * N
          restart_eff = min(opts.restart, Lp)
 
          Uapp, ch = gmres!(Uapp, A, b;
@@ -392,103 +392,103 @@ end
 # -------------------------
 
 function solveFL_post(prob::Problem, core::CoreResult; opts::Options=Options())
-    dp, d, A, Uapp = core.dp, core.d, core.A, core.Uapp
+   dp, d, A, Uapp = core.dp, core.d, core.A, core.Uapp
 
-    # Evaluate solution on target points
-    uappv = _compute_uappv(dp, d, Uapp, prob.N, prob.s)
+   # Evaluate solution on target points
+   uappv = _compute_uappv(dp, d, Uapp, prob.N, prob.s)
 
-    # Exact / errors
-    uexv = nothing
-    err  = nothing
-    em   = ErrorMetrics()
+   # Exact / errors
+   uexv = nothing
+   err = nothing
+   em = ErrorMetrics()
 
-    if opts.cond_num && A !== nothing
-        CN = cond(A) 
-    else
-        CN = -1
-    end
+   if opts.cond_num && A !== nothing
+      CN = cond(A)
+   else
+      CN = -1
+   end
 
-    if prob.uex === nothing
-        # no errors
-    elseif prob.uex isa Function
-        uexv = _compute_uexv_from_function(dp, prob.uex, length(uappv))
-        err, em = _compute_errors(uappv, uexv)
-    elseif prob.uex isa AbstractVector
-        uexv = _compute_uappv(dp, d, prob.uex, prob.N, prob.s)
-        err, em = _compute_errors(uappv, uexv)
-    elseif prob.uex isa String
-        Uexv = _load_uexv(prob.uex)
-        uexv = _compute_uappv(dp, d, Uexv, prob.N, prob.s)
-        err, em = _compute_errors(uappv, uexv)
-    else
-        error("Unsupported uex type: $(typeof(prob.uex)). Use nothing, Function, or String path.")
-    end
+   if prob.uex === nothing
+      # no errors
+   elseif prob.uex isa Function
+      uexv = _compute_uexv_from_function(dp, prob.uex, length(uappv))
+      err, em = _compute_errors(uappv, uexv)
+   elseif prob.uex isa AbstractVector
+      uexv = _compute_uappv(dp, d, prob.uex, prob.N, prob.s)
+      err, em = _compute_errors(uappv, uexv)
+   elseif prob.uex isa String
+      Uexv = _load_uexv(prob.uex)
+      uexv = _compute_uappv(dp, d, Uexv, prob.N, prob.s)
+      err, em = _compute_errors(uappv, uexv)
+   else
+      error("Unsupported uex type: $(typeof(prob.uex)). Use nothing, Function, or String path.")
+   end
 
-    res = Result(d=core.d, dp=core.dp, problem=prob, options=opts, Uapp=Uapp, uappv=uappv, 
-    uexv=uexv, err=err, errors=em, info=core.info, cond_num=CN)
+   res = Result(d=core.d, dp=core.dp, problem=prob, options=opts, Uapp=Uapp, uappv=uappv,
+      uexv=uexv, err=err, errors=em, info=core.info, cond_num=CN)
 
-    return res
+   return res
 end
 
 #This function takes in A finer solution, domain and N
 #and then return a solution on the coarser mesh 
 function build_ref_coarse(Uf::Vector{Float64}, df::abstractdomain,
-    Nf::Int, dc::abstractdomain, Nc::Int)
+   Nf::Int, dc::abstractdomain, Nc::Int)
 
-    Mf, Mc = df.Npat, dc.Npat
+   Mf, Mc = df.Npat, dc.Npat
 
-    Npc, Npf = Nc * Nc, Nf * Nf
+   Npc, Npf = Nc * Nc, Nf * Nf
 
-    Lₚᵪ = Mc * Npc
+   Lₚᵪ = Mc * Npc
 
-    chebcoeff = zeros(Float64, Mf * Npf)
+   chebcoeff = zeros(Float64, Mf * Npf)
 
-    for k in 1:Mf
-        idx = (k-1)*Npf+1:k*Npf
-        fv = reshape(@views(Uf[idx]), Nf, Nf)
+   for k in 1:Mf
+      idx = (k-1)*Npf+1:k*Npf
+      fv = reshape(@views(Uf[idx]), Nf, Nf)
 
-        # columns first (dim = 2), DCT-II
-        c = (1 / Nf) .* FFTW.r2r(fv, FFTW.REDFT10, 2)
-        c[:, 1] ./= 2
+      # columns first (dim = 2), DCT-II
+      c = (1 / Nf) .* FFTW.r2r(fv, FFTW.REDFT10, 2)
+      c[:, 1] ./= 2
 
-        # rows next (dim = 1), DCT-II
-        c = (1 / Nf) .* FFTW.r2r(c, FFTW.REDFT10, 1)
-        c[1, :] ./= 2
+      # rows next (dim = 1), DCT-II
+      c = (1 / Nf) .* FFTW.r2r(c, FFTW.REDFT10, 1)
+      c[1, :] ./= 2
 
-        chebcoeff[idx] .= vec(c)
-    end
+      chebcoeff[idx] .= vec(c)
+   end
 
-    Uc = Vector{Float64}(undef, Lₚᵪ)
-    Tu = Vector{Float64}(undef, Nf)
-    Tv = Vector{Float64}(undef, Nf)
+   Uc = Vector{Float64}(undef, Lₚᵪ)
+   Tu = Vector{Float64}(undef, Nf)
+   Tv = Vector{Float64}(undef, Nf)
 
-    for col in 1:Lₚᵪ
-        # Get patch of point in coarser pat.
-        kc = cld(col, Npc)
+   for col in 1:Lₚᵪ
+      # Get patch of point in coarser pat.
+      kc = cld(col, Npc)
 
-        jj = col - (kc - 1) * Npc
+      jj = col - (kc - 1) * Npc
 
-        q, r = divrem(jj - 1, Nc)
+      q, r = divrem(jj - 1, Nc)
 
-        # Point in parametric space of kc patch
-        x1 = cospi((2 * r + 1) / (2Nc))
-        x2 = cospi((2 * q + 1) / (2Nc))
+      # Point in parametric space of kc patch
+      x1 = cospi((2 * r + 1) / (2Nc))
+      x2 = cospi((2 * q + 1) / (2Nc))
 
-        # Convert point in coarser mesh to region pts
-        x1r, x2r, r = ptconv(dc, x1, x2, kc, "to_reg")
+      # Convert point in coarser mesh to region pts
+      x1r, x2r, r = ptconv(dc, x1, x2, kc, "to_reg")
 
-        # Convert region point to patch pt
-        u, v, k = ptconv(df, x1r, x2r, r, "to_pth")
+      # Convert region point to patch pt
+      u, v, k = ptconv(df, x1r, x2r, r, "to_pth")
 
-        cf = reshape(chebcoeff[(k - 1) * Npf + 1 : k * Npf], Nf, Nf)
-        ChebyTN!(Tu, Nf, u)
-        ChebyTN!(Tv, Nf, v)
+      cf = reshape(chebcoeff[(k-1)*Npf+1:k*Npf], Nf, Nf)
+      ChebyTN!(Tu, Nf, u)
+      ChebyTN!(Tv, Nf, v)
 
-        Uc[col] = dot(Tu, cf, Tv)
+      Uc[col] = dot(Tu, cf, Tv)
 
-    end
+   end
 
-    return Uc
+   return Uc
 end
 
 # -------------------------
@@ -497,11 +497,11 @@ end
 # -------------------------
 
 function solveFL(prob::Problem; opts::Options=Options())
-    bench = nothing
-    core = nothing
+   bench = nothing
+   core = nothing
 
-    if opts.benchmark
-        
+   if opts.benchmark
+
       opts_core = Options(
          plot=false,
          benchmark=false,
@@ -518,17 +518,17 @@ function solveFL(prob::Problem; opts::Options=Options())
          ns_near=opts.ns_near,
          pbd=opts.pbd)
 
-        core  = solveFL_core(prob; opts=opts_core)  # compute once for actual result
+      core = solveFL_core(prob; opts=opts_core)  # compute once for actual result
 
-        # benchmarking only the core solve
-        bench = BenchmarkTools.@benchmark solveFL_core($prob; opts=$opts_core) evals=1 samples=3 seconds=10_000
-    
-    else
-        core = solveFL_core(prob; opts=opts)
+      # benchmarking only the core solve
+      bench = BenchmarkTools.@benchmark solveFL_core($prob; opts=$opts_core) evals = 1 samples = 3 seconds = 10_000
 
-    end
+   else
+      core = solveFL_core(prob; opts=opts)
 
-    return CoreResult(dp=core.dp, d=core.d, IntS=core.IntS, A=core.A, b=core.b, Uapp=core.Uapp, info=core.info, bench=bench)
+   end
+
+   return CoreResult(dp=core.dp, d=core.d, IntS=core.IntS, A=core.A, b=core.b, Uapp=core.Uapp, info=core.info, bench=bench)
 end
 
 # -------------------------
@@ -538,9 +538,9 @@ end
 import Base: show
 
 struct SolveView
-    prob::Problem
-    opts::Options
-    core::CoreResult
+   prob::Problem
+   opts::Options
+   core::CoreResult
 end
 
 function show(io::IO, ::MIME"text/plain", v::SolveView)
@@ -559,14 +559,16 @@ function show(io::IO, ::MIME"text/plain", v::SolveView)
 
    prob = res.problem
    println(io, "\n----------- Parameters -----------")
-   @printf(io, "N=%d, nₚᵣ=%d, s=%.6g, p=%d, δ=%.6g,\n",
-      prob.N, prob.nₚᵣ, prob.s, prob.p, prob.δ)
+   @printf(io, "N=%d, nₚᵣ=%d, s=%.6g, p=%d,\n",
+      prob.N, prob.nₚᵣ, prob.s, prob.p)
+   @printf(io, "δv_near=%.6g, δv_close=%.6g\n",
+      prob.δv_near, prob.δv_close)
    if v.opts.s_small
       @printf(io, "--- small s case used --- \n")
    else
       @printf(io, "Precomps nodes: r = nₚᵣ, θ = 2nₚᵣ,\n")
    end
-   @printf(io, "Lᵢₙ=%d, δ_near=%.6g, δ_intp=%.6g.\n",
+   @printf(io, "Lᵢₙ=%d, δ_near=%.6g, δ_intp=%.6g\n",
       v.core.dp.Lᵢₙ, prob.δ_near, prob.δ_intp)
 
    println(io, "\n----------- Quadrature -----------")
@@ -583,10 +585,12 @@ function show(io::IO, ::MIME"text/plain", v::SolveView)
    println(io, "\n----------- System -----------")
    n = length(v.core.b)
    println(io, "Target points (Vars.) : $n")
-   n = size(v.core.dp.prepts, 2)
-   println(io, "Precomputation points : $n")
-   n = size(v.core.dp.invpts, 2)
-   println(io, "Near-singular  points : $n")
+   if v.core.IntS === nothing
+      println(io, "IntS columns       : freed after solve")
+   end
+
+   println(io, "Stored near/close pts : ", size(v.core.dp.invpts, 2))
+   println(io, "IntS layout columns   : ", v.core.dp.pthgo[end] - 1)
 
    if res.cond_num != -1
       if res.cond_num > 1000
@@ -622,7 +626,7 @@ function show(io::IO, ::MIME"text/plain", v::SolveView)
          show(io, MIME"text/plain"(), v.core.bench)
          println(io)
       catch
-         println(io, res.bench)
+         println(io, v.core.bench)
       end
    end
 

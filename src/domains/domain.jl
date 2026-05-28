@@ -62,7 +62,7 @@ ftable_regions(::ellipse) = 1:4
 
 ftable_regions(::kite) = 1:10
 ftable_regions(::bean) = 1:10
-#ftable_regions(d::star) = 1:(7*d.P+4)
+ftable_regions(d::star) = 1:(7*d.P+4)
 ftable_regions(::peanut) = 1:10
 ftable_regions(::squircle) = 1:4
 

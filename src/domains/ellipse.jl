@@ -39,424 +39,424 @@ Qptsbd — 8*Npat matrix (filled by bd_quadbd)
 """
 mutable struct ellipse <: abstractdomain
 
-  A::Float64
-  B::Float64
-  R1::Float64
-  R2::Float64
-  L1::Float64
-  L2::Float64
-  nh::Int
-  kd::Vector{Int}
-  Cθ::Float64
-  Sθ::Float64
-  Npat::Int
-  pths::Vector{Patch}   # 5 * Npat
-  Qpts::Matrix{Float64}   # 8 * Npat
-  Qptsbd::Matrix{Float64} # 8 * Npat
+   A::Float64
+   B::Float64
+   R1::Float64
+   R2::Float64
+   L1::Float64
+   L2::Float64
+   nh::Int
+   kd::Vector{Int}
+   Cθ::Float64
+   Sθ::Float64
+   Npat::Int
+   pths::Vector{Patch}   # 5 * Npat
+   Qpts::Matrix{Float64}   # 8 * Npat
+   Qptsbd::Matrix{Float64} # 8 * Npat
 
-  function ellipse(; b,
-    a=nothing, A=nothing, B=nothing,
-    R1=nothing, R2=nothing, L1=nothing, 
-    L2=nothing, tht=nothing, ck=nothing, 
-    tk=nothing)
-    #Construct an intsance for this structure
+   function ellipse(; b,
+      a=nothing, A=nothing, B=nothing,
+      R1=nothing, R2=nothing, L1=nothing,
+      L2=nothing, tht=nothing, ck=nothing,
+      tk=nothing)
+      #Construct an intsance for this structure
 
-    """
-    Required:
-      - b :: Vector{Int} of length 5 (Col), positive entries
-    
-    Optional (all keywords):
-      - a  :: Vector{Int} length 5 (defaults to ceil.(2*b/3))
-      - A,B:: Center of the ellipse (defaults 0.0)
-      - R1 :: Float64 (default 1.0)
-      - R2 :: Float64 (default 1.5)
-      - L1 :: Float64 (default 0.8*R2)
-      - L2 :: Float64 (default 0.8*R1)
-      - θ  :: Float64 (default 0.0)
-      - ck :: vector{vector{Float64}} (default equispaced per a)
-      - tk :: vector{vector{Float64}} (default equispaced per b)
-    """
-    @assert isa(b, AbstractVector{Int}) && length(b) == 5
+      """
+      Required:
+        - b :: Vector{Int} of length 5 (Col), positive entries
+      
+      Optional (all keywords):
+        - a  :: Vector{Int} length 5 (defaults to ceil.(2*b/3))
+        - A,B:: Center of the ellipse (defaults 0.0)
+        - R1 :: Float64 (default 1.0)
+        - R2 :: Float64 (default 1.5)
+        - L1 :: Float64 (default 0.8*R2)
+        - L2 :: Float64 (default 0.8*R1)
+        - θ  :: Float64 (default 0.0)
+        - ck :: vector{vector{Float64}} (default equispaced per a)
+        - tk :: vector{vector{Float64}} (default equispaced per b)
+      """
+      @assert isa(b, AbstractVector{Int}) && length(b) == 5
 
-    #The ellipse has obviously no holes
-    nh = 0
+      #The ellipse has obviously no holes
+      nh = 0
 
-    a = isnothing(a) ? ceil.(Int, 2 .* b ./ 3) : collect(Int, a)
+      a = isnothing(a) ? ceil.(Int, 2 .* b ./ 3) : collect(Int, a)
 
-    #By default, ellipse at origin
-    A = something(A, 0.0)
-    B = something(B, 0.0)
+      #By default, ellipse at origin
+      A = something(A, 0.0)
+      B = something(B, 0.0)
 
-    R1 = something(R1, 1//1)
-    R2 = something(R2, 3//2)
+      R1 = something(R1, 1 // 1)
+      R2 = something(R2, 3 // 2)
 
-    L1 = something(L1, 4//5 * R2)
-    L2 = something(L2, 4//5 * R1)
+      L1 = something(L1, 4 // 5 * R2)
+      L2 = something(L2, 4 // 5 * R1)
 
-    tht= something(tht, 0.0)
+      tht = something(tht, 0.0)
 
-    Sθ, Cθ = sincos(tht)
+      Sθ, Cθ = sincos(tht)
 
-    #Sum up all the subpatches
+      #Sum up all the subpatches
 
-    Npat = dot(a,b)
+      Npat = dot(a, b)
 
-    # ck, tk as vector-of-vectors with *no padding*:
-    #   ck[k] has length a[k] + 1
-    #   tk[k] has length b[k] + 1
-    ck = something(ck, [(0:a[k]) ./ a[k] for k in 1:5])
-    tk = something(tk, [(0:b[k]) ./ b[k] for k in 1:5])
+      # ck, tk as vector-of-vectors with *no padding*:
+      #   ck[k] has length a[k] + 1
+      #   tk[k] has length b[k] + 1
+      ck = something(ck, [(0:a[k]) ./ a[k] for k in 1:5])
+      tk = something(tk, [(0:b[k]) ./ b[k] for k in 1:5])
 
-    # Preallocate pths and kd
-    pths = Vector{Patch}(undef, Npat)
+      # Preallocate pths and kd
+      pths = Vector{Patch}(undef, Npat)
 
-    #Starting with the assumption that all interioir 
-    #patches touch the boundary
-    kd = Vector{Int}(undef, Npat)   # upper bound length
-    nkd = 0                         # actual count
+      #Starting with the assumption that all interioir 
+      #patches touch the boundary
+      kd = Vector{Int}(undef, Npat)   # upper bound length
+      nkd = 0                         # actual count
 
-    # Fill pths and kd in a single pass
-    idx = 1
-    @inbounds for k in 1:5
-      akℓ = a[k]
-      bkℓ = b[k]
-      ckℓ = ck[k]
-      tkℓ = tk[k]
+      # Fill pths and kd in a single pass
+      idx = 1
+      @inbounds for k in 1:5
+         akℓ = a[k]
+         bkℓ = b[k]
+         ckℓ = ck[k]
+         tkℓ = tk[k]
 
-      @inbounds for i in 1:akℓ
-        ck1 = ckℓ[i]
-        ck2 = ckℓ[i+1]
-        @inbounds for j in 1:bkℓ
-          tk1 = tkℓ[j]
-          tk2 = tkℓ[j+1]
+         @inbounds for i in 1:akℓ
+            ck1 = ckℓ[i]
+            ck2 = ckℓ[i+1]
+            @inbounds for j in 1:bkℓ
+               tk1 = tkℓ[j]
+               tk2 = tkℓ[j+1]
 
-          p = Patch(k, ck1, ck2, tk1, tk2)
-          pths[idx] = p
+               p = Patch(k, ck1, ck2, tk1, tk2)
+               pths[idx] = p
 
-          if p.reg != 5 && p.ck1 == 1.0
-            nkd += 1
-            kd[nkd] = idx
-          end
+               if p.reg != 5 && p.ck1 == 1.0
+                  nkd += 1
+                  kd[nkd] = idx
+               end
 
-          idx += 1
-        end
+               idx += 1
+            end
+         end
       end
-    end
 
-    # Shrink kd to actual size
-    resize!(kd, nkd)
+      # Shrink kd to actual size
+      resize!(kd, nkd)
 
-    # Allocate quadrature arrays (no need for zeros; we'll overwrite everything)
-    Qpts = Matrix{Float64}(undef, 8, Npat)
-    Qptsbd = Matrix{Float64}(undef, 8, nkd)
+      # Allocate quadrature arrays (no need for zeros; we'll overwrite everything)
+      Qpts = Matrix{Float64}(undef, 8, Npat)
+      Qptsbd = Matrix{Float64}(undef, 8, nkd)
 
-    d = new(A, B, R1, R2, L1, L2, nh, kd, Cθ, Sθ, Npat, pths, Qpts, Qptsbd)
+      d = new(A, B, R1, R2, L1, L2, nh, kd, Cθ, Sθ, Npat, pths, Qpts, Qptsbd)
 
-    @inbounds for k in 1:Npat
-      @views V = d.Qpts[:, k]
-      boundquad!(V, d, k)
-    end
+      @inbounds for k in 1:Npat
+         @views V = d.Qpts[:, k]
+         boundquad!(V, d, k)
+      end
 
-    @inbounds for (ℓ, k) in enumerate(d.kd)
-      @views V = d.Qptsbd[:, ℓ]
-      boundquadbd!(V, d, k)
-    end
+      @inbounds for (ℓ, k) in enumerate(d.kd)
+         @views V = d.Qptsbd[:, ℓ]
+         boundquadbd!(V, d, k)
+      end
 
-    return d
+      return d
 
-  end
+   end
 
 end
 
 function mapx(d::ellipse, u::Float64, v::Float64, k::Int)::Float64
 
-  # p denotes information of kth patch
-  p = d.pths[k]
+   # p denotes information of kth patch
+   p = d.pths[k]
 
-  # Difference in c values
-  hc = p.ck1 - p.ck0
+   # Difference in c values
+   hc = p.ck1 - p.ck0
 
-  xi1 = hc * u / 2 + (p.ck1 + p.ck0) / 2
+   xi1 = hc * u / 2 + (p.ck1 + p.ck0) / 2
 
-  # Difference in t values
-  ht = p.tk1 - p.tk0
+   # Difference in t values
+   ht = p.tk1 - p.tk0
 
-  xi2 = ht * v / 2 + (p.tk1 + p.tk0) / 2
+   xi2 = ht * v / 2 + (p.tk1 + p.tk0) / 2
 
-  if p.reg != 5
+   if p.reg != 5
 
-    X = if p.reg == 1
+      X = if p.reg == 1
 
-      d.A + d.L2 * d.Cθ / 2 - d.L1 * d.Sθ * (2*xi2 - 1) / 2
+         d.A + d.L2 * d.Cθ / 2 - d.L1 * d.Sθ * (2 * xi2 - 1) / 2
 
-    elseif p.reg == 3
+      elseif p.reg == 3
 
-      d.A - d.L2 * d.Cθ / 2 + d.L1 * d.Sθ * (2*xi2 - 1) / 2
+         d.A - d.L2 * d.Cθ / 2 + d.L1 * d.Sθ * (2 * xi2 - 1) / 2
 
-    elseif p.reg == 2
+      elseif p.reg == 2
 
-      d.A + d.L2 * d.Cθ * (1 - 2*xi2) / 2 - d.L1 * d.Sθ / 2
+         d.A + d.L2 * d.Cθ * (1 - 2 * xi2) / 2 - d.L1 * d.Sθ / 2
 
-    else # p.reg == 4
+      else # p.reg == 4
 
-      d.A - d.L2 * d.Cθ * (1 - 2*xi2) / 2 + d.L1 * d.Sθ / 2
+         d.A - d.L2 * d.Cθ * (1 - 2 * xi2) / 2 + d.L1 * d.Sθ / 2
 
-    end
+      end
 
-    th = π * (xi2 / 2 + (2 * p.reg - 3) / 4)
+      th = π * (xi2 / 2 + (2 * p.reg - 3) / 4)
 
-    s, c = sincos(th)
+      s, c = sincos(th)
 
-    Y = d.A + d.R1 * d.Cθ * c - d.R2 * d.Sθ * s
+      Y = d.A + d.R1 * d.Cθ * c - d.R2 * d.Sθ * s
 
-    return (1 - xi1) * X + xi1 * Y
+      return (1 - xi1) * X + xi1 * Y
 
-  else
+   else
 
-    if d.L2 >= d.L1 
-      
-      xi1 = ht * u / 2 + (p.tk1 + p.tk0) / 2
+      if d.L2 >= d.L1
 
-      xi2 = hc * v / 2 + (p.ck1 + p.ck0) / 2
+         xi1 = ht * u / 2 + (p.tk1 + p.tk0) / 2
 
-    end
+         xi2 = hc * v / 2 + (p.ck1 + p.ck0) / 2
 
-    return d.A + d.L2*(xi1 - 0.5)*d.Cθ - d.L1*(xi2 - 0.5)*d.Sθ
+      end
 
-  end
+      return d.A + d.L2 * (xi1 - 0.5) * d.Cθ - d.L1 * (xi2 - 0.5) * d.Sθ
+
+   end
 
 end
 
 function mapy(d::ellipse, u::Float64, v::Float64, k::Int)::Float64
 
-  # p denotes information of kth patch
-  p = d.pths[k]
+   # p denotes information of kth patch
+   p = d.pths[k]
 
-  # Difference in c values
-  hc = p.ck1 - p.ck0
+   # Difference in c values
+   hc = p.ck1 - p.ck0
 
-  xi1 = hc * u / 2 + (p.ck1 + p.ck0) / 2
+   xi1 = hc * u / 2 + (p.ck1 + p.ck0) / 2
 
-  # Difference in t values
-  ht = p.tk1 - p.tk0
+   # Difference in t values
+   ht = p.tk1 - p.tk0
 
-  xi2 = ht * v / 2 + (p.tk1 + p.tk0) / 2
+   xi2 = ht * v / 2 + (p.tk1 + p.tk0) / 2
 
-  if p.reg != 5
+   if p.reg != 5
 
-    X = if p.reg == 1
+      X = if p.reg == 1
 
-      d.B + d.L2 * d.Sθ / 2 + d.L1 * d.Cθ * (2*xi2 - 1) / 2
+         d.B + d.L2 * d.Sθ / 2 + d.L1 * d.Cθ * (2 * xi2 - 1) / 2
 
-    elseif p.reg == 3
+      elseif p.reg == 3
 
-      d.B - d.L2 * d.Sθ / 2 - d.L1 * d.Cθ * (2*xi2 - 1) / 2
+         d.B - d.L2 * d.Sθ / 2 - d.L1 * d.Cθ * (2 * xi2 - 1) / 2
 
-    elseif p.reg == 2
+      elseif p.reg == 2
 
-      d.B + d.L2 * d.Sθ * (1 - 2*xi2) / 2 + d.L1 * d.Cθ / 2
+         d.B + d.L2 * d.Sθ * (1 - 2 * xi2) / 2 + d.L1 * d.Cθ / 2
 
-    else # p.reg == 4
+      else # p.reg == 4
 
-      d.B - d.L2 * d.Sθ * (1 - 2*xi2) / 2 - d.L1 * d.Cθ / 2
+         d.B - d.L2 * d.Sθ * (1 - 2 * xi2) / 2 - d.L1 * d.Cθ / 2
 
-    end
+      end
 
-    th = π * (xi2 / 2 + (2 * p.reg - 3) / 4)
+      th = π * (xi2 / 2 + (2 * p.reg - 3) / 4)
 
-    s, c = sincos(th)
+      s, c = sincos(th)
 
-    Y = d.B + d.R1 * d.Sθ * c + d.R2 * d.Cθ * s
+      Y = d.B + d.R1 * d.Sθ * c + d.R2 * d.Cθ * s
 
-    return (1 - xi1) * X + xi1 * Y
+      return (1 - xi1) * X + xi1 * Y
 
-  else
+   else
 
-    if d.L2 >= d.L1 
-      
-      xi1 = ht * u / 2 + (p.tk1 + p.tk0) / 2
+      if d.L2 >= d.L1
 
-      xi2 = hc * v / 2 + (p.ck1 + p.ck0) / 2
+         xi1 = ht * u / 2 + (p.tk1 + p.tk0) / 2
 
-    end
+         xi2 = hc * v / 2 + (p.ck1 + p.ck0) / 2
 
-    return d.B + d.L2*(xi1 - 0.5)*d.Sθ + d.L1*(xi2 - 0.5)*d.Cθ
+      end
 
-  end
+      return d.B + d.L2 * (xi1 - 0.5) * d.Sθ + d.L1 * (xi2 - 0.5) * d.Cθ
+
+   end
 
 end
 
 function mapxy(d::ellipse, u::Float64, v::Float64, k::Int)::Tuple{Float64,Float64}
 
-  p = d.pths[k]
+   p = d.pths[k]
 
-  # Difference in c values
-  hc = p.ck1 - p.ck0
+   # Difference in c values
+   hc = p.ck1 - p.ck0
 
-  xi1 = hc * u / 2 + (p.ck1 + p.ck0) / 2
+   xi1 = hc * u / 2 + (p.ck1 + p.ck0) / 2
 
-  # Difference in t values
-  ht = p.tk1 - p.tk0
+   # Difference in t values
+   ht = p.tk1 - p.tk0
 
-  xi2 = ht * v / 2 + (p.tk1 + p.tk0) / 2
+   xi2 = ht * v / 2 + (p.tk1 + p.tk0) / 2
 
-  if p.reg != 5
+   if p.reg != 5
 
-    if p.reg == 1
+      if p.reg == 1
 
-      Xx = d.A + d.L2 * d.Cθ / 2 - d.L1 * d.Sθ * (2 * xi2 - 1) / 2
-      Xy = d.B + d.L2 * d.Sθ / 2 + d.L1 * d.Cθ * (2 * xi2 - 1) / 2
+         Xx = d.A + d.L2 * d.Cθ / 2 - d.L1 * d.Sθ * (2 * xi2 - 1) / 2
+         Xy = d.B + d.L2 * d.Sθ / 2 + d.L1 * d.Cθ * (2 * xi2 - 1) / 2
 
-    elseif p.reg == 2
+      elseif p.reg == 2
 
-      Xx = d.A + d.L2 * d.Cθ * (1 - 2 * xi2) / 2 - d.L1 * d.Sθ / 2
-      Xy = d.B + d.L2 * d.Sθ * (1 - 2 * xi2) / 2 + d.L1 * d.Cθ / 2
+         Xx = d.A + d.L2 * d.Cθ * (1 - 2 * xi2) / 2 - d.L1 * d.Sθ / 2
+         Xy = d.B + d.L2 * d.Sθ * (1 - 2 * xi2) / 2 + d.L1 * d.Cθ / 2
 
-    elseif p.reg == 3
+      elseif p.reg == 3
 
-      Xx = d.A - d.L2 * d.Cθ / 2 + d.L1 * d.Sθ * (2 * xi2 - 1) / 2
-      Xy = d.B - d.L2 * d.Sθ / 2 - d.L1 * d.Cθ * (2 * xi2 - 1) / 2
+         Xx = d.A - d.L2 * d.Cθ / 2 + d.L1 * d.Sθ * (2 * xi2 - 1) / 2
+         Xy = d.B - d.L2 * d.Sθ / 2 - d.L1 * d.Cθ * (2 * xi2 - 1) / 2
 
-    else # p.reg == 4
+      else # p.reg == 4
 
-      Xx = d.A - d.L2 * d.Cθ * (1 - 2 * xi2) / 2 + d.L1 * d.Sθ / 2
-      Xy = d.B - d.L2 * d.Sθ * (1 - 2 * xi2) / 2 - d.L1 * d.Cθ / 2
+         Xx = d.A - d.L2 * d.Cθ * (1 - 2 * xi2) / 2 + d.L1 * d.Sθ / 2
+         Xy = d.B - d.L2 * d.Sθ * (1 - 2 * xi2) / 2 - d.L1 * d.Cθ / 2
 
-    end
+      end
 
-    th = π * (xi2 / 2 + (2 * p.reg - 3) / 4)
+      th = π * (xi2 / 2 + (2 * p.reg - 3) / 4)
 
-    s, c = sincos(th)
+      s, c = sincos(th)
 
-    Yx = d.A + d.R1 * d.Cθ * c - d.R2 * d.Sθ * s
-    Yy = d.B + d.R1 * d.Sθ * c + d.R2 * d.Cθ * s
+      Yx = d.A + d.R1 * d.Cθ * c - d.R2 * d.Sθ * s
+      Yy = d.B + d.R1 * d.Sθ * c + d.R2 * d.Cθ * s
 
-    Zx = (1 - xi1) * Xx + xi1 * Yx
-    Zy = (1 - xi1) * Xy + xi1 * Yy
+      Zx = (1 - xi1) * Xx + xi1 * Yx
+      Zy = (1 - xi1) * Xy + xi1 * Yy
 
-  else
+   else
 
-    if d.L2 >= d.L1
+      if d.L2 >= d.L1
 
-      xi1 = ht * u / 2 + (p.tk1 + p.tk0) / 2
+         xi1 = ht * u / 2 + (p.tk1 + p.tk0) / 2
 
-      xi2 = hc * v / 2 + (p.ck1 + p.ck0) / 2
+         xi2 = hc * v / 2 + (p.ck1 + p.ck0) / 2
 
-    end
+      end
 
-    Zx = d.A + d.L2 * (xi1 - 0.5) * d.Cθ - d.L1 * (xi2 - 0.5) * d.Sθ
-    Zy = d.B + d.L2 * (xi1 - 0.5) * d.Sθ + d.L1 * (xi2 - 0.5) * d.Cθ
+      Zx = d.A + d.L2 * (xi1 - 0.5) * d.Cθ - d.L1 * (xi2 - 0.5) * d.Sθ
+      Zy = d.B + d.L2 * (xi1 - 0.5) * d.Sθ + d.L1 * (xi2 - 0.5) * d.Cθ
 
-  end
+   end
 
-  return Zx, Zy
+   return Zx, Zy
 end
 
 function mapxy!(Zx::StridedArray{Float64}, Zy::StridedArray{Float64},
-  d::ellipse, u::StridedArray{Float64}, v::StridedArray{Float64}, k::Int)
-  #@assert size(Zx) == size(Zy) == size(u) == size(v)
-  p = d.pths[k]
-  hc = p.ck1 - p.ck0
-  ht = p.tk1 - p.tk0
+   d::ellipse, u::StridedArray{Float64}, v::StridedArray{Float64}, k::Int)
+   #@assert size(Zx) == size(Zy) == size(u) == size(v)
+   p = d.pths[k]
+   hc = p.ck1 - p.ck0
+   ht = p.tk1 - p.tk0
 
-  if p.reg != 5
-    # xi1 = map u from [-1,1] → [ck0,ck1]; xi2 = map v → [tk0,tk1]
-    αu = hc / 2
-    αv = ht / 2
-    βu = p.ck0 + αu
-    βv = p.tk0 + αv
-    c₁₁ = d.R1 * d.Cθ
-    c₁₂ = d.R1 * d.Sθ
-    c₂₁ = d.R2 * d.Cθ
-    c₂₂ = -d.R2 * d.Sθ
-    # Corner line (Xx,Xy) for this region
-    # Iterate once over a single index range I that is 
-    # valid for all four arrays.
-    @inbounds for I in eachindex(u, v, Zx, Zy)
-      xi1 = muladd(αu, u[I], βu)
-      xi2 = muladd(αv, v[I], βv)
-
-      # fixed edge point for given xi2
-      Xx = if p.reg == 1
-        d.A + d.L2 * d.Cθ / 2 - d.L1 * d.Sθ * (2*xi2 - 1) / 2
-      elseif p.reg == 2
-        d.A + d.L2 * d.Cθ * (1 - 2*xi2) / 2 - d.L1 * d.Sθ / 2
-      elseif p.reg == 3
-        d.A - d.L2 * d.Cθ / 2 + d.L1 * d.Sθ * (2*xi2 - 1) / 2
-      else # p.reg == 4
-        d.A - d.L2 * d.Cθ * (1 - 2*xi2) / 2 + d.L1 * d.Sθ / 2
-      end
-    
-      Xy = if p.reg == 1
-        d.B + d.L2 * d.Sθ / 2 + d.L1 * d.Cθ * (2*xi2 - 1) / 2
-      elseif p.reg == 2
-        d.B + d.L2 * d.Sθ * (1 - 2*xi2) / 2 + d.L1 * d.Cθ / 2
-      elseif p.reg == 3
-        d.B - d.L2 * d.Sθ / 2 - d.L1 * d.Cθ * (2*xi2 - 1) / 2
-      else # p.reg == 4
-        d.B - d.L2 * d.Sθ * (1 - 2*xi2) / 2 - d.L1 * d.Cθ / 2
-      end
-
-      # circular arc point for given xi2
-      t = π *(xi2 / 2 + (2 * p.reg - 3) / 4)
-
-      s, c = sincos(t)
-
-      #d.A + d.R1 * d.Cθ * c - d.R2 * d.Sθ * s
-      Yx = muladd(c₂₂, s, muladd(c₁₁, c, d.A)) 
-      #d.B + d.R1 * d.Sθ * c + d.R2 * d.Cθ * s
-      Yy = muladd(c₂₁, s, muladd(c₁₂, c, d.B))  
-
-      # blend: (1 - xi1) * X + xi1 * Y
-      Zx[I] = muladd(xi1, (Yx - Xx), Xx)
-      Zy[I] = muladd(xi1, (Yy - Xy), Xy)
-    end
-
-  else
-    # rectangular patch (reg==5)
-    # if L2 >= L1, swap affine maps per your code path
-    if d.L2 >= d.L1
-      αu = ht / 2
-      αv = hc / 2
-      βu = p.tk0 + αu
-      βv = p.ck0 + αv
-      @inbounds  for I in eachindex(u, v, Zx, Zy)
-        xi1 = muladd(αu, u[I], βu)
-        xi2 = muladd(αv, v[I], βv)
-        Zx[I] = d.A + d.L2*(xi1 - 0.5)*d.Cθ - d.L1*(xi2 - 0.5)*d.Sθ
-        Zy[I] = d.B + d.L2*(xi1 - 0.5)*d.Sθ + d.L1*(xi2 - 0.5)*d.Cθ
-      end
-
-    else
+   if p.reg != 5
+      # xi1 = map u from [-1,1] → [ck0,ck1]; xi2 = map v → [tk0,tk1]
       αu = hc / 2
       αv = ht / 2
       βu = p.ck0 + αu
       βv = p.tk0 + αv
-      @inbounds  for I in eachindex(u, v, Zx, Zy)
-        xi1 = muladd(αu, u[I], βu)
-        xi2 = muladd(αv, v[I], βv)
-        Zx[I] = d.A + d.L2*(xi1 - 0.5)*d.Cθ - d.L1*(xi2 - 0.5)*d.Sθ
-        Zy[I] = d.B + d.L2*(xi1 - 0.5)*d.Sθ + d.L1*(xi2 - 0.5)*d.Cθ
+      c₁₁ = d.R1 * d.Cθ
+      c₁₂ = d.R1 * d.Sθ
+      c₂₁ = d.R2 * d.Cθ
+      c₂₂ = -d.R2 * d.Sθ
+      # Corner line (Xx,Xy) for this region
+      # Iterate once over a single index range I that is 
+      # valid for all four arrays.
+      @inbounds for I in eachindex(u, v, Zx, Zy)
+         xi1 = muladd(αu, u[I], βu)
+         xi2 = muladd(αv, v[I], βv)
+
+         # fixed edge point for given xi2
+         Xx = if p.reg == 1
+            d.A + d.L2 * d.Cθ / 2 - d.L1 * d.Sθ * (2 * xi2 - 1) / 2
+         elseif p.reg == 2
+            d.A + d.L2 * d.Cθ * (1 - 2 * xi2) / 2 - d.L1 * d.Sθ / 2
+         elseif p.reg == 3
+            d.A - d.L2 * d.Cθ / 2 + d.L1 * d.Sθ * (2 * xi2 - 1) / 2
+         else # p.reg == 4
+            d.A - d.L2 * d.Cθ * (1 - 2 * xi2) / 2 + d.L1 * d.Sθ / 2
+         end
+
+         Xy = if p.reg == 1
+            d.B + d.L2 * d.Sθ / 2 + d.L1 * d.Cθ * (2 * xi2 - 1) / 2
+         elseif p.reg == 2
+            d.B + d.L2 * d.Sθ * (1 - 2 * xi2) / 2 + d.L1 * d.Cθ / 2
+         elseif p.reg == 3
+            d.B - d.L2 * d.Sθ / 2 - d.L1 * d.Cθ * (2 * xi2 - 1) / 2
+         else # p.reg == 4
+            d.B - d.L2 * d.Sθ * (1 - 2 * xi2) / 2 - d.L1 * d.Cθ / 2
+         end
+
+         # circular arc point for given xi2
+         t = π * (xi2 / 2 + (2 * p.reg - 3) / 4)
+
+         s, c = sincos(t)
+
+         #d.A + d.R1 * d.Cθ * c - d.R2 * d.Sθ * s
+         Yx = muladd(c₂₂, s, muladd(c₁₁, c, d.A))
+         #d.B + d.R1 * d.Sθ * c + d.R2 * d.Cθ * s
+         Yy = muladd(c₂₁, s, muladd(c₁₂, c, d.B))
+
+         # blend: (1 - xi1) * X + xi1 * Y
+         Zx[I] = muladd(xi1, (Yx - Xx), Xx)
+         Zy[I] = muladd(xi1, (Yy - Xy), Xy)
       end
 
-    end
-  end
+   else
+      # rectangular patch (reg==5)
+      # if L2 >= L1, swap affine maps per your code path
+      if d.L2 >= d.L1
+         αu = ht / 2
+         αv = hc / 2
+         βu = p.tk0 + αu
+         βv = p.ck0 + αv
+         @inbounds for I in eachindex(u, v, Zx, Zy)
+            xi1 = muladd(αu, u[I], βu)
+            xi2 = muladd(αv, v[I], βv)
+            Zx[I] = d.A + d.L2 * (xi1 - 0.5) * d.Cθ - d.L1 * (xi2 - 0.5) * d.Sθ
+            Zy[I] = d.B + d.L2 * (xi1 - 0.5) * d.Sθ + d.L1 * (xi2 - 0.5) * d.Cθ
+         end
 
-  return nothing
+      else
+         αu = hc / 2
+         αv = ht / 2
+         βu = p.ck0 + αu
+         βv = p.tk0 + αv
+         @inbounds for I in eachindex(u, v, Zx, Zy)
+            xi1 = muladd(αu, u[I], βu)
+            xi2 = muladd(αv, v[I], βv)
+            Zx[I] = d.A + d.L2 * (xi1 - 0.5) * d.Cθ - d.L1 * (xi2 - 0.5) * d.Sθ
+            Zy[I] = d.B + d.L2 * (xi1 - 0.5) * d.Sθ + d.L1 * (xi2 - 0.5) * d.Cθ
+         end
+
+      end
+   end
+
+   return nothing
 
 end
 
-function draw(d::ellipse, flag = nothing; L::Int = 33, show::Bool = true)
+function draw(d::ellipse, flag=nothing; L::Int=33, show::Bool=true)
 
-    colors = (
-        RGBf(1, 0, 0),         # red
-        RGBf(1, 0.5, 0.25),    # orange
-        RGBf(0.58, 0, 0.82),   # purple
-        RGBf(0, 1, 0),         # green
-        RGBf(0, 0, 1),         # blue
-    )
+   colors = (
+      RGBf(1, 0, 0),         # red
+      RGBf(1, 0.5, 0.25),    # orange
+      RGBf(0.58, 0, 0.82),   # purple
+      RGBf(0, 1, 0),         # green
+      RGBf(0, 0, 1),         # blue
+   )
 
-    return draw_geom(d, colors; flag=flag, L=L, show=show)
+   return draw_geom(d, colors; flag=flag, L=L, show=show)
 end
 
 #-----------------------
@@ -472,28 +472,28 @@ First (x) coordinate of the boundary parametrization γ(t).
 `t` may be a scalar or an array; the return has the same shape.
 """
 function gamx(d::ellipse, t::Float64, k::Int)::Float64
-    p = d.pths[k]
-    # Map t ∈ [-1,1] → ξ₂ ∈ [tk0, tk1]
-    xi2 = (p.tk1 - p.tk0) * t / 2 + (p.tk0 + p.tk1) / 2
-    t = π*(xi2 / 2 + (2*p.reg - 3) / 4)
-    return d.A + d.R1 * d.Cθ *cos(t) - d.R2 * d.Sθ *sin(t)
+   p = d.pths[k]
+   # Map t ∈ [-1,1] → ξ₂ ∈ [tk0, tk1]
+   xi2 = (p.tk1 - p.tk0) * t / 2 + (p.tk0 + p.tk1) / 2
+   t = π * (xi2 / 2 + (2 * p.reg - 3) / 4)
+   return d.A + d.R1 * d.Cθ * cos(t) - d.R2 * d.Sθ * sin(t)
 end
 
 function gamx!(out::StridedArray{Float64}, d::ellipse, t::StridedArray{Float64}, k::Int)
-    p  = d.pths[k]
-    αt = (p.tk1 - p.tk0) / 2
-    βt = p.tk0 + αt
-    C  = π * (2 * p.reg - 3) / 4
-    c₁₁ = d.R1 * d.Cθ
-    c₂₂ =-d.R2 * d.Sθ
+   p = d.pths[k]
+   αt = (p.tk1 - p.tk0) / 2
+   βt = p.tk0 + αt
+   C = π * (2 * p.reg - 3) / 4
+   c₁₁ = d.R1 * d.Cθ
+   c₂₂ = -d.R2 * d.Sθ
 
-    @inbounds for I in eachindex(out, t)
-        xi2 = muladd(αt, t[I], βt)      # ξ₂
-        τ   = π * (xi2 / 2) + C        
-        s, c = sincos(τ)
-        out[I] = muladd(c₂₂, s, muladd(c₁₁, c, d.A))
-    end
-    return nothing
+   @inbounds for I in eachindex(out, t)
+      xi2 = muladd(αt, t[I], βt)      # ξ₂
+      τ = π * (xi2 / 2) + C
+      s, c = sincos(τ)
+      out[I] = muladd(c₂₂, s, muladd(c₁₁, c, d.A))
+   end
+   return nothing
 end
 
 """
@@ -507,109 +507,109 @@ Second (y) coordinate of the boundary parametrization γ(t).
 `t` can be a scalar `Float64` or any `StridedArray{Float64}`; the output matches the input shape.
 """
 function gamy(d::ellipse, t::Float64, k::Int)::Float64
-    p = d.pths[k]
-    # Map t ∈ [-1,1] → ξ₂ ∈ [tk0, tk1]
-    xi2   = (p.tk1 - p.tk0) * t / 2 + (p.tk0 + p.tk1) / 2
-    t = π *( xi2 / 2 + (2*p.reg - 3) / 4 )
-    return d.B + d.R1 * d.Sθ *cos(t) + d.R2 * d.Cθ *sin(t)
+   p = d.pths[k]
+   # Map t ∈ [-1,1] → ξ₂ ∈ [tk0, tk1]
+   xi2 = (p.tk1 - p.tk0) * t / 2 + (p.tk0 + p.tk1) / 2
+   t = π * (xi2 / 2 + (2 * p.reg - 3) / 4)
+   return d.B + d.R1 * d.Sθ * cos(t) + d.R2 * d.Cθ * sin(t)
 end
 
 function gamy!(out::StridedArray{Float64}, d::ellipse, t::StridedArray{Float64}, k::Int)
-    p  = d.pths[k]
-    αt = (p.tk1 - p.tk0) / 2
-    βt = p.tk0 + αt
-    C  = π * (2 * p.reg - 3) / 4
-    c₁₂ = d.R1 * d.Sθ
-    c₂₁ = d.R2 * d.Cθ
+   p = d.pths[k]
+   αt = (p.tk1 - p.tk0) / 2
+   βt = p.tk0 + αt
+   C = π * (2 * p.reg - 3) / 4
+   c₁₂ = d.R1 * d.Sθ
+   c₂₁ = d.R2 * d.Cθ
 
-    @inbounds for I in eachindex(out, t)
-        xi2 = muladd(αt, t[I], βt)      # ξ₂
-        τ   = π * (xi2 / 2) + C        
-        s, c = sincos(τ)
-        out[I] = muladd(c₂₁, s, muladd(c₁₂, c, d.B))  
-    end
-    return nothing
+   @inbounds for I in eachindex(out, t)
+      xi2 = muladd(αt, t[I], βt)      # ξ₂
+      τ = π * (xi2 / 2) + C
+      s, c = sincos(τ)
+      out[I] = muladd(c₂₁, s, muladd(c₁₂, c, d.B))
+   end
+   return nothing
 end
 
 function gam(d::ellipse, t::Float64, k::Int)::Tuple{Float64,Float64}
- 
-  p  = d.pths[k]
-  αt = (p.tk1 - p.tk0) / 2
-  βt = p.tk0 + αt
-  C  = π * (2 * p.reg - 3) / 4
-  τ = π * muladd(αt, t, βt) / 2 + C
 
-  c₁₁ = d.R1 * d.Cθ
-  c₁₂ = d.R1 * d.Sθ
-  c₂₁ = d.R2 * d.Cθ
-  c₂₂ = -d.R2 * d.Sθ
+   p = d.pths[k]
+   αt = (p.tk1 - p.tk0) / 2
+   βt = p.tk0 + αt
+   C = π * (2 * p.reg - 3) / 4
+   τ = π * muladd(αt, t, βt) / 2 + C
 
-  s, c = sincos(τ)
+   c₁₁ = d.R1 * d.Cθ
+   c₁₂ = d.R1 * d.Sθ
+   c₂₁ = d.R2 * d.Cθ
+   c₂₂ = -d.R2 * d.Sθ
 
-  #d.A + d.R1 * d.Cθ * c - d.R2 * d.Sθ * s
-  Yx = muladd(c₂₂, s, muladd(c₁₁, c, d.A))
-  #d.B + d.R1 * d.Sθ * c + d.R2 * d.Cθ * s
-  Yy = muladd(c₂₁, s, muladd(c₁₂, c, d.B))
+   s, c = sincos(τ)
 
-  return Yx, Yy
+   #d.A + d.R1 * d.Cθ * c - d.R2 * d.Sθ * s
+   Yx = muladd(c₂₂, s, muladd(c₁₁, c, d.A))
+   #d.B + d.R1 * d.Sθ * c + d.R2 * d.Cθ * s
+   Yy = muladd(c₂₁, s, muladd(c₁₂, c, d.B))
+
+   return Yx, Yy
 end
 
 function gam!(out::Vector{Float64}, d::ellipse, t::Float64, k::Int)
- 
-  p  = d.pths[k]
-  αt = (p.tk1 - p.tk0) / 2
-  βt = p.tk0 + αt
-  C  = π * (2 * p.reg - 3) / 4
-  τ = π * muladd(αt, t, βt) / 2 + C
 
-  c₁₁ = d.R1 * d.Cθ
-  c₁₂ = d.R1 * d.Sθ
-  c₂₁ = d.R2 * d.Cθ
-  c₂₂ = -d.R2 * d.Sθ
+   p = d.pths[k]
+   αt = (p.tk1 - p.tk0) / 2
+   βt = p.tk0 + αt
+   C = π * (2 * p.reg - 3) / 4
+   τ = π * muladd(αt, t, βt) / 2 + C
 
-  s, c = sincos(τ)
+   c₁₁ = d.R1 * d.Cθ
+   c₁₂ = d.R1 * d.Sθ
+   c₂₁ = d.R2 * d.Cθ
+   c₂₂ = -d.R2 * d.Sθ
 
-  out[1] = muladd(c₂₂, s, muladd(c₁₁, c, d.A))
-  out[2] = muladd(c₂₁, s, muladd(c₁₂, c, d.B))
+   s, c = sincos(τ)
 
-  return nothing
+   out[1] = muladd(c₂₂, s, muladd(c₁₁, c, d.A))
+   out[2] = muladd(c₂₁, s, muladd(c₁₂, c, d.B))
+
+   return nothing
 end
 
 function gam!(out::Matrix{Float64}, d::ellipse, t::Vector{Float64}, k::Int)
-  #Out is a Matrix of same columns as length of t and 2 rows
-  p  = d.pths[k]
-  αt = (p.tk1 - p.tk0) / 2
-  βt = p.tk0 + αt
-  C  = π * (2 * p.reg - 3) / 4
+   #Out is a Matrix of same columns as length of t and 2 rows
+   p = d.pths[k]
+   αt = (p.tk1 - p.tk0) / 2
+   βt = p.tk0 + αt
+   C = π * (2 * p.reg - 3) / 4
 
-  c₁₁ = d.R1 * d.Cθ
-  c₁₂ = d.R1 * d.Sθ
-  c₂₁ = d.R2 * d.Cθ
-  c₂₂ = -d.R2 * d.Sθ
+   c₁₁ = d.R1 * d.Cθ
+   c₁₂ = d.R1 * d.Sθ
+   c₂₁ = d.R2 * d.Cθ
+   c₂₂ = -d.R2 * d.Sθ
 
-  @inbounds  for I in eachindex(t)
-    τ = π * muladd(αt, t[I], βt) / 2 + C
+   @inbounds for I in eachindex(t)
+      τ = π * muladd(αt, t[I], βt) / 2 + C
 
-    s, c = sincos(τ)
+      s, c = sincos(τ)
 
-    out[1, I] = muladd(c₂₂, s, muladd(c₁₁, c, d.A)) #x coord
-    out[2, I] = muladd(c₂₁, s, muladd(c₁₂, c, d.B)) #y coord
-  end
+      out[1, I] = muladd(c₂₂, s, muladd(c₁₁, c, d.A)) #x coord
+      out[2, I] = muladd(c₂₁, s, muladd(c₁₂, c, d.B)) #y coord
+   end
 
-  return nothing
+   return nothing
 end
 
-function drawbd(d::ellipse, flag = true; L::Int = 33, show::Bool = true)
+function drawbd(d::ellipse, flag=true; L::Int=33, show::Bool=true)
 
-    colors = (
-        RGBf(1, 0, 0),         # red
-        RGBf(1, 0.5, 0.25),    # orange
-        RGBf(0.58, 0, 0.82),   # purple
-        RGBf(0, 1, 0),         # green
-        RGBf(0, 0, 1),         # blue
-    )
+   colors = (
+      RGBf(1, 0, 0),         # red
+      RGBf(1, 0.5, 0.25),    # orange
+      RGBf(0.58, 0, 0.82),   # purple
+      RGBf(0, 1, 0),         # green
+      RGBf(0, 0, 1),         # blue
+   )
 
-    return drawbd_geom(d, colors; flag = flag, L = L, show = show)
+   return drawbd_geom(d, colors; flag=flag, L=L, show=show)
 end
 
 """
@@ -622,34 +622,34 @@ Derivative of the first coordinate of the boundary parametrization.
   (i.e., `∂/∂t mapx(d, 1, t, k)` for `t ∈ [-1,1]`).
 """
 function dgamx(d::ellipse, t::Float64, k::Int)::Float64
-    p  = d.pths[k]
-    ht = p.tk1 - p.tk0
-    t = ht * (t + 1) / 2 + p.tk0
-    τ = π * (t / 2 + (2*p.reg - 3) / 4)
-    s, c = sincos(τ)
-    return -π * ht * ( d.R1 * d.Cθ * s + d.R2 * d.Sθ * c ) /4
+   p = d.pths[k]
+   ht = p.tk1 - p.tk0
+   t = ht * (t + 1) / 2 + p.tk0
+   τ = π * (t / 2 + (2 * p.reg - 3) / 4)
+   s, c = sincos(τ)
+   return -π * ht * (d.R1 * d.Cθ * s + d.R2 * d.Sθ * c) / 4
 end
 
 function dgamx!(out::StridedArray{Float64}, d::ellipse, t::StridedArray{Float64}, k::Int)
-    p  = d.pths[k]
-    ht = p.tk1 - p.tk0
-    
-    αt = ht / 2
-    βt = p.tk0 + αt
+   p = d.pths[k]
+   ht = p.tk1 - p.tk0
 
-    C  = π * (2 * p.reg - 3) / 4
+   αt = ht / 2
+   βt = p.tk0 + αt
 
-    c₁ = -(π * ht / 4) * d.R1 * d.Cθ
-    c₂ = -(π * ht / 4) * d.R2 * d.Sθ
+   C = π * (2 * p.reg - 3) / 4
 
-    @inbounds for I in eachindex(out, t)
-        τ = π * muladd(αt, t[I], βt) / 2 + C
+   c₁ = -(π * ht / 4) * d.R1 * d.Cθ
+   c₂ = -(π * ht / 4) * d.R2 * d.Sθ
 
-        s, c = sincos(τ)
+   @inbounds for I in eachindex(out, t)
+      τ = π * muladd(αt, t[I], βt) / 2 + C
 
-        out[I] = muladd(c₂, c, c₁ * s)  
-    end
-    return nothing
+      s, c = sincos(τ)
+
+      out[I] = muladd(c₂, c, c₁ * s)
+   end
+   return nothing
 end
 """
     dgamy(d::ellipse, t::Float64, k::Int) -> Float64
@@ -661,224 +661,209 @@ Derivative of the second coordinate of the boundary parametrization γ(t).
   (`∂/∂t mapy(d, 1, t, k)` for `t ∈ [-1,1]`).
 """
 function dgamy(d::ellipse, t::Float64, k::Int)::Float64
-    p  = d.pths[k]
-    ht = p.tk1 - p.tk0
-    t = ht * (t + 1) / 2 + p.tk0
-    τ = π * (t / 2 + (2*p.reg - 3) / 4)
-    s, c = sincos(τ)
-    return (π * ht / 4) * (-d.R1 * d.Sθ * s + d.R2 * d.Cθ * c)
+   p = d.pths[k]
+   ht = p.tk1 - p.tk0
+   t = ht * (t + 1) / 2 + p.tk0
+   τ = π * (t / 2 + (2 * p.reg - 3) / 4)
+   s, c = sincos(τ)
+   return (π * ht / 4) * (-d.R1 * d.Sθ * s + d.R2 * d.Cθ * c)
 end
 
 function dgamy!(out::StridedArray{Float64}, d::ellipse, t::StridedArray{Float64}, k::Int)
-    p  = d.pths[k]
-    ht = p.tk1 - p.tk0
-    
-    αt = ht / 2
-    βt = p.tk0 + αt
+   p = d.pths[k]
+   ht = p.tk1 - p.tk0
 
-    C  = π * (2 * p.reg - 3) / 4
+   αt = ht / 2
+   βt = p.tk0 + αt
 
-    c₁ =-(π * ht / 4) * d.R1 * d.Sθ
-    c₂ = (π * ht / 4) * d.R2 * d.Cθ
+   C = π * (2 * p.reg - 3) / 4
 
-    @inbounds for I in eachindex(out, t)
-        τ = π * muladd(αt, t[I], βt) / 2 + C
+   c₁ = -(π * ht / 4) * d.R1 * d.Sθ
+   c₂ = (π * ht / 4) * d.R2 * d.Cθ
 
-        s, c = sincos(τ)
+   @inbounds for I in eachindex(out, t)
+      τ = π * muladd(αt, t[I], βt) / 2 + C
 
-        out[I] = muladd(c₂, c, c₁ * s)  
-    end
-    return nothing
+      s, c = sincos(τ)
+
+      out[I] = muladd(c₂, c, c₁ * s)
+   end
+   return nothing
 end
 
 function dgam(d::ellipse, t::Float64, k::Int)::Tuple{Float64,Float64}
 
-  p = d.pths[k]
-  ht = p.tk1 - p.tk0
+   p = d.pths[k]
+   ht = p.tk1 - p.tk0
 
-  αt = ht / 2
-  βt = p.tk0 + αt
+   αt = ht / 2
+   βt = p.tk0 + αt
 
-  C = π * (2 * p.reg - 3) / 4
+   C = π * (2 * p.reg - 3) / 4
 
-  τ = π * muladd(αt, t, βt) / 2 + C
+   τ = π * muladd(αt, t, βt) / 2 + C
 
-  s, c = sincos(τ)
+   s, c = sincos(τ)
 
-  # dgamx coefficients
-  c₁ = -(π * ht / 4) * d.R1 * d.Cθ
-  c₂ = -(π * ht / 4) * d.R2 * d.Sθ
-  # dgamy coefficients
-  c₃ = -(π * ht / 4) * d.R1 * d.Sθ
-  c₄ = (π * ht / 4) * d.R2 * d.Cθ
+   # dgamx coefficients
+   c₁ = -(π * ht / 4) * d.R1 * d.Cθ
+   c₂ = -(π * ht / 4) * d.R2 * d.Sθ
+   # dgamy coefficients
+   c₃ = -(π * ht / 4) * d.R1 * d.Sθ
+   c₄ = (π * ht / 4) * d.R2 * d.Cθ
 
-  outx = muladd(c₂, c, c₁ * s)  
-  outy = muladd(c₄, c, c₃ * s)  
-  
-  return outx, outy
+   outx = muladd(c₂, c, c₁ * s)
+   outy = muladd(c₄, c, c₃ * s)
+
+   return outx, outy
 end
 
 function dgam!(out::Vector{Float64}, d::ellipse, t::Float64, k::Int)
 
-  p = d.pths[k]
-  ht = p.tk1 - p.tk0
+   p = d.pths[k]
+   ht = p.tk1 - p.tk0
 
-  αt = ht / 2
-  βt = p.tk0 + αt
+   αt = ht / 2
+   βt = p.tk0 + αt
 
-  C = π * (2 * p.reg - 3) / 4
+   C = π * (2 * p.reg - 3) / 4
 
-  τ = π * muladd(αt, t, βt) / 2 + C
+   τ = π * muladd(αt, t, βt) / 2 + C
 
-  s, c = sincos(τ)
+   s, c = sincos(τ)
 
-  # dgamx coefficients
-  c₁ = -(π * ht / 4) * d.R1 * d.Cθ
-  c₂ = -(π * ht / 4) * d.R2 * d.Sθ
-  # dgamy coefficients
-  c₃ = -(π * ht / 4) * d.R1 * d.Sθ
-  c₄ = (π * ht / 4) * d.R2 * d.Cθ
+   # dgamx coefficients
+   c₁ = -(π * ht / 4) * d.R1 * d.Cθ
+   c₂ = -(π * ht / 4) * d.R2 * d.Sθ
+   # dgamy coefficients
+   c₃ = -(π * ht / 4) * d.R1 * d.Sθ
+   c₄ = (π * ht / 4) * d.R2 * d.Cθ
 
-  out[1] = muladd(c₂, c, c₁ * s)  
-  out[2] = muladd(c₄, c, c₃ * s)  
+   out[1] = muladd(c₂, c, c₁ * s)
+   out[2] = muladd(c₄, c, c₃ * s)
 
-  return nothing
+   return nothing
 end
 
 function dgam!(out::Matrix{Float64}, d::ellipse, t::Vector{Float64}, k::Int)
 
-  p = d.pths[k]
-  ht = p.tk1 - p.tk0
+   p = d.pths[k]
+   ht = p.tk1 - p.tk0
 
-  αt = ht / 2
-  βt = p.tk0 + αt
+   αt = ht / 2
+   βt = p.tk0 + αt
 
-  C = π * (2 * p.reg - 3) / 4
+   C = π * (2 * p.reg - 3) / 4
 
-  # dgamx coefficients
-  c₁ = -(π * ht / 4) * d.R1 * d.Cθ
-  c₂ = -(π * ht / 4) * d.R2 * d.Sθ
-  # dgamy coefficients
-  c₃ = -(π * ht / 4) * d.R1 * d.Sθ
-  c₄ = (π * ht / 4) * d.R2 * d.Cθ
-  @inbounds  for I in eachindex(t)
-    τ = π * muladd(αt, t[I], βt) / 2 + C
+   # dgamx coefficients
+   c₁ = -(π * ht / 4) * d.R1 * d.Cθ
+   c₂ = -(π * ht / 4) * d.R2 * d.Sθ
+   # dgamy coefficients
+   c₃ = -(π * ht / 4) * d.R1 * d.Sθ
+   c₄ = (π * ht / 4) * d.R2 * d.Cθ
+   @inbounds for I in eachindex(t)
+      τ = π * muladd(αt, t[I], βt) / 2 + C
 
-    s, c = sincos(τ)
+      s, c = sincos(τ)
 
-    out[1, I] = muladd(c₂, c, c₁ * s)  
-    out[2, I] = muladd(c₄, c, c₃ * s)  
-  end
+      out[1, I] = muladd(c₂, c, c₁ * s)
+      out[2, I] = muladd(c₄, c, c₃ * s)
+   end
 
-  return nothing
+   return nothing
 end
 
 function gamp(d::ellipse, t::Float64, k::Int)::Tuple{Float64,Float64}
-    return dgamy(d, t, k), -dgamx(d, t, k)
+   return dgamy(d, t, k), -dgamx(d, t, k)
 end
 
 function gamp!(out::Matrix{Float64}, d::ellipse, t::Vector{Float64}, k::Int)
-  #Outputs dy, -dx, the sign is changed in dgamx coeffs!
-  p = d.pths[k]
-  ht = p.tk1 - p.tk0
+   #Outputs dy, -dx, the sign is changed in dgamx coeffs!
+   p = d.pths[k]
+   ht = p.tk1 - p.tk0
 
-  αt = ht / 2
-  βt = p.tk0 + αt
+   αt = ht / 2
+   βt = p.tk0 + αt
 
-  C = π * (2 * p.reg - 3) / 4
+   C = π * (2 * p.reg - 3) / 4
 
-  # dgamx coefficients
-  c₁ = (π * ht / 4) * d.R1 * d.Cθ
-  c₂ = (π * ht / 4) * d.R2 * d.Sθ
-  # dgamy coefficients
-  c₃ = -(π * ht / 4) * d.R1 * d.Sθ
-  c₄ = (π * ht / 4) * d.R2 * d.Cθ
-  @inbounds  for I in eachindex(t)
-    τ = π * muladd(αt, t[I], βt) / 2 + C
+   # dgamx coefficients
+   c₁ = (π * ht / 4) * d.R1 * d.Cθ
+   c₂ = (π * ht / 4) * d.R2 * d.Sθ
+   # dgamy coefficients
+   c₃ = -(π * ht / 4) * d.R1 * d.Sθ
+   c₄ = (π * ht / 4) * d.R2 * d.Cθ
+   @inbounds for I in eachindex(t)
+      τ = π * muladd(αt, t[I], βt) / 2 + C
 
-    s, c = sincos(τ)
+      s, c = sincos(τ)
 
-    out[1, I] = muladd(c₄, c, c₃ * s)
-    out[2, I] = muladd(c₂, c, c₁ * s)
-  end
+      out[1, I] = muladd(c₄, c, c₃ * s)
+      out[2, I] = muladd(c₂, c, c₁ * s)
+   end
 
-  return nothing
+   return nothing
 end
 
-function nu!(out::Matrix{Float64}, d::ellipse, t::Vector{Float64}, k::Int) 
-  #Outputs dy, -dx, the sign is changed in dgamx coeffs!
-  p = d.pths[k]
-  ht = p.tk1 - p.tk0
+function nu!(out::Matrix{Float64}, d::ellipse, t::Vector{Float64}, k::Int)
+   #Outputs dy, -dx, the sign is changed in dgamx coeffs!
+   p = d.pths[k]
+   ht = p.tk1 - p.tk0
 
-  αt = ht / 2
-  βt = p.tk0 + αt
+   αt = ht / 2
+   βt = p.tk0 + αt
 
-  C = π * (2 * p.reg - 3) / 4
+   C = π * (2 * p.reg - 3) / 4
 
-  # minus dgamx coefficients
-  c₁ = (π * ht / 4) * d.R1 * d.Cθ
-  c₂ = (π * ht / 4) * d.R2 * d.Sθ
-  # dgamy coefficients
-  c₃ = -(π * ht / 4) * d.R1 * d.Sθ
-  c₄ = (π * ht / 4) * d.R2 * d.Cθ
-  @inbounds  for I in eachindex(t)
-    τ = π * muladd(αt, t[I], βt) / 2 + C
+   # minus dgamx coefficients
+   c₁ = (π * ht / 4) * d.R1 * d.Cθ
+   c₂ = (π * ht / 4) * d.R2 * d.Sθ
+   # dgamy coefficients
+   c₃ = -(π * ht / 4) * d.R1 * d.Sθ
+   c₄ = (π * ht / 4) * d.R2 * d.Cθ
+   @inbounds for I in eachindex(t)
+      τ = π * muladd(αt, t[I], βt) / 2 + C
 
-    s, c = sincos(τ)
+      s, c = sincos(τ)
 
-    dx = muladd(c₂, c, c₁ * s)  
-    dy = muladd(c₄, c, c₃ * s)  
-    S  = sqrt(dx^2+dy^2)
+      dx = muladd(c₂, c, c₁ * s)
+      dy = muladd(c₄, c, c₃ * s)
+      S = sqrt(dx^2 + dy^2)
 
-    out[1, I] = dy/S
-    out[2, I] = dx/S
-  end
+      out[1, I] = dy / S
+      out[2, I] = dx / S
+   end
 
-  return nothing
+   return nothing
 end
 
 # This function finds s such that γ_l(t) = γ_k(s),
 # allowing s to lie outside [-1, 1].
 function bdinv(d::ellipse, t::Float64, l::Int, k::Int)::Float64
-  @inbounds begin
-    pl = d.pths[l]
-    pk = d.pths[k]
+   @inbounds begin
+      pl = d.pths[l]
+      pk = d.pths[k]
 
-    # Map t on patch l from [-1,1] to ξ_l ∈ [pl.tk0, pl.tk1].
-    ξl = muladd(0.5 * (pl.tk1 - pl.tk0), t, 0.5 * (pl.tk0 + pl.tk1))
+      ξl = muladd(0.5 * (pl.tk1 - pl.tk0), t, 0.5 * (pl.tk0 + pl.tk1))
 
-    # Same angular region: same ξ, just converted to patch-k local coordinate.
-    if pl.reg == pk.reg
-      return xi_inv(pk.tk0, pk.tk1, ξl)
-    end
+      if pl.reg == pk.reg
+         return xi_inv(ξl, pk.tk0, pk.tk1)
+      end
 
-    # Angle on source patch l:
-    #   θ_l = π ξ_l / 2 + C_l,
-    #   C_l = π(2reg_l - 3)/4.
-    Cl = π * (2 * pl.reg - 3) / 4
-    θ = muladd(π / 2, ξl, Cl)
+      Cl = π * (2 * pl.reg - 3) / 4
+      θ = muladd(π / 2, ξl, Cl)
 
-    # Target patch k angle map:
-    #   θ_k = π ξ_k / 2 + C_k.
-    Ck = π * (2 * pk.reg - 3) / 4
+      Ck = π * (2 * pk.reg - 3) / 4
 
-    # Choose the 2π-periodic copy of θ closest to patch k's angular interval.
-    #
-    # Patch k angular interval:
-    #   [Ck + π*pk.tk0/2, Ck + π*pk.tk1/2]
-    center_k = Ck + (π / 2) * (0.5 * (pk.tk0 + pk.tk1))
+      center_k = Ck + (π / 2) * (0.5 * (pk.tk0 + pk.tk1))
 
-    m = round((center_k - θ) / (2π))
-    θs = θ + 2π * m
+      m = round((center_k - θ) / (2π))
+      θs = θ + 2π * m
 
-    # Convert shifted angle to ξ_k:
-    #   θs = π ξ_k / 2 + Ck
-    #   ξ_k = 2(θs - Ck)/π.
-    ξk = (2 / π) * (θs - Ck)
+      ξk = (2 / π) * (θs - Ck)
 
-    # Convert ξ_k to local coordinate s on patch k.
-    return xi_inv(pk.tk0, pk.tk1, ξk)
-  end
+      return xi_inv(ξk, pk.tk0, pk.tk1)
+   end
 end
 
 """
@@ -888,95 +873,95 @@ K(t, τ) = ((γ_k(τ) - γ_k(t))⋅  γᵖᵉʳᵖ_k(τ)) / ‖γ_k(τ) - γ_k(t
 and for k == l the limiting value is taken for patch k.
 The array method returns an array with the ***same shape*** as `tau`.
 """
-function DLP!(out::StridedArray{Float64}, d::ellipse, t::Float64, 
-  tau::StridedArray{Float64}, k::Int, x::Vector{Float64}, 
-  G::Vector{Float64}, GP::Vector{Float64})
+function DLP!(out::StridedArray{Float64}, d::ellipse, t::Float64,
+   tau::StridedArray{Float64}, k::Int, x::Vector{Float64},
+   G::Vector{Float64}, GP::Vector{Float64})
 
-  p = d.pths[k]
+   p = d.pths[k]
 
-  ht = p.tk1 - p.tk0
+   ht = p.tk1 - p.tk0
 
-  aτ, bτ = ht / 2, p.tk0 + ht / 2
+   aτ, bτ = ht / 2, p.tk0 + ht / 2
 
-  t̂ = muladd(aτ, t, bτ)
+   t̂ = muladd(aτ, t, bτ)
 
-  C = π * (2 * p.reg - 3) / 4
+   C = π * (2 * p.reg - 3) / 4
 
-  pref = ht * π * d.R1 * d.R2 / 8
+   pref = ht * π * d.R1 * d.R2 / 8
 
-  @inbounds for I in eachindex(tau, out)
+   @inbounds for I in eachindex(tau, out)
 
-    τ = muladd(aτ, tau[I], bτ)
+      τ = muladd(aτ, tau[I], bτ)
 
-    tt = (π / 4) * (t̂ + τ) + C
+      tt = (π / 4) * (t̂ + τ) + C
 
-    s, c = sincos(tt)
-    # r1^2 sin^2 + r2^2 cos^2
-    denom = muladd(d.R1^2, s * s, d.R2^2 * (c * c))
+      s, c = sincos(tt)
+      # r1^2 sin^2 + r2^2 cos^2
+      denom = muladd(d.R1^2, s * s, d.R2^2 * (c * c))
 
-    out[I] = pref / denom
-  end
+      out[I] = pref / denom
+   end
 
-  return nothing
+   return nothing
 end
 
 #-----------------------
-function Dmap!(out::StridedArray{Float64}, d::ellipse, 
-  u::StridedArray{Float64}, v::StridedArray{Float64}, k::Int)
+function Dmap!(out::StridedArray{Float64}, d::ellipse,
+   u::StridedArray{Float64}, v::StridedArray{Float64}, k::Int)
 
-  p = d.pths[k]
-  hc = p.ck1 - p.ck0
-  ht = p.tk1 - p.tk0
-  reg = p.reg
+   p = d.pths[k]
+   hc = p.ck1 - p.ck0
+   ht = p.tk1 - p.tk0
+   reg = p.reg
 
-  αu = hc / 2
-  αv = ht / 2
-  βu = p.ck0 + αu      # û = αu * u + βu
-  βv = p.tk0 + αv      # v̂ = αv * v + βv
+   αu = hc / 2
+   αv = ht / 2
+   βu = p.ck0 + αu      # û = αu * u + βu
+   βv = p.tk0 + αv      # v̂ = αv * v + βv
 
-  if p.reg == 5
-    # constant over the patch
-    fill!(out, d.L1 * d.L2 * αu * αv)
-    return nothing
-  end
+   if p.reg == 5
+      # constant over the patch
+      fill!(out, d.L1 * d.L2 * αu * αv)
+      return nothing
+   end
 
-  @inbounds for I in eachindex(out)
-    û = muladd(αu, u[I], βu)
-    v̂ = muladd(αv, v[I], βv)
+   @inbounds for I in eachindex(out)
+      û = muladd(αu, u[I], βu)
+      v̂ = muladd(αv, v[I], βv)
 
-    vt = π * (v̂ / 2 + (2 * reg - 3) / 4)
-    svt, cvt = sincos(vt)
+      vt = π * (v̂ / 2 + (2 * reg - 3) / 4)
+      svt, cvt = sincos(vt)
 
-    if reg == 1
-      dux = d.L1 * (2 * v̂ - 1) * d.Sθ / 2 - d.L2 * d.Cθ / 2 + d.R1 * d.Cθ * cvt - d.R2 * d.Sθ * svt
-      dvx = (û - 1) * d.L1 * d.Sθ - π * û * (d.R1 * d.Cθ * svt + d.R2 * d.Sθ * cvt) / 2
-      duy = d.L1 * (1 - 2 * v̂) * d.Cθ / 2 - d.L2 * d.Sθ / 2 + d.R1 * d.Sθ * cvt + d.R2 * d.Cθ * svt
-      dvy = (1 - û) * d.L1 * d.Cθ + π * û * (-d.R1 * d.Sθ * svt + d.R2 * d.Cθ * cvt) / 2
+      if reg == 1
+         dux = d.L1 * (2 * v̂ - 1) * d.Sθ / 2 - d.L2 * d.Cθ / 2 + d.R1 * d.Cθ * cvt - d.R2 * d.Sθ * svt
+         dvx = (û - 1) * d.L1 * d.Sθ - π * û * (d.R1 * d.Cθ * svt + d.R2 * d.Sθ * cvt) / 2
+         duy = d.L1 * (1 - 2 * v̂) * d.Cθ / 2 - d.L2 * d.Sθ / 2 + d.R1 * d.Sθ * cvt + d.R2 * d.Cθ * svt
+         dvy = (1 - û) * d.L1 * d.Cθ + π * û * (-d.R1 * d.Sθ * svt + d.R2 * d.Cθ * cvt) / 2
 
-    elseif reg == 2
-      dux = d.L2 * (2 * v̂ - 1) * d.Cθ / 2 + d.L1 * d.Sθ / 2 + d.R1 * d.Cθ * cvt - d.R2 * d.Sθ * svt
-      dvx = (û - 1) * d.L2 * d.Cθ - π * û * (d.R1 * d.Cθ * svt + d.R2 * d.Sθ * cvt) / 2
-      duy = d.L2 * (2 * v̂ - 1) * d.Sθ / 2 - d.L1 * d.Cθ / 2 + d.R1 * d.Sθ * cvt + d.R2 * d.Cθ * svt
-      dvy = (û - 1) * d.L2 * d.Sθ + π * û * (-d.R1 * d.Sθ * svt + d.R2 * d.Cθ * cvt) / 2
+      elseif reg == 2
+         dux = d.L2 * (2 * v̂ - 1) * d.Cθ / 2 + d.L1 * d.Sθ / 2 + d.R1 * d.Cθ * cvt - d.R2 * d.Sθ * svt
+         dvx = (û - 1) * d.L2 * d.Cθ - π * û * (d.R1 * d.Cθ * svt + d.R2 * d.Sθ * cvt) / 2
+         duy = d.L2 * (2 * v̂ - 1) * d.Sθ / 2 - d.L1 * d.Cθ / 2 + d.R1 * d.Sθ * cvt + d.R2 * d.Cθ * svt
+         dvy = (û - 1) * d.L2 * d.Sθ + π * û * (-d.R1 * d.Sθ * svt + d.R2 * d.Cθ * cvt) / 2
 
-    elseif reg == 3
-      dux = -d.L1 * (2 * v̂ - 1) * d.Sθ / 2 + d.L2 * d.Cθ / 2 + d.R1 * d.Cθ * cvt - d.R2 * d.Sθ * svt
-      dvx = (1 - û) * d.L1 * d.Sθ - π * û * (d.R1 * d.Cθ * svt + d.R2 * d.Sθ * cvt) / 2
-      duy = -d.L1 * (1 - 2 * v̂) * d.Cθ / 2 + d.L2 * d.Sθ / 2 + d.R1 * d.Sθ * cvt + d.R2 * d.Cθ * svt
-      dvy = (û - 1) * d.L1 * d.Cθ + π * û * (-d.R1 * d.Sθ * svt + d.R2 * d.Cθ * cvt) / 2
+      elseif reg == 3
+         dux = -d.L1 * (2 * v̂ - 1) * d.Sθ / 2 + d.L2 * d.Cθ / 2 + d.R1 * d.Cθ * cvt - d.R2 * d.Sθ * svt
+         dvx = (1 - û) * d.L1 * d.Sθ - π * û * (d.R1 * d.Cθ * svt + d.R2 * d.Sθ * cvt) / 2
+         duy = -d.L1 * (1 - 2 * v̂) * d.Cθ / 2 + d.L2 * d.Sθ / 2 + d.R1 * d.Sθ * cvt + d.R2 * d.Cθ * svt
+         dvy = (û - 1) * d.L1 * d.Cθ + π * û * (-d.R1 * d.Sθ * svt + d.R2 * d.Cθ * cvt) / 2
 
-    else # reg == 4
-      dux = -d.L2 * (2 * v̂ - 1) * d.Cθ / 2 - d.L1 * d.Sθ / 2 + d.R1 * d.Cθ * cvt - d.R2 * d.Sθ * svt
-      dvx = (1 - û) * d.L2 * d.Cθ - π * û * (d.R1 * d.Cθ * svt + d.R2 * d.Sθ * cvt) / 2
-      duy = -d.L2 * (2 * v̂ - 1) * d.Sθ / 2 + d.L1 * d.Cθ / 2 + d.R1 * d.Sθ * cvt + d.R2 * d.Cθ * svt
-      dvy = (1 - û) * d.L2 * d.Sθ + π * û * (-d.R1 * d.Sθ * svt + d.R2 * d.Cθ * cvt) / 2
-    end
+      else # reg == 4
+         dux = -d.L2 * (2 * v̂ - 1) * d.Cθ / 2 - d.L1 * d.Sθ / 2 + d.R1 * d.Cθ * cvt - d.R2 * d.Sθ * svt
+         dvx = (1 - û) * d.L2 * d.Cθ - π * û * (d.R1 * d.Cθ * svt + d.R2 * d.Sθ * cvt) / 2
+         duy = -d.L2 * (2 * v̂ - 1) * d.Sθ / 2 + d.L1 * d.Cθ / 2 + d.R1 * d.Sθ * cvt + d.R2 * d.Cθ * svt
+         dvy = (1 - û) * d.L2 * d.Sθ + π * û * (-d.R1 * d.Sθ * svt + d.R2 * d.Cθ * cvt) / 2
+      end
 
-    out[I] = αu * αv * abs(dux * dvy - dvx * duy)
+      out[I] = αu * αv * abs(dux * dvy - dvx * duy)
 
-  end
+   end
 
-  return nothing
+   return nothing
 end
 
 """
@@ -984,127 +969,166 @@ A combination of mapxy! and Dmap! function (No allocations!)
 The purpose of this function is to reduce computations  
 related to cosine and sine's.  
 """
-function mapxy_Dmap!(Zx::StridedArray{Float64}, Zy::StridedArray{Float64}, 
-  DJ::StridedArray{Float64}, d::ellipse, u::StridedArray{Float64}, 
-  v::StridedArray{Float64}, k::Int)
-  p = d.pths[k]
-  hc = p.ck1 - p.ck0
-  ht = p.tk1 - p.tk0
+function mapxy_Dmap!(Zx::StridedArray{Float64}, Zy::StridedArray{Float64},
+   DJ::StridedArray{Float64}, d::ellipse, u::StridedArray{Float64},
+   v::StridedArray{Float64}, k::Int)
 
-  if p.reg != 5
-    # xi1 = map u from [-1,1] → [ck0,ck1]; xi2 = map v → [tk0,tk1]
-    αu = hc / 2
-    αv = ht / 2
-    βu = p.ck0 + αu
-    βv = p.tk0 + αv
-    c₁₁ = d.R1 * d.Cθ
-    c₁₂ = d.R1 * d.Sθ
-    c₂₁ = d.R2 * d.Cθ
-    c₂₂ = -d.R2 * d.Sθ
-    # Corner line (Xx,Xy) for this region
-    # Iterate once over a single index range I that is 
-    # valid for all four arrays.
-    @inbounds for I in eachindex(u, v, Zx, Zy, DJ)
+   p = d.pths[k]
+   hc = p.ck1 - p.ck0
+   ht = p.tk1 - p.tk0
 
-      û = muladd(αu, u[I], βu)
-      v̂ = muladd(αv, v[I], βv)
-
-      vt = π * (v̂ / 2 + (2 * p.reg - 3) / 4)
-      svt, cvt = sincos(vt)
-
-      # fixed edge point for given v̂
-      if p.reg == 1
-        Xx = d.A + d.L2 * d.Cθ / 2 - d.L1 * d.Sθ * (2 * v̂ - 1) / 2
-        Xy = d.B + d.L2 * d.Sθ / 2 + d.L1 * d.Cθ * (2 * v̂ - 1) / 2
-
-        dux = d.L1 * (2 * v̂ - 1) * d.Sθ / 2 - d.L2 * d.Cθ / 2 + c₁₁ * cvt + c₂₂ * svt
-        dvx = (û - 1) * d.L1 * d.Sθ + π * û * (-c₁₁ * svt + c₂₂ * cvt) / 2
-        duy = d.L1 * (1 - 2 * v̂) * d.Cθ / 2 - d.L2 * d.Sθ / 2 + c₁₂ * cvt + c₂₁ * svt
-        dvy = (1 - û) * d.L1 * d.Cθ + π * û * (-c₁₂ * svt + c₂₁ * cvt) / 2
-
-      elseif p.reg == 2
-        Xx = d.A + d.L2 * d.Cθ * (1 - 2 * v̂) / 2 - d.L1 * d.Sθ / 2
-        Xy = d.B + d.L2 * d.Sθ * (1 - 2 * v̂) / 2 + d.L1 * d.Cθ / 2
-
-        dux = d.L2 * (2 * v̂ - 1) * d.Cθ / 2 + d.L1 * d.Sθ / 2 + c₁₁ * cvt + c₂₂ * svt
-        dvx = (û - 1) * d.L2 * d.Cθ + π * û * (-c₁₁ * svt + c₂₂ * cvt) / 2
-        duy = d.L2 * (2 * v̂ - 1) * d.Sθ / 2 - d.L1 * d.Cθ / 2 + c₁₂ * cvt + c₂₁ * svt
-        dvy = (û - 1) * d.L2 * d.Sθ + π * û * (-c₁₂ * svt + c₂₁ * cvt) / 2
-
-      elseif p.reg == 3
-        Xx = d.A - d.L2 * d.Cθ / 2 + d.L1 * d.Sθ * (2 * v̂ - 1) / 2
-        Xy = d.B - d.L2 * d.Sθ / 2 - d.L1 * d.Cθ * (2 * v̂ - 1) / 2
-
-        dux = -d.L1 * (2 * v̂ - 1) * d.Sθ / 2 + d.L2 * d.Cθ / 2 + c₁₁ * cvt + c₂₂ * svt
-        dvx = (1 - û) * d.L1 * d.Sθ + π * û * (-c₁₁ * svt + c₂₂ * cvt) / 2
-        duy = -d.L1 * (1 - 2 * v̂) * d.Cθ / 2 + d.L2 * d.Sθ / 2 + c₁₂ * cvt + c₂₁ * svt
-        dvy = (û - 1) * d.L1 * d.Cθ + π * û * (-c₁₂ * svt + c₂₁ * cvt) / 2
-
-      else # p.reg == 4
-        Xx = d.A - d.L2 * d.Cθ * (1 - 2 * v̂) / 2 + d.L1 * d.Sθ / 2
-        Xy = d.B - d.L2 * d.Sθ * (1 - 2 * v̂) / 2 - d.L1 * d.Cθ / 2
-
-        dux = -d.L2 * (2 * v̂ - 1) * d.Cθ / 2 - d.L1 * d.Sθ / 2 + c₁₁ * cvt + c₂₂ * svt
-        dvx = (1 - û) * d.L2 * d.Cθ + π * û * (-c₁₁ * svt + c₂₂ * cvt) / 2
-        duy = -d.L2 * (2 * v̂ - 1) * d.Sθ / 2 + d.L1 * d.Cθ / 2 + c₁₂ * cvt + c₂₁ * svt
-        dvy = (1 - û) * d.L2 * d.Sθ + π * û * (-c₁₂ * svt + c₂₁ * cvt) / 2
-
-      end
-
-
-      #d.A + d.R1 * d.Cθ * c - d.R2 * d.Sθ * s
-      Yx = muladd(c₂₂, svt, muladd(c₁₁, cvt, d.A)) 
-      #d.B + d.R1 * d.Sθ * c + d.R2 * d.Cθ * s
-      Yy = muladd(c₂₁, svt, muladd(c₁₂, cvt, d.B))  
-
-      # blend: (1 - û) * X + û * Y
-      Zx[I] = muladd(û, (Yx - Xx), Xx)
-      Zy[I] = muladd(û, (Yy - Xy), Xy)
-
-      DJ[I] = αu * αv * abs(dux * dvy - dvx * duy)
-    end
-
-  else
-
-    # rectangular patch (reg==5)
-    # if L2 >= L1, swap affine maps per your code path
-    if d.L2 >= d.L1
-      αu = ht / 2
-      αv = hc / 2
-      βu = p.tk0 + αu
-      βv = p.ck0 + αv
-      @inbounds  for I in eachindex(u, v, Zx, Zy)
-        xi1 = muladd(αu, u[I], βu)
-        xi2 = muladd(αv, v[I], βv)
-        Zx[I] = d.A + d.L2*(xi1 - 0.5)*d.Cθ - d.L1*(xi2 - 0.5)*d.Sθ
-        Zy[I] = d.B + d.L2*(xi1 - 0.5)*d.Sθ + d.L1*(xi2 - 0.5)*d.Cθ
-      end
-
-      fill!(DJ, d.L1 * d.L2 * αu * αv)
-    else
+   # Curved ellipse-sector patches: reg = 1,2,3,4
+   if p.reg != 5
       αu = hc / 2
       αv = ht / 2
       βu = p.ck0 + αu
       βv = p.tk0 + αv
-      @inbounds  for I in eachindex(u, v, Zx, Zy)
-        xi1 = muladd(αu, u[I], βu)
-        xi2 = muladd(αv, v[I], βv)
-        Zx[I] = d.A + d.L2*(xi1 - 0.5)*d.Cθ - d.L1*(xi2 - 0.5)*d.Sθ
-        Zy[I] = d.B + d.L2*(xi1 - 0.5)*d.Sθ + d.L1*(xi2 - 0.5)*d.Cθ
+
+      c₁₁ = d.R1 * d.Cθ
+      c₁₂ = d.R1 * d.Sθ
+      c₂₁ = d.R2 * d.Cθ
+      c₂₂ = -d.R2 * d.Sθ
+
+      θoff = (2 * p.reg - 3) * (π / 4)
+
+      if p.reg == 1
+
+         @inbounds for I in eachindex(u, v, Zx, Zy, DJ)
+            û = muladd(αu, u[I], βu)
+            v̂ = muladd(αv, v[I], βv)
+
+            vt = muladd(π / 2, v̂, θoff)
+            svt, cvt = sincos(vt)
+
+            Xx = d.A + d.L2 * d.Cθ / 2 - d.L1 * d.Sθ * (2 * v̂ - 1) / 2
+            Xy = d.B + d.L2 * d.Sθ / 2 + d.L1 * d.Cθ * (2 * v̂ - 1) / 2
+
+            dux = d.L1 * (2 * v̂ - 1) * d.Sθ / 2 - d.L2 * d.Cθ / 2 + c₁₁ * cvt + c₂₂ * svt
+            dvx = (û - 1) * d.L1 * d.Sθ + π * û * (-c₁₁ * svt + c₂₂ * cvt) / 2
+            duy = d.L1 * (1 - 2 * v̂) * d.Cθ / 2 - d.L2 * d.Sθ / 2 + c₁₂ * cvt + c₂₁ * svt
+            dvy = (1 - û) * d.L1 * d.Cθ + π * û * (-c₁₂ * svt + c₂₁ * cvt) / 2
+
+            Yx = muladd(c₂₂, svt, muladd(c₁₁, cvt, d.A))
+            Yy = muladd(c₂₁, svt, muladd(c₁₂, cvt, d.B))
+
+            Zx[I] = muladd(û, Yx - Xx, Xx)
+            Zy[I] = muladd(û, Yy - Xy, Xy)
+
+            DJ[I] = αu * αv * abs(dux * dvy - dvx * duy)
+         end
+
+      elseif p.reg == 2
+
+         @inbounds for I in eachindex(u, v, Zx, Zy, DJ)
+            û = muladd(αu, u[I], βu)
+            v̂ = muladd(αv, v[I], βv)
+
+            vt = muladd(π / 2, v̂, θoff)
+            svt, cvt = sincos(vt)
+
+            Xx = d.A + d.L2 * d.Cθ * (1 - 2 * v̂) / 2 - d.L1 * d.Sθ / 2
+            Xy = d.B + d.L2 * d.Sθ * (1 - 2 * v̂) / 2 + d.L1 * d.Cθ / 2
+
+            dux = d.L2 * (2 * v̂ - 1) * d.Cθ / 2 + d.L1 * d.Sθ / 2 + c₁₁ * cvt + c₂₂ * svt
+            dvx = (û - 1) * d.L2 * d.Cθ + π * û * (-c₁₁ * svt + c₂₂ * cvt) / 2
+            duy = d.L2 * (2 * v̂ - 1) * d.Sθ / 2 - d.L1 * d.Cθ / 2 + c₁₂ * cvt + c₂₁ * svt
+            dvy = (û - 1) * d.L2 * d.Sθ + π * û * (-c₁₂ * svt + c₂₁ * cvt) / 2
+
+            Yx = muladd(c₂₂, svt, muladd(c₁₁, cvt, d.A))
+            Yy = muladd(c₂₁, svt, muladd(c₁₂, cvt, d.B))
+
+            Zx[I] = muladd(û, Yx - Xx, Xx)
+            Zy[I] = muladd(û, Yy - Xy, Xy)
+
+            DJ[I] = αu * αv * abs(dux * dvy - dvx * duy)
+         end
+
+      elseif p.reg == 3
+
+         @inbounds for I in eachindex(u, v, Zx, Zy, DJ)
+            û = muladd(αu, u[I], βu)
+            v̂ = muladd(αv, v[I], βv)
+
+            vt = muladd(π / 2, v̂, θoff)
+            svt, cvt = sincos(vt)
+
+            Xx = d.A - d.L2 * d.Cθ / 2 + d.L1 * d.Sθ * (2 * v̂ - 1) / 2
+            Xy = d.B - d.L2 * d.Sθ / 2 - d.L1 * d.Cθ * (2 * v̂ - 1) / 2
+
+            dux = -d.L1 * (2 * v̂ - 1) * d.Sθ / 2 + d.L2 * d.Cθ / 2 + c₁₁ * cvt + c₂₂ * svt
+            dvx = (1 - û) * d.L1 * d.Sθ + π * û * (-c₁₁ * svt + c₂₂ * cvt) / 2
+            duy = -d.L1 * (1 - 2 * v̂) * d.Cθ / 2 + d.L2 * d.Sθ / 2 + c₁₂ * cvt + c₂₁ * svt
+            dvy = (û - 1) * d.L1 * d.Cθ + π * û * (-c₁₂ * svt + c₂₁ * cvt) / 2
+
+            Yx = muladd(c₂₂, svt, muladd(c₁₁, cvt, d.A))
+            Yy = muladd(c₂₁, svt, muladd(c₁₂, cvt, d.B))
+
+            Zx[I] = muladd(û, Yx - Xx, Xx)
+            Zy[I] = muladd(û, Yy - Xy, Xy)
+
+            DJ[I] = αu * αv * abs(dux * dvy - dvx * duy)
+         end
+
+      else # p.reg == 4
+
+         @inbounds for I in eachindex(u, v, Zx, Zy, DJ)
+            û = muladd(αu, u[I], βu)
+            v̂ = muladd(αv, v[I], βv)
+
+            vt = muladd(π / 2, v̂, θoff)
+            svt, cvt = sincos(vt)
+
+            Xx = d.A - d.L2 * d.Cθ * (1 - 2 * v̂) / 2 + d.L1 * d.Sθ / 2
+            Xy = d.B - d.L2 * d.Sθ * (1 - 2 * v̂) / 2 - d.L1 * d.Cθ / 2
+
+            dux = -d.L2 * (2 * v̂ - 1) * d.Cθ / 2 - d.L1 * d.Sθ / 2 + c₁₁ * cvt + c₂₂ * svt
+            dvx = (1 - û) * d.L2 * d.Cθ + π * û * (-c₁₁ * svt + c₂₂ * cvt) / 2
+            duy = -d.L2 * (2 * v̂ - 1) * d.Sθ / 2 + d.L1 * d.Cθ / 2 + c₁₂ * cvt + c₂₁ * svt
+            dvy = (1 - û) * d.L2 * d.Sθ + π * û * (-c₁₂ * svt + c₂₁ * cvt) / 2
+
+            Yx = muladd(c₂₂, svt, muladd(c₁₁, cvt, d.A))
+            Yy = muladd(c₂₁, svt, muladd(c₁₂, cvt, d.B))
+
+            Zx[I] = muladd(û, Yx - Xx, Xx)
+            Zy[I] = muladd(û, Yy - Xy, Xy)
+
+            DJ[I] = αu * αv * abs(dux * dvy - dvx * duy)
+         end
+      end
+   else
+      # Rectangular center patch: reg = 5
+      if d.L2 >= d.L1
+         αu = ht / 2
+         αv = hc / 2
+         βu = p.tk0 + αu
+         βv = p.ck0 + αv
+      else
+         αu = hc / 2
+         αv = ht / 2
+         βu = p.ck0 + αu
+         βv = p.tk0 + αv
       end
 
-      fill!(DJ, d.L1 * d.L2 * αu * αv)
-    end
-  end
+      J = d.L1 * d.L2 * αu * αv
 
-  return nothing
+      @inbounds for I in eachindex(u, v, Zx, Zy, DJ)
+         xi1 = muladd(αu, u[I], βu)
+         xi2 = muladd(αv, v[I], βv)
+
+         Zx[I] = d.A + d.L2 * (xi1 - 0.5) * d.Cθ - d.L1 * (xi2 - 0.5) * d.Sθ
+         Zy[I] = d.B + d.L2 * (xi1 - 0.5) * d.Sθ + d.L1 * (xi2 - 0.5) * d.Cθ
+         DJ[I] = J
+      end
+   end
+
+   return nothing
 end
 
-function chk_map(d::ellipse; n::Int = 32, tol::Float64 = 5e-14)
-  #f!(F, x, y) = fill!(F, 1.0)
-  #Iex =  π * d.R1 * d.R2 
-  Iex = π * d.R1 * d.R2 * ((d.R1^2 + d.R2^2) / 4 + d.A^2 + d.B^2)
-  return chkmap_geom(d, Iex; n=n, tol=tol)
+function chk_map(d::ellipse; n::Int=32, tol::Float64=5e-14)
+   #f!(F, x, y) = fill!(F, 1.0)
+   #Iex =  π * d.R1 * d.R2 
+   Iex = π * d.R1 * d.R2 * ((d.R1^2 + d.R2^2) / 4 + d.A^2 + d.B^2)
+   return chkmap_geom(d, Iex; n=n, tol=tol)
 end
 
 
@@ -1123,48 +1147,48 @@ Notes:
 # Return (J11, J12, J21, J22) of the inverse Jacobian
 function jinvmap(d::ellipse, u::Float64, v::Float64, r::Int)
 
-  û = (u + 1) / 2
-  v̂ = (v + 1) / 2
+   û = (u + 1) / 2
+   v̂ = (v + 1) / 2
 
-  vt = π * (v̂ / 2 + (2 * r - 3) / 4)
-  svt, cvt = sincos(vt)
+   vt = π * (v̂ / 2 + (2 * r - 3) / 4)
+   svt, cvt = sincos(vt)
 
-  if r == 1
-    dux = d.L1 * (2 * v̂ - 1) * d.Sθ / 2 - d.L2 * d.Cθ / 2 + d.R1 * d.Cθ * cvt - d.R2 * d.Sθ * svt
-    dvx = (û - 1) * d.L1 * d.Sθ - π * û * (d.R1 * d.Cθ * svt + d.R2 * d.Sθ * cvt) / 2
-    duy = d.L1 * (1 - 2 * v̂) * d.Cθ / 2 - d.L2 * d.Sθ / 2 + d.R1 * d.Sθ * cvt + d.R2 * d.Cθ * svt
-    dvy = (1 - û) * d.L1 * d.Cθ + π * û * (-d.R1 * d.Sθ * svt + d.R2 * d.Cθ * cvt) / 2
+   if r == 1
+      dux = d.L1 * (2 * v̂ - 1) * d.Sθ / 2 - d.L2 * d.Cθ / 2 + d.R1 * d.Cθ * cvt - d.R2 * d.Sθ * svt
+      dvx = (û - 1) * d.L1 * d.Sθ - π * û * (d.R1 * d.Cθ * svt + d.R2 * d.Sθ * cvt) / 2
+      duy = d.L1 * (1 - 2 * v̂) * d.Cθ / 2 - d.L2 * d.Sθ / 2 + d.R1 * d.Sθ * cvt + d.R2 * d.Cθ * svt
+      dvy = (1 - û) * d.L1 * d.Cθ + π * û * (-d.R1 * d.Sθ * svt + d.R2 * d.Cθ * cvt) / 2
 
-  elseif r == 2
-    dux = d.L2 * (2 * v̂ - 1) * d.Cθ / 2 + d.L1 * d.Sθ / 2 + d.R1 * d.Cθ * cvt - d.R2 * d.Sθ * svt
-    dvx = (û - 1) * d.L2 * d.Cθ - π * û * (d.R1 * d.Cθ * svt + d.R2 * d.Sθ * cvt) / 2
-    duy = d.L2 * (2 * v̂ - 1) * d.Sθ / 2 - d.L1 * d.Cθ / 2 + d.R1 * d.Sθ * cvt + d.R2 * d.Cθ * svt
-    dvy = (û - 1) * d.L2 * d.Sθ + π * û * (-d.R1 * d.Sθ * svt + d.R2 * d.Cθ * cvt) / 2
+   elseif r == 2
+      dux = d.L2 * (2 * v̂ - 1) * d.Cθ / 2 + d.L1 * d.Sθ / 2 + d.R1 * d.Cθ * cvt - d.R2 * d.Sθ * svt
+      dvx = (û - 1) * d.L2 * d.Cθ - π * û * (d.R1 * d.Cθ * svt + d.R2 * d.Sθ * cvt) / 2
+      duy = d.L2 * (2 * v̂ - 1) * d.Sθ / 2 - d.L1 * d.Cθ / 2 + d.R1 * d.Sθ * cvt + d.R2 * d.Cθ * svt
+      dvy = (û - 1) * d.L2 * d.Sθ + π * û * (-d.R1 * d.Sθ * svt + d.R2 * d.Cθ * cvt) / 2
 
-  elseif r == 3
-    dux = -d.L1 * (2 * v̂ - 1) * d.Sθ / 2 + d.L2 * d.Cθ / 2 + d.R1 * d.Cθ * cvt - d.R2 * d.Sθ * svt
-    dvx = (1 - û) * d.L1 * d.Sθ - π * û * (d.R1 * d.Cθ * svt + d.R2 * d.Sθ * cvt) / 2
-    duy = -d.L1 * (1 - 2 * v̂) * d.Cθ / 2 + d.L2 * d.Sθ / 2 + d.R1 * d.Sθ * cvt + d.R2 * d.Cθ * svt
-    dvy = (û - 1) * d.L1 * d.Cθ + π * û * (-d.R1 * d.Sθ * svt + d.R2 * d.Cθ * cvt) / 2
+   elseif r == 3
+      dux = -d.L1 * (2 * v̂ - 1) * d.Sθ / 2 + d.L2 * d.Cθ / 2 + d.R1 * d.Cθ * cvt - d.R2 * d.Sθ * svt
+      dvx = (1 - û) * d.L1 * d.Sθ - π * û * (d.R1 * d.Cθ * svt + d.R2 * d.Sθ * cvt) / 2
+      duy = -d.L1 * (1 - 2 * v̂) * d.Cθ / 2 + d.L2 * d.Sθ / 2 + d.R1 * d.Sθ * cvt + d.R2 * d.Cθ * svt
+      dvy = (û - 1) * d.L1 * d.Cθ + π * û * (-d.R1 * d.Sθ * svt + d.R2 * d.Cθ * cvt) / 2
 
-  else # r == 4
-    dux = -d.L2 * (2 * v̂ - 1) * d.Cθ / 2 - d.L1 * d.Sθ / 2 + d.R1 * d.Cθ * cvt - d.R2 * d.Sθ * svt
-    dvx = (1 - û) * d.L2 * d.Cθ - π * û * (d.R1 * d.Cθ * svt + d.R2 * d.Sθ * cvt) / 2
-    duy = -d.L2 * (2 * v̂ - 1) * d.Sθ / 2 + d.L1 * d.Cθ / 2 + d.R1 * d.Sθ * cvt + d.R2 * d.Cθ * svt
-    dvy = (1 - û) * d.L2 * d.Sθ + π * û * (-d.R1 * d.Sθ * svt + d.R2 * d.Cθ * cvt) / 2
-  end
+   else # r == 4
+      dux = -d.L2 * (2 * v̂ - 1) * d.Cθ / 2 - d.L1 * d.Sθ / 2 + d.R1 * d.Cθ * cvt - d.R2 * d.Sθ * svt
+      dvx = (1 - û) * d.L2 * d.Cθ - π * û * (d.R1 * d.Cθ * svt + d.R2 * d.Sθ * cvt) / 2
+      duy = -d.L2 * (2 * v̂ - 1) * d.Sθ / 2 + d.L1 * d.Cθ / 2 + d.R1 * d.Sθ * cvt + d.R2 * d.Cθ * svt
+      dvy = (1 - û) * d.L2 * d.Sθ + π * û * (-d.R1 * d.Sθ * svt + d.R2 * d.Cθ * cvt) / 2
+   end
 
 
-  detJ = dux * dvy - dvx * duy
-  invdet = 2.0 / detJ
+   detJ = dux * dvy - dvx * duy
+   invdet = 2.0 / detJ
 
-  # inverse of [dux dvx; duy dvy] is (1/detJ)[dvy -dvx; -duy dux]
-  J11 = invdet * dvy
-  J12 = -invdet * dvx
-  J21 = -invdet * duy
-  J22 = invdet * dux
+   # inverse of [dux dvx; duy dvy] is (1/detJ)[dvy -dvx; -duy dux]
+   J11 = invdet * dvy
+   J12 = -invdet * dvx
+   J21 = -invdet * duy
+   J22 = invdet * dux
 
-  return J11, J12, J21, J22
+   return J11, J12, J21, J22
 end
 
 """
@@ -1179,52 +1203,52 @@ Strategy:
 """
 @inline function Xx(s::Float64, d::ellipse, r::Int)
 
-  if r == 1
-    return d.A + d.L2 * d.Cθ / 2 - d.L1 * d.Sθ * (2 * s - 1) / 2
+   if r == 1
+      return d.A + d.L2 * d.Cθ / 2 - d.L1 * d.Sθ * (2 * s - 1) / 2
 
-  elseif r == 2
-    return d.A + d.L2 * d.Cθ * (1 - 2 * s) / 2 - d.L1 * d.Sθ / 2
+   elseif r == 2
+      return d.A + d.L2 * d.Cθ * (1 - 2 * s) / 2 - d.L1 * d.Sθ / 2
 
-  elseif r == 3
-    return d.A - d.L2 * d.Cθ / 2 + d.L1 * d.Sθ * (2 * s - 1) / 2
+   elseif r == 3
+      return d.A - d.L2 * d.Cθ / 2 + d.L1 * d.Sθ * (2 * s - 1) / 2
 
-  else # r == 4
-    return d.A - d.L2 * d.Cθ * (1 - 2 * s) / 2 + d.L1 * d.Sθ / 2
+   else # r == 4
+      return d.A - d.L2 * d.Cθ * (1 - 2 * s) / 2 + d.L1 * d.Sθ / 2
 
-  end
+   end
 
 end
 
 @inline function Xy(s::Float64, d::ellipse, r::Int)
-  if r == 1
-    return d.B + d.L2 * d.Sθ / 2 + d.L1 * d.Cθ * (2 * s - 1) / 2
+   if r == 1
+      return d.B + d.L2 * d.Sθ / 2 + d.L1 * d.Cθ * (2 * s - 1) / 2
 
-  elseif r == 2
-    return d.B + d.L2 * d.Sθ * (1 - 2 * s) / 2 + d.L1 * d.Cθ / 2
+   elseif r == 2
+      return d.B + d.L2 * d.Sθ * (1 - 2 * s) / 2 + d.L1 * d.Cθ / 2
 
-  elseif r == 3
-    return d.B - d.L2 * d.Sθ / 2 - d.L1 * d.Cθ * (2 * s - 1) / 2
+   elseif r == 3
+      return d.B - d.L2 * d.Sθ / 2 - d.L1 * d.Cθ * (2 * s - 1) / 2
 
-  else # r == 4
-    return d.B - d.L2 * d.Sθ * (1 - 2 * s) / 2 - d.L1 * d.Cθ / 2
+   else # r == 4
+      return d.B - d.L2 * d.Sθ * (1 - 2 * s) / 2 - d.L1 * d.Cθ / 2
 
-  end
+   end
 end
 
 @inline function Yx(s::Float64, d::ellipse, r::Int)
-  th = π * (s / 2 + (2 * r - 3) / 4)
+   th = π * (s / 2 + (2 * r - 3) / 4)
 
-  s, c = sincos(th)
+   s, c = sincos(th)
 
-  return d.A + d.R1 * d.Cθ * c - d.R2 * d.Sθ * s
+   return d.A + d.R1 * d.Cθ * c - d.R2 * d.Sθ * s
 end
 
 @inline function Yy(s::Float64, d::ellipse, r::Int)
-  th = π * (s / 2 + (2 * r - 3) / 4)
+   th = π * (s / 2 + (2 * r - 3) / 4)
 
-  s, c = sincos(th)
+   s, c = sincos(th)
 
-  return d.B + d.R1 * d.Sθ * c + d.R2 * d.Cθ * s
+   return d.B + d.R1 * d.Sθ * c + d.R2 * d.Cθ * s
 end
 
 function fill_FTable!(tbl::FTable, d::ellipse, r::Int)
@@ -1293,141 +1317,141 @@ function fill_FTable!(tbl::FTable, d::ellipse, r::Int)
 end
 
 @inline function f1I(t::Float64, s::Float64,
-  d::ellipse, u::Float64, v::Float64, r::Int)
-  ŝ = (s + 1) / 2
-  t̂ = (t + 1) / 2
+   d::ellipse, u::Float64, v::Float64, r::Int)
+   ŝ = (s + 1) / 2
+   t̂ = (t + 1) / 2
 
-  Xxv, Yxv = Xx(ŝ, d, r),  Yx(ŝ, d, r)
+   Xxv, Yxv = Xx(ŝ, d, r), Yx(ŝ, d, r)
 
-  return (1 - t̂) * Xxv + t̂ * Yxv - u
+   return (1 - t̂) * Xxv + t̂ * Yxv - u
 end
 
 @inline function f2I(t::Float64, s::Float64,
-  d::ellipse, u::Float64, v::Float64, r::Int)
-    ŝ = (s + 1) / 2
-    t̂ = (t + 1) / 2
+   d::ellipse, u::Float64, v::Float64, r::Int)
+   ŝ = (s + 1) / 2
+   t̂ = (t + 1) / 2
 
-    Xyv, Yyv = Xy(ŝ, d, r), Yy(ŝ, d, r)
+   Xyv, Yyv = Xy(ŝ, d, r), Yy(ŝ, d, r)
 
-    return (1 - t̂) * Xyv + t̂ * Yyv - v
+   return (1 - t̂) * Xyv + t̂ * Yyv - v
 end
 
 @inline function JinvI(t::Float64, s::Float64,
-  d::ellipse, u::Float64, v::Float64, r::Int)
-  return jinvmap(d, t, s, r)  # returns J11,J12,J21,J22
+   d::ellipse, u::Float64, v::Float64, r::Int)
+   return jinvmap(d, t, s, r)  # returns J11,J12,J21,J22
 end
 
 #Used in find_roots! function
 @inline function f_cont(v̂::Float64,
-  d::ellipse, u::Float64, v::Float64, r::Int)
+   d::ellipse, u::Float64, v::Float64, r::Int)
 
-  if r == 1
-    Xxv = d.A + d.L2 * d.Cθ / 2 - d.L1 * d.Sθ * (2 * v̂ - 1) / 2
-    Xyv = d.B + d.L2 * d.Sθ / 2 + d.L1 * d.Cθ * (2 * v̂ - 1) / 2
-  elseif r == 2
-    Xxv = d.A + d.L2 * d.Cθ * (1 - 2 * v̂) / 2 - d.L1 * d.Sθ / 2
-    Xyv = d.B + d.L2 * d.Sθ * (1 - 2 * v̂) / 2 + d.L1 * d.Cθ / 2
-  elseif r == 3
-    Xxv = d.A - d.L2 * d.Cθ / 2 + d.L1 * d.Sθ * (2 * v̂ - 1) / 2
-    Xyv = d.B - d.L2 * d.Sθ / 2 - d.L1 * d.Cθ * (2 * v̂ - 1) / 2
-  else
-    Xxv = d.A - d.L2 * d.Cθ * (1 - 2 * v̂) / 2 + d.L1 * d.Sθ / 2
-    Xyv = d.B - d.L2 * d.Sθ * (1 - 2 * v̂) / 2 - d.L1 * d.Cθ / 2
-  end
+   if r == 1
+      Xxv = d.A + d.L2 * d.Cθ / 2 - d.L1 * d.Sθ * (2 * v̂ - 1) / 2
+      Xyv = d.B + d.L2 * d.Sθ / 2 + d.L1 * d.Cθ * (2 * v̂ - 1) / 2
+   elseif r == 2
+      Xxv = d.A + d.L2 * d.Cθ * (1 - 2 * v̂) / 2 - d.L1 * d.Sθ / 2
+      Xyv = d.B + d.L2 * d.Sθ * (1 - 2 * v̂) / 2 + d.L1 * d.Cθ / 2
+   elseif r == 3
+      Xxv = d.A - d.L2 * d.Cθ / 2 + d.L1 * d.Sθ * (2 * v̂ - 1) / 2
+      Xyv = d.B - d.L2 * d.Sθ / 2 - d.L1 * d.Cθ * (2 * v̂ - 1) / 2
+   else
+      Xxv = d.A - d.L2 * d.Cθ * (1 - 2 * v̂) / 2 + d.L1 * d.Sθ / 2
+      Xyv = d.B - d.L2 * d.Sθ * (1 - 2 * v̂) / 2 - d.L1 * d.Cθ / 2
+   end
 
-  th = π * (v̂ / 2 + (2 * r - 3) / 4)
+   th = π * (v̂ / 2 + (2 * r - 3) / 4)
 
-  s, c = sincos(th)
+   s, c = sincos(th)
 
-  Yxv = d.A + d.R1 * d.Cθ * c - d.R2 * d.Sθ * s
-  Yyv = d.B + d.R1 * d.Sθ * c + d.R2 * d.Cθ * s
+   Yxv = d.A + d.R1 * d.Cθ * c - d.R2 * d.Sθ * s
+   Yyv = d.B + d.R1 * d.Sθ * c + d.R2 * d.Cθ * s
 
-  return u * (Yyv - Xyv) - v * (Yxv - Xxv) + (Xyv*Yxv - Xxv*Yyv)
+   return u * (Yyv - Xyv) - v * (Yxv - Xxv) + (Xyv * Yxv - Xxv * Yyv)
 end
 
 
-function mapinv(tbl::FTable, d::ellipse, u::Float64, 
-  v::Float64, k::Int)::Tuple{Float64,Float64}
+function mapinv(tbl::FTable, d::ellipse, u::Float64,
+   v::Float64, k::Int)::Tuple{Float64,Float64}
 
-  p = d.pths[k]
+   p = d.pths[k]
 
-  r = p.reg
+   r = p.reg
 
-  # central rectangle (affine inverse; watch axis swap per your map)
-  if r == 5
-    if d.L2 >= d.L1
-      Z1 = xi_inv((((u - d.A)*d.Cθ + (v - d.B)*d.Sθ + d.L2 / 2) / d.L2), p.tk0, p.tk1)
-      Z2 = xi_inv((((v - d.B)*d.Cθ - (u - d.A)*d.Sθ + d.L1 / 2) / d.L1), p.ck0, p.ck1)
-    else
-      Z1 = xi_inv((((u - d.A)*d.Cθ + (v - d.B)*d.Sθ + d.L2 / 2) / d.L2), p.ck0, p.ck1)
-      Z2 = xi_inv((((v - d.B)*d.Cθ - (u - d.A)*d.Sθ + d.L1 / 2) / d.L1), p.tk0, p.tk1)
-    end
-    return Z1, Z2
-  end
+   # central rectangle (affine inverse; watch axis swap per your map)
+   if r == 5
+      if d.L2 >= d.L1
+         Z1 = xi_inv((((u - d.A) * d.Cθ + (v - d.B) * d.Sθ + d.L2 / 2) / d.L2), p.tk0, p.tk1)
+         Z2 = xi_inv((((v - d.B) * d.Cθ - (u - d.A) * d.Sθ + d.L1 / 2) / d.L1), p.ck0, p.ck1)
+      else
+         Z1 = xi_inv((((u - d.A) * d.Cθ + (v - d.B) * d.Sθ + d.L2 / 2) / d.L2), p.ck0, p.ck1)
+         Z2 = xi_inv((((v - d.B) * d.Cθ - (u - d.A) * d.Sθ + d.L1 / 2) / d.L1), p.tk0, p.tk1)
+      end
+      return Z1, Z2
+   end
 
-  # ----- curved patches reg = 1..4 -----
-  # --- Stage 1: 2D Newton via Subroutines ---
-  tN, sN = newtonR2D(f1I, f2I, JinvI,
-    0.0, 0.0, 4, d, u, v, r; tol=5e-14)
+   # ----- curved patches reg = 1..4 -----
+   # --- Stage 1: 2D Newton via Subroutines ---
+   tN, sN = newtonR2D(f1I, f2I, JinvI,
+      0.0, 0.0, 4, d, u, v, r; tol=5e-14)
 
-  if tN !== :max
+   if tN !== :max
 
-    x = xi_inv((1 + tN) / 2, p.ck0, p.ck1)
-    y = xi_inv((1 + sN) / 2, p.tk0, p.tk1)
+      x = xi_inv((1 + tN) / 2, p.ck0, p.ck1)
+      y = xi_inv((1 + sN) / 2, p.tk0, p.tk1)
 
-    return x, y
+      return x, y
 
-  end
+   end
 
-  #--- Stage 2: BIS method inversion ---
+   #--- Stage 2: BIS method inversion ---
 
-  # ensure the table is filled for this region
-  if tbl.reg != r
-    display("Wrong table!")
-    fill_FTable!(tbl, d, r)
-  end
+   # ensure the table is filled for this region
+   if tbl.reg != r
+      display("Wrong table!")
+      fill_FTable!(tbl, d, r)
+   end
 
-  rmi = tbl.rmi 
-  zxi = tbl.zxi
+   rmi = tbl.rmi
+   zxi = tbl.zxi
 
-  n = find_roots!(rmi, tbl, d, u, v, r)
+   n = find_roots!(rmi, tbl, d, u, v, r)
 
-  @inbounds for i in 1:n
-    v̂ = rmi[i]
-    Xxv = Xx(v̂, d, r)
-    Xyv = Xy(v̂, d, r)
-    Yxv = Yx(v̂, d, r)
-    Yyv = Yy(v̂, d, r)
+   @inbounds for i in 1:n
+      v̂ = rmi[i]
+      Xxv = Xx(v̂, d, r)
+      Xyv = Xy(v̂, d, r)
+      Yxv = Yx(v̂, d, r)
+      Yyv = Yy(v̂, d, r)
 
-    if abs(v - Xyv) < abs(u - Xxv)
-      zxi[i] = (u - Xxv) / (Yxv - Xxv)
-    else
-      zxi[i] = (v - Xyv) / (Yyv - Xyv)
-    end
-  end
+      if abs(v - Xyv) < abs(u - Xxv)
+         zxi[i] = (u - Xxv) / (Yxv - Xxv)
+      else
+         zxi[i] = (v - Xyv) / (Yyv - Xyv)
+      end
+   end
 
-  # choose best candidate by cost
-  best_cost = Inf
-  best_idx = 0
+   # choose best candidate by cost
+   best_cost = Inf
+   best_idx = 0
 
-  @inbounds for i in 1:n
-    zy_norm = xi_inv(rmi[i], p.tk0, p.tk1)
-    zx_norm = xi_inv(zxi[i], p.ck0, p.ck1)
-    cost = max(abs(zy_norm), abs(zx_norm))
-    if cost < best_cost
-      best_cost = cost
-      best_idx = i
-    end
-  end
+   @inbounds for i in 1:n
+      zy_norm = xi_inv(rmi[i], p.tk0, p.tk1)
+      zx_norm = xi_inv(zxi[i], p.ck0, p.ck1)
+      cost = max(abs(zy_norm), abs(zx_norm))
+      if cost < best_cost
+         best_cost = cost
+         best_idx = i
+      end
+   end
 
-  za = rmi[best_idx]
-  zx = zxi[best_idx]
+   za = rmi[best_idx]
+   zx = zxi[best_idx]
 
-  # final reference coords in [-1,1]
-  t = xi_inv(zx, p.ck0, p.ck1)   # from zx
-  s = xi_inv(za, p.tk0, p.tk1)   # from v̂ (root)
+   # final reference coords in [-1,1]
+   t = xi_inv(zx, p.ck0, p.ck1)   # from zx
+   s = xi_inv(za, p.tk0, p.tk1)   # from v̂ (root)
 
-  return t, s
+   return t, s
 
 end
 
@@ -1465,59 +1489,59 @@ Returns:
   where `out_idx` is patch index if `"to_pth"`, region index if `"to_reg"`.
 """
 function ptconv(d::ellipse, t1::Float64, t2::Float64, idx::Int, ptdest::String)
-  #@assert length(t) == 2 "t must be length-2 vector [t1,t2]"
+   #@assert length(t) == 2 "t must be length-2 vector [t1,t2]"
 
-  if ptdest == "to_pth"
-    r = idx
+   if ptdest == "to_pth"
+      r = idx
 
-    for k in 1:d.Npat
+      for k in 1:d.Npat
+         p = d.pths[k]
+         p.reg == r || continue
+
+         if r != 5
+            t1k = xi_inv((t1 + 1) / 2, p.ck0, p.ck1)
+            t2k = xi_inv((t2 + 1) / 2, p.tk0, p.tk1)
+         else
+            if d.L1 > d.L2
+               t1k = xi_inv((t1 + 1) / 2, p.ck0, p.ck1)
+               t2k = xi_inv((t2 + 1) / 2, p.tk0, p.tk1)
+            else
+               t1k = xi_inv((t1 + 1) / 2, p.tk0, p.tk1)
+               t2k = xi_inv((t2 + 1) / 2, p.ck0, p.ck1)
+            end
+         end
+
+         if abs(t1k) ≤ 1 && abs(t2k) ≤ 1
+            return t1k, t2k, k
+         end
+      end
+
+      error("ptconv(to_pth): no patch in region $r contained the point.")
+
+   elseif ptdest == "to_reg"
+      k = idx
+      #@assert 1 ≤ k ≤ d.Npat "patch index out of range"
       p = d.pths[k]
-      p.reg == r || continue
+      r = p.reg
 
       if r != 5
-        t1k = xi_inv((t1 + 1) / 2, p.ck0, p.ck1)
-        t2k = xi_inv((t2 + 1) / 2, p.tk0, p.tk1)
+         t1r = (p.ck1 - p.ck0) * t1 + (p.ck1 + p.ck0) - 1
+         t2r = (p.tk1 - p.tk0) * t2 + (p.tk1 + p.tk0) - 1
       else
-        if d.L1 > d.L2
-          t1k = xi_inv((t1 + 1) / 2, p.ck0, p.ck1)
-          t2k = xi_inv((t2 + 1) / 2, p.tk0, p.tk1)
-        else
-          t1k = xi_inv((t1 + 1) / 2, p.tk0, p.tk1)
-          t2k = xi_inv((t2 + 1) / 2, p.ck0, p.ck1)
-        end
+         if d.L1 > d.L2
+            t1r = (p.ck1 - p.ck0) * t1 + (p.ck1 + p.ck0) - 1
+            t2r = (p.tk1 - p.tk0) * t2 + (p.tk1 + p.tk0) - 1
+         else
+            t1r = (p.tk1 - p.tk0) * t1 + (p.tk1 + p.tk0) - 1
+            t2r = (p.ck1 - p.ck0) * t2 + (p.ck1 + p.ck0) - 1
+         end
       end
 
-      if abs(t1k) ≤ 1 && abs(t2k) ≤ 1
-        return t1k, t2k, k
-      end
-    end
+      return t1r, t2r, r
 
-    error("ptconv(to_pth): no patch in region $r contained the point.")
-
-  elseif ptdest == "to_reg"
-    k = idx 
-    #@assert 1 ≤ k ≤ d.Npat "patch index out of range"
-    p = d.pths[k]
-    r = p.reg
-
-    if r != 5
-      t1r = (p.ck1 - p.ck0) * t1 + (p.ck1 + p.ck0) - 1
-      t2r = (p.tk1 - p.tk0) * t2 + (p.tk1 + p.tk0) - 1
-    else
-      if d.L1 > d.L2
-        t1r = (p.ck1 - p.ck0) * t1 + (p.ck1 + p.ck0) - 1
-        t2r = (p.tk1 - p.tk0) * t2 + (p.tk1 + p.tk0) - 1
-      else
-        t1r = (p.tk1 - p.tk0) * t1 + (p.tk1 + p.tk0) - 1
-        t2r = (p.ck1 - p.ck0) * t2 + (p.ck1 + p.ck0) - 1
-      end
-    end
-
-    return t1r, t2r, r
-
-  else
-    error("ptconv: ptdest must be \"to_pth\" or \"to_reg\"")
-  end
+   else
+      error("ptconv: ptdest must be \"to_pth\" or \"to_reg\"")
+   end
 end
 
 """
@@ -1543,27 +1567,27 @@ end
 
 """
 function mapinv2(d::ellipse, t1::Float64, t2::Float64, k2::Int, k::Int)::Tuple{Float64,Float64}
-    p = d.pths[k]  # Fields reg, ck0, ck1, tk0, tk1
+   p = d.pths[k]  # Fields reg, ck0, ck1, tk0, tk1
 
-    # Convert the given (t1,t2,k2) to the "regional" normalized coords of the *point*
-    # Expecting something that returns two values in [-1,1]:
-    #   tr1 ≈ u_ref, tr2 ≈ v_ref  (for the *global/regional* parameterization)
-    tr1, tr2, _ = ptconv(d, t1, t2, k2, "to_reg")   
+   # Convert the given (t1,t2,k2) to the "regional" normalized coords of the *point*
+   # Expecting something that returns two values in [-1,1]:
+   #   tr1 ≈ u_ref, tr2 ≈ v_ref  (for the *global/regional* parameterization)
+   tr1, tr2, _ = ptconv(d, t1, t2, k2, "to_reg")
 
-    # Map from [-1,1] -> [0,1]
-    û = (tr1 + 1) / 2
-    v̂ = (tr2 + 1) / 2
+   # Map from [-1,1] -> [0,1]
+   û = (tr1 + 1) / 2
+   v̂ = (tr2 + 1) / 2
 
-    # Axis swap for the center rectangle if L2 ≥ L1
-    if d.L2 >= d.L1 && p.reg == 5
-        t1k = xi_inv(û, p.tk0, p.tk1)
-        t2k = xi_inv(v̂, p.ck0, p.ck1)
-    else
-        t1k = xi_inv(û, p.ck0, p.ck1)
-        t2k = xi_inv(v̂, p.tk0, p.tk1)
-    end
+   # Axis swap for the center rectangle if L2 ≥ L1
+   if d.L2 >= d.L1 && p.reg == 5
+      t1k = xi_inv(û, p.tk0, p.tk1)
+      t2k = xi_inv(v̂, p.ck0, p.ck1)
+   else
+      t1k = xi_inv(û, p.ck0, p.ck1)
+      t2k = xi_inv(v̂, p.tk0, p.tk1)
+   end
 
-    return t1k, t2k
+   return t1k, t2k
 end
 
 """
@@ -1578,35 +1602,35 @@ Notes:
 """
 function dfunc(d::ellipse, k::Int, t::Float64, s::Float64)::Float64
 
-  p = d.pths[k]
+   p = d.pths[k]
 
-  if p.reg == 5
-    return 1.0
-  end
+   if p.reg == 5
+      return 1.0
+   end
 
-  hc = p.ck1 - p.ck0
-  val = (1.0 - p.ck1) + hc * t / 2
-  exp = s ≥ 0.5 ? (s - 1) : s
-  return val^exp
+   hc = p.ck1 - p.ck0
+   val = (1.0 - p.ck1) + hc * t / 2
+   exp = s ≥ 0.5 ? (s - 1) : s
+   return val^exp
 
 end
 
 function dfunc!(out::StridedArray{Float64}, d::ellipse, k::Int, t::StridedArray{Float64}, s::Float64)
 
-  p = d.pths[k]
+   p = d.pths[k]
 
-  if p.reg == 5
-    fill!(out, 1.0)
-  else
-    exp = s ≥ 0.5 ? (s - 1) : s
-    αc = (p.ck1 - p.ck0) / 2
-    βc = 1.0 - p.ck1
-    @inbounds for i in eachindex(t)
-      out[i] = (muladd(αc,t[i],βc))^exp
-    end
-  end
+   if p.reg == 5
+      fill!(out, 1.0)
+   else
+      exp = s ≥ 0.5 ? (s - 1) : s
+      αc = (p.ck1 - p.ck0) / 2
+      βc = 1.0 - p.ck1
+      @inbounds for i in eachindex(t)
+         out[i] = (muladd(αc, t[i], βc))^exp
+      end
+   end
 
-  return nothing
+   return nothing
 
 end
 
@@ -1625,185 +1649,185 @@ mapxy!(Zx, Zy, d, u2, v2, k)
 it uses the combined function mapxy_Dmap!
 """
 function diff_map!(out::Matrix{Float64},
-  Zx::Matrix{Float64}, Zy::Matrix{Float64}, DJ::Matrix{Float64},
-  d::ellipse, u::Float64, v::Float64,
-  u2::Matrix{Float64}, v2::Matrix{Float64},
-  du::Vector{Float64}, dv::Vector{Float64}, k::Int;
-  tol::Float64=1e-5)
+   Zx::Matrix{Float64}, Zy::Matrix{Float64}, DJ::Matrix{Float64},
+   d::ellipse, u::Float64, v::Float64,
+   u2::Matrix{Float64}, v2::Matrix{Float64},
+   du::Vector{Float64}, dv::Vector{Float64}, k::Int;
+   tol::Float64=1e-5)
 
-  #nd_u, nd_v = length(du), length(dv)
-  nd_u = size(out, 1)
-  nd_v = size(out, 2)
-  #@assert size(out) == (nd_u, nd_v)
-  #@assert size(u2)  == size(out)
-  #@assert size(v2)  == size(out)
+   #nd_u, nd_v = length(du), length(dv)
+   nd_u = size(out, 1)
+   nd_v = size(out, 2)
+   #@assert size(out) == (nd_u, nd_v)
+   #@assert size(u2)  == size(out)
+   #@assert size(v2)  == size(out)
 
-  p = d.pths[k]
-  αc = (p.ck1 - p.ck0) / 2     # Δc/2
-  αt = (p.tk1 - p.tk0) / 2     # Δt/2
+   p = d.pths[k]
+   αc = (p.ck1 - p.ck0) / 2     # Δc/2
+   αt = (p.tk1 - p.tk0) / 2     # Δt/2
 
-  mapxy_Dmap!(Zx, Zy, DJ, d, u2, v2, k)
-  
-  # --- rectangular patch (reg == 5): closed form, no mapping needed
-  if p.reg == 5
-    if d.L2 >= d.L1
-      cDx, cDy = d.L2 * αt, d.L1 * αc
-    else
-      cDx, cDy = d.L2 * αc, d.L1 * αt
-    end
+   mapxy_Dmap!(Zx, Zy, DJ, d, u2, v2, k)
 
-    @inbounds for j in 1:nd_v
-      dj = dv[j]
-      @inbounds for i in 1:nd_u
-        Dx = (cDx * d.Cθ) * du[i] - (cDy * d.Sθ) * dj
-        Dy = (cDx * d.Sθ) * du[i] + (cDy * d.Cθ) * dj
-        out[i, j] = hypot(Dx, Dy)
-      end
-    end
-
-    return nothing
-  end
-
-  # affine maps: [-1,1] → [ck0,ck1] × [tk0,tk1]
-  û = muladd(αc, u, p.ck0 + αc)
-  v̂ = muladd(αt, v, p.tk0 + αt)
-
-  # angle/trig
-  vt = muladd(π / 2, v̂, (2 * p.reg - 3) * (π / 4))
-  svt, cvt = sincos(vt)
-
-  # common combos 
-  A = d.R1 * d.Cθ * svt + d.R2 * d.Sθ * cvt                  # (R1*ct*svt + R2*st*cvt)
-  B = d.R1 * d.Cθ * cvt - d.R2 * d.Sθ * svt                  # (R1*ct*cvt - R2*st*svt)
-  C = -d.R1 * d.Sθ * svt + d.R2 * d.Cθ * cvt                 # (-R1*st*svt + R2*ct*cvt)
-  D = d.R1 * d.Sθ * cvt + d.R2 * d.Cθ * svt                  # (R1*st*cvt + R2*ct*svt)
-
-  # folded pi/alpha_t powers
-  πa = π * αt
-  πa2 = πa * πa          # π^2 * αt^2
-  πa3 = πa2 * πa         # π^3 * αt^3
-  πa4 = πa2 * πa2        # π^4 * αt^4
-
-  if p.reg == 1
-    dux = αc * (d.L1 * (2 * v̂ - 1) * d.Sθ / 2 - d.L2 * d.Cθ / 2 + B)
-    dvx = αt * ((û - 1) * d.L1 * d.Sθ - (π / 2) * û * A)
-    duvx = αt * αc * (d.L1 * d.Sθ - (π / 2) * A)
-
-    dv2x = -(πa2 / 4) * û * B
-    duv2x = -(πa2 / 4) * αc * B
-    dv3x = (πa3 / 8) * û * A
-    duv3x = (πa3 / 8) * αc * A
-    dv4x = (πa4 / 16) * û * B
-
-    duy = αc * (d.L1 * (1 - 2 * v̂) * d.Cθ / 2 - d.L2 * d.Sθ / 2 + D)
-    dvy = αt * ((1 - û) * d.L1 * d.Cθ + (π / 2) * û * C)
-    duvy = αt * αc * (-d.L1 * d.Cθ + (π / 2) * C)
-
-    dv2y = -(πa2 / 4) * û * D
-    duv2y = -(πa2 / 4) * αc * D
-    dv3y = -(πa3 / 8) * û * C
-    duv3y = -(πa3 / 8) * αc * C
-    dv4y = (πa4 / 16) * û * D
-
-  elseif p.reg == 2
-    dux = αc * (d.L2 * (2 * v̂ - 1) * d.Cθ / 2 + d.L1 * d.Sθ / 2 + B)
-    dvx = αt * ((û - 1) * d.L2 * d.Cθ - (π / 2) * û * A)
-    duvx = αt * αc * (d.L2 * d.Cθ - (π / 2) * A)
-
-    dv2x = -(πa2 / 4) * û * B
-    duv2x = -(πa2 / 4) * αc * B
-    dv3x = (πa3 / 8) * û * A
-    duv3x = (πa3 / 8) * αc * A
-    dv4x = (πa4 / 16) * û * B
-
-    duy = αc * (d.L2 * (2 * v̂ - 1) * d.Sθ / 2 - d.L1 * d.Cθ / 2 + D)
-    dvy = αt * ((û - 1) * d.L2 * d.Sθ + (π / 2) * û * C)
-    duvy = αt * αc * (d.L2 * d.Sθ + (π / 2) * C)
-
-    dv2y = -(πa2 / 4) * û * D
-    duv2y = -(πa2 / 4) * αc * D
-    dv3y = -(πa3 / 8) * û * C
-    duv3y = -(πa3 / 8) * αc * C
-    dv4y = (πa4 / 16) * û * D
-
-  elseif p.reg == 3
-    dux = αc * (-d.L1 * (2 * v̂ - 1) * d.Sθ / 2 + d.L2 * d.Cθ / 2 + B)
-    dvx = αt * (-(û - 1) * d.L1 * d.Sθ - (π / 2) * û * A)
-    duvx = αt * αc * (-d.L1 * d.Sθ - (π / 2) * A)
-
-    dv2x = -(πa2 / 4) * û * B
-    duv2x = -(πa2 / 4) * αc * B
-    dv3x = (πa3 / 8) * û * A
-    duv3x = (πa3 / 8) * αc * A
-    dv4x = (πa4 / 16) * û * B
-
-    duy = αc * (-d.L1 * (1 - 2 * v̂) * d.Cθ / 2 + d.L2 * d.Sθ / 2 + D)
-    dvy = αt * (-(1 - û) * d.L1 * d.Cθ + (π / 2) * û * C)
-    duvy = αt * αc * (d.L1 * d.Cθ + (π / 2) * C)
-
-    dv2y = -(πa2 / 4) * û * D
-    duv2y = -(πa2 / 4) * αc * D
-    dv3y = -(πa3 / 8) * û * C
-    duv3y = -(πa3 / 8) * αc * C
-    dv4y = (πa4 / 16) * û * D
-
-  else # p.reg == 4
-    dux = αc * (-d.L2 * (2 * v̂ - 1) * d.Cθ / 2 - d.L1 * d.Sθ / 2 + B)
-    dvx = αt * (-(û - 1) * d.L2 * d.Cθ - (π / 2) * û * A)
-    duvx = αt * αc * (-d.L2 * d.Cθ - (π / 2) * A)
-
-    dv2x = -(πa2 / 4) * û * B
-    duv2x = -(πa2 / 4) * αc * B
-    dv3x = (πa3 / 8) * û * A
-    duv3x = (πa3 / 8) * αc * A
-    dv4x = (πa4 / 16) * û * B
-
-    duy = αc * (-d.L2 * (2 * v̂ - 1) * d.Sθ / 2 + d.L1 * d.Cθ / 2 + D)
-    dvy = αt * (-(û - 1) * d.L2 * d.Sθ + (π / 2) * û * C)
-    duvy = αt * αc * (-d.L2 * d.Sθ + (π / 2) * C)
-
-    dv2y = -(πa2 / 4) * û * D
-    duv2y = -(πa2 / 4) * αc * D
-    dv3y = -(πa3 / 8) * û * C
-    duv3y = -(πa3 / 8) * αc * C
-    dv4y = (πa4 / 16) * û * D
-  end
-  # --- general case (reg ∈ {1,2,3,4})
-  # Map the reference scalar point and the whole grid
-  tux, tvy = mapxy(d, u, v, k)
-
-  @inbounds for j in 1:nd_v
-    dvj = dv[j]
-    dvj2 = dvj * dvj
-    dvj3 = dvj2 * dvj
-    dvj4 = dvj2 * dvj2
-    @inbounds for i in 1:nd_u
-      uu = u2[i, j]
-      vv = v2[i, j]
-      if (abs(u - uu) < tol) && (abs(v - vv) < tol)
-        dui = du[i]
-        # near the evaluation point: Taylor fixup
-        #Below computes the x and y coordinate of:
-        #τ(u,v) - τ(u-du,v-dv) = dτᵤ(u,v) * du + dτᵥ(u,v) * dv - (...)
-        Dx = (dui * dux + dvj * dvx) -
-             (dui * dvj * duvx + dvj2 * (dv2x/2)) +
-             (dui * dvj2 * (duv2x/2) + dvj3 * (dv3x/6)) -
-             (dui * dvj3 * (duv3x/6) + dvj4 * (dv4x/24))
-
-        Dy = (dui * duy + dvj * dvy) -
-             (dui * dvj * duvy + dvj2 * (dv2y/2)) +
-             (dui * dvj2 * (duv2y/2) + dvj3 * (dv3y/6)) -
-             (dui * dvj3 * (duv3y/6) + dvj4 * (dv4y/24))
-
-        out[i, j] = hypot(Dx, Dy)
+   # --- rectangular patch (reg == 5): closed form, no mapping needed
+   if p.reg == 5
+      if d.L2 >= d.L1
+         cDx, cDy = d.L2 * αt, d.L1 * αc
       else
-        # far: direct geometric difference
-        out[i, j] = hypot(tux - Zx[i, j], tvy - Zy[i, j])
+         cDx, cDy = d.L2 * αc, d.L1 * αt
       end
-    end
-  end
 
-  return nothing
+      @inbounds for j in 1:nd_v
+         dj = dv[j]
+         @inbounds for i in 1:nd_u
+            Dx = (cDx * d.Cθ) * du[i] - (cDy * d.Sθ) * dj
+            Dy = (cDx * d.Sθ) * du[i] + (cDy * d.Cθ) * dj
+            out[i, j] = hypot(Dx, Dy)
+         end
+      end
+
+      return nothing
+   end
+
+   # affine maps: [-1,1] → [ck0,ck1] × [tk0,tk1]
+   û = muladd(αc, u, p.ck0 + αc)
+   v̂ = muladd(αt, v, p.tk0 + αt)
+
+   # angle/trig
+   vt = muladd(π / 2, v̂, (2 * p.reg - 3) * (π / 4))
+   svt, cvt = sincos(vt)
+
+   # common combos 
+   A = d.R1 * d.Cθ * svt + d.R2 * d.Sθ * cvt                  # (R1*ct*svt + R2*st*cvt)
+   B = d.R1 * d.Cθ * cvt - d.R2 * d.Sθ * svt                  # (R1*ct*cvt - R2*st*svt)
+   C = -d.R1 * d.Sθ * svt + d.R2 * d.Cθ * cvt                 # (-R1*st*svt + R2*ct*cvt)
+   D = d.R1 * d.Sθ * cvt + d.R2 * d.Cθ * svt                  # (R1*st*cvt + R2*ct*svt)
+
+   # folded pi/alpha_t powers
+   πa = π * αt
+   πa2 = πa * πa          # π^2 * αt^2
+   πa3 = πa2 * πa         # π^3 * αt^3
+   πa4 = πa2 * πa2        # π^4 * αt^4
+
+   if p.reg == 1
+      dux = αc * (d.L1 * (2 * v̂ - 1) * d.Sθ / 2 - d.L2 * d.Cθ / 2 + B)
+      dvx = αt * ((û - 1) * d.L1 * d.Sθ - (π / 2) * û * A)
+      duvx = αt * αc * (d.L1 * d.Sθ - (π / 2) * A)
+
+      dv2x = -(πa2 / 4) * û * B
+      duv2x = -(πa2 / 4) * αc * B
+      dv3x = (πa3 / 8) * û * A
+      duv3x = (πa3 / 8) * αc * A
+      dv4x = (πa4 / 16) * û * B
+
+      duy = αc * (d.L1 * (1 - 2 * v̂) * d.Cθ / 2 - d.L2 * d.Sθ / 2 + D)
+      dvy = αt * ((1 - û) * d.L1 * d.Cθ + (π / 2) * û * C)
+      duvy = αt * αc * (-d.L1 * d.Cθ + (π / 2) * C)
+
+      dv2y = -(πa2 / 4) * û * D
+      duv2y = -(πa2 / 4) * αc * D
+      dv3y = -(πa3 / 8) * û * C
+      duv3y = -(πa3 / 8) * αc * C
+      dv4y = (πa4 / 16) * û * D
+
+   elseif p.reg == 2
+      dux = αc * (d.L2 * (2 * v̂ - 1) * d.Cθ / 2 + d.L1 * d.Sθ / 2 + B)
+      dvx = αt * ((û - 1) * d.L2 * d.Cθ - (π / 2) * û * A)
+      duvx = αt * αc * (d.L2 * d.Cθ - (π / 2) * A)
+
+      dv2x = -(πa2 / 4) * û * B
+      duv2x = -(πa2 / 4) * αc * B
+      dv3x = (πa3 / 8) * û * A
+      duv3x = (πa3 / 8) * αc * A
+      dv4x = (πa4 / 16) * û * B
+
+      duy = αc * (d.L2 * (2 * v̂ - 1) * d.Sθ / 2 - d.L1 * d.Cθ / 2 + D)
+      dvy = αt * ((û - 1) * d.L2 * d.Sθ + (π / 2) * û * C)
+      duvy = αt * αc * (d.L2 * d.Sθ + (π / 2) * C)
+
+      dv2y = -(πa2 / 4) * û * D
+      duv2y = -(πa2 / 4) * αc * D
+      dv3y = -(πa3 / 8) * û * C
+      duv3y = -(πa3 / 8) * αc * C
+      dv4y = (πa4 / 16) * û * D
+
+   elseif p.reg == 3
+      dux = αc * (-d.L1 * (2 * v̂ - 1) * d.Sθ / 2 + d.L2 * d.Cθ / 2 + B)
+      dvx = αt * (-(û - 1) * d.L1 * d.Sθ - (π / 2) * û * A)
+      duvx = αt * αc * (-d.L1 * d.Sθ - (π / 2) * A)
+
+      dv2x = -(πa2 / 4) * û * B
+      duv2x = -(πa2 / 4) * αc * B
+      dv3x = (πa3 / 8) * û * A
+      duv3x = (πa3 / 8) * αc * A
+      dv4x = (πa4 / 16) * û * B
+
+      duy = αc * (-d.L1 * (1 - 2 * v̂) * d.Cθ / 2 + d.L2 * d.Sθ / 2 + D)
+      dvy = αt * (-(1 - û) * d.L1 * d.Cθ + (π / 2) * û * C)
+      duvy = αt * αc * (d.L1 * d.Cθ + (π / 2) * C)
+
+      dv2y = -(πa2 / 4) * û * D
+      duv2y = -(πa2 / 4) * αc * D
+      dv3y = -(πa3 / 8) * û * C
+      duv3y = -(πa3 / 8) * αc * C
+      dv4y = (πa4 / 16) * û * D
+
+   else # p.reg == 4
+      dux = αc * (-d.L2 * (2 * v̂ - 1) * d.Cθ / 2 - d.L1 * d.Sθ / 2 + B)
+      dvx = αt * (-(û - 1) * d.L2 * d.Cθ - (π / 2) * û * A)
+      duvx = αt * αc * (-d.L2 * d.Cθ - (π / 2) * A)
+
+      dv2x = -(πa2 / 4) * û * B
+      duv2x = -(πa2 / 4) * αc * B
+      dv3x = (πa3 / 8) * û * A
+      duv3x = (πa3 / 8) * αc * A
+      dv4x = (πa4 / 16) * û * B
+
+      duy = αc * (-d.L2 * (2 * v̂ - 1) * d.Sθ / 2 + d.L1 * d.Cθ / 2 + D)
+      dvy = αt * (-(û - 1) * d.L2 * d.Sθ + (π / 2) * û * C)
+      duvy = αt * αc * (-d.L2 * d.Sθ + (π / 2) * C)
+
+      dv2y = -(πa2 / 4) * û * D
+      duv2y = -(πa2 / 4) * αc * D
+      dv3y = -(πa3 / 8) * û * C
+      duv3y = -(πa3 / 8) * αc * C
+      dv4y = (πa4 / 16) * û * D
+   end
+   # --- general case (reg ∈ {1,2,3,4})
+   # Map the reference scalar point and the whole grid
+   tux, tvy = mapxy(d, u, v, k)
+
+   @inbounds for j in 1:nd_v
+      dvj = dv[j]
+      dvj2 = dvj * dvj
+      dvj3 = dvj2 * dvj
+      dvj4 = dvj2 * dvj2
+      @inbounds for i in 1:nd_u
+         uu = u2[i, j]
+         vv = v2[i, j]
+         if (abs(u - uu) < tol) && (abs(v - vv) < tol)
+            dui = du[i]
+            # near the evaluation point: Taylor fixup
+            #Below computes the x and y coordinate of:
+            #τ(u,v) - τ(u-du,v-dv) = dτᵤ(u,v) * du + dτᵥ(u,v) * dv - (...)
+            Dx = (dui * dux + dvj * dvx) -
+                 (dui * dvj * duvx + dvj2 * (dv2x / 2)) +
+                 (dui * dvj2 * (duv2x / 2) + dvj3 * (dv3x / 6)) -
+                 (dui * dvj3 * (duv3x / 6) + dvj4 * (dv4x / 24))
+
+            Dy = (dui * duy + dvj * dvy) -
+                 (dui * dvj * duvy + dvj2 * (dv2y / 2)) +
+                 (dui * dvj2 * (duv2y / 2) + dvj3 * (dv3y / 6)) -
+                 (dui * dvj3 * (duv3y / 6) + dvj4 * (dv4y / 24))
+
+            out[i, j] = hypot(Dx, Dy)
+         else
+            # far: direct geometric difference
+            out[i, j] = hypot(tux - Zx[i, j], tvy - Zy[i, j])
+         end
+      end
+   end
+
+   return nothing
 end
 
 """
@@ -1828,198 +1852,171 @@ with affine mappings are not updated!
 But the Jacobian DJ is always updated.
 """
 function diff_rmap!(out::Matrix{Float64},
-  Zx::Matrix{Float64}, Zy::Matrix{Float64}, DJ::StridedArray{Float64},
-  d::ellipse, u::Float64, v::Float64,
-  u2::Matrix{Float64}, v2::Matrix{Float64}, r::Matrix{Float64},
-  du::Vector{Float64}, dv::Vector{Float64}, k::Int;
-  tol::Float64=1e-5)
+   Zx::Matrix{Float64}, Zy::Matrix{Float64}, DJ::StridedArray{Float64},
+   d::ellipse, u::Float64, v::Float64,
+   u2::Matrix{Float64}, v2::Matrix{Float64}, r::Matrix{Float64},
+   du::Vector{Float64}, dv::Vector{Float64}, k::Int;
+   tol::Float64=7e-4)
 
-  nt = size(out, 1)   # angular
-  nr = size(out, 2)   # radial
-  #passed all these assert tests!
-  # @assert length(du) == nt
-  # @assert length(dv) == nt
-  # @assert size(r) == (nt, nr)
-  # @assert size(out) == (nt, nr)
-  # @assert size(u2)  == size(out)
-  # @assert size(v2)  == size(out)
-  # @assert size(du) == size(dv)
-  # @inbounds for i in 1:nt, j in 1:nr
-  #   @assert isapprox(u2[i, j], u - r[i, j] * du[i]; rtol=0, atol=1e-14)
-  #   @assert isapprox(v2[i, j], v - r[i, j] * dv[i]; rtol=0, atol=1e-14)
-  # end
+   nt = size(out, 1)   # angular
+   nr = size(out, 2)   # radial
+   #passed all these assert tests!
+   # @assert length(du) == nt
+   # @assert length(dv) == nt
+   # @assert size(r) == (nt, nr)
+   # @assert size(out) == (nt, nr)
+   # @assert size(u2)  == size(out)
+   # @assert size(v2)  == size(out)
+   # @assert size(du) == size(dv)
+   # @inbounds for i in 1:nt, j in 1:nr
+   #   @assert isapprox(u2[i, j], u - r[i, j] * du[i]; rtol=0, atol=1e-14)
+   #   @assert isapprox(v2[i, j], v - r[i, j] * dv[i]; rtol=0, atol=1e-14)
+   # end
 
-  p = d.pths[k]
-  αc = (p.ck1 - p.ck0) / 2     # Δc/2
-  αt = (p.tk1 - p.tk0) / 2     # Δt/2
+   p = d.pths[k]
+   αc = (p.ck1 - p.ck0) / 2     # Δc/2
+   αt = (p.tk1 - p.tk0) / 2     # Δt/2
 
-  # --- rectangular patch (reg == 5): closed form, no mapping needed
-  if p.reg == 5
-    if d.L2 >= d.L1
-      cDx, cDy = d.L2 * αt, d.L1 * αc
-    else
-      cDx, cDy = d.L2 * αc, d.L1 * αt
-    end
-
-    fill!(DJ, cDx * cDy)
-
-    @inbounds for i in 1:nt
-        dui = du[i]
-        dvi = dv[i]
-        Dx = (cDx * d.Cθ) * dui - (cDy * d.Sθ) * dvi
-        Dy = (cDx * d.Sθ) * dui + (cDy * d.Cθ) * dvi
-        hD = hypot(Dx, Dy)
-        for j in 1:nr
-          out[i, j] = hD
-        end
-    end
-
-    return nothing
-  end
-
-  mapxy_Dmap!(Zx, Zy, DJ, d, u2, v2, k)
-
-  # affine maps: [-1,1] → [ck0,ck1] × [tk0,tk1]
-  û = muladd(αc, u, p.ck0 + αc)
-  v̂ = muladd(αt, v, p.tk0 + αt)
-
-  # angle/trig
-  vt = muladd(π / 2, v̂, (2 * p.reg - 3) * (π / 4))
-  svt, cvt = sincos(vt)
-
-  # common combos 
-  A = d.R1 * d.Cθ * svt + d.R2 * d.Sθ * cvt                  # (R1*ct*svt + R2*st*cvt)
-  B = d.R1 * d.Cθ * cvt - d.R2 * d.Sθ * svt                  # (R1*ct*cvt - R2*st*svt)
-  C = -d.R1 * d.Sθ * svt + d.R2 * d.Cθ * cvt                 # (-R1*st*svt + R2*ct*cvt)
-  D = d.R1 * d.Sθ * cvt + d.R2 * d.Cθ * svt                  # (R1*st*cvt + R2*ct*svt)
-
-  # folded pi/alpha_t powers
-  πa = π * αt
-  πa2 = πa * πa          # π^2 * αt^2
-  πa3 = πa2 * πa         # π^3 * αt^3
-  πa4 = πa2 * πa2        # π^4 * αt^4
-
-  if p.reg == 1
-    dux = αc * (d.L1 * (2 * v̂ - 1) * d.Sθ / 2 - d.L2 * d.Cθ / 2 + B)
-    dvx = αt * ((û - 1) * d.L1 * d.Sθ - (π / 2) * û * A)
-    duvx = αt * αc * (d.L1 * d.Sθ - (π / 2) * A)
-
-    dv2x = -(πa2 / 4) * û * B
-    duv2x = -(πa2 / 4) * αc * B
-    dv3x = (πa3 / 8) * û * A
-    duv3x = (πa3 / 8) * αc * A
-    dv4x = (πa4 / 16) * û * B
-
-    duy = αc * (d.L1 * (1 - 2 * v̂) * d.Cθ / 2 - d.L2 * d.Sθ / 2 + D)
-    dvy = αt * ((1 - û) * d.L1 * d.Cθ + (π / 2) * û * C)
-    duvy = αt * αc * (-d.L1 * d.Cθ + (π / 2) * C)
-
-    dv2y = -(πa2 / 4) * û * D
-    duv2y = -(πa2 / 4) * αc * D
-    dv3y = -(πa3 / 8) * û * C
-    duv3y = -(πa3 / 8) * αc * C
-    dv4y = (πa4 / 16) * û * D
-
-  elseif p.reg == 2
-    dux = αc * (d.L2 * (2 * v̂ - 1) * d.Cθ / 2 + d.L1 * d.Sθ / 2 + B)
-    dvx = αt * ((û - 1) * d.L2 * d.Cθ - (π / 2) * û * A)
-    duvx = αt * αc * (d.L2 * d.Cθ - (π / 2) * A)
-
-    dv2x = -(πa2 / 4) * û * B
-    duv2x = -(πa2 / 4) * αc * B
-    dv3x = (πa3 / 8) * û * A
-    duv3x = (πa3 / 8) * αc * A
-    dv4x = (πa4 / 16) * û * B
-
-    duy = αc * (d.L2 * (2 * v̂ - 1) * d.Sθ / 2 - d.L1 * d.Cθ / 2 + D)
-    dvy = αt * ((û - 1) * d.L2 * d.Sθ + (π / 2) * û * C)
-    duvy = αt * αc * (d.L2 * d.Sθ + (π / 2) * C)
-
-    dv2y = -(πa2 / 4) * û * D
-    duv2y = -(πa2 / 4) * αc * D
-    dv3y = -(πa3 / 8) * û * C
-    duv3y = -(πa3 / 8) * αc * C
-    dv4y = (πa4 / 16) * û * D
-
-  elseif p.reg == 3
-    dux = αc * (-d.L1 * (2 * v̂ - 1) * d.Sθ / 2 + d.L2 * d.Cθ / 2 + B)
-    dvx = αt * (-(û - 1) * d.L1 * d.Sθ - (π / 2) * û * A)
-    duvx = αt * αc * (-d.L1 * d.Sθ - (π / 2) * A)
-
-    dv2x = -(πa2 / 4) * û * B
-    duv2x = -(πa2 / 4) * αc * B
-    dv3x = (πa3 / 8) * û * A
-    duv3x = (πa3 / 8) * αc * A
-    dv4x = (πa4 / 16) * û * B
-
-    duy = αc * (-d.L1 * (1 - 2 * v̂) * d.Cθ / 2 + d.L2 * d.Sθ / 2 + D)
-    dvy = αt * (-(1 - û) * d.L1 * d.Cθ + (π / 2) * û * C)
-    duvy = αt * αc * (d.L1 * d.Cθ + (π / 2) * C)
-
-    dv2y = -(πa2 / 4) * û * D
-    duv2y = -(πa2 / 4) * αc * D
-    dv3y = -(πa3 / 8) * û * C
-    duv3y = -(πa3 / 8) * αc * C
-    dv4y = (πa4 / 16) * û * D
-
-  else # p.reg == 4
-    dux = αc * (-d.L2 * (2 * v̂ - 1) * d.Cθ / 2 - d.L1 * d.Sθ / 2 + B)
-    dvx = αt * (-(û - 1) * d.L2 * d.Cθ - (π / 2) * û * A)
-    duvx = αt * αc * (-d.L2 * d.Cθ - (π / 2) * A)
-
-    dv2x = -(πa2 / 4) * û * B
-    duv2x = -(πa2 / 4) * αc * B
-    dv3x = (πa3 / 8) * û * A
-    duv3x = (πa3 / 8) * αc * A
-    dv4x = (πa4 / 16) * û * B
-
-    duy = αc * (-d.L2 * (2 * v̂ - 1) * d.Sθ / 2 + d.L1 * d.Cθ / 2 + D)
-    dvy = αt * (-(û - 1) * d.L2 * d.Sθ + (π / 2) * û * C)
-    duvy = αt * αc * (-d.L2 * d.Sθ + (π / 2) * C)
-
-    dv2y = -(πa2 / 4) * û * D
-    duv2y = -(πa2 / 4) * αc * D
-    dv3y = -(πa3 / 8) * û * C
-    duv3y = -(πa3 / 8) * αc * C
-    dv4y = (πa4 / 16) * û * D
-  end
-  
-  # --- general case (reg ∈ {1,2,3,4})
-  # Map the reference scalar point and the whole grid
-  tux, tvy = mapxy(d, u, v, k)
-
-  @inbounds for i in 1:nt
-    dvi = dv[i]
-    dui = du[i]
-    @inbounds for j in 1:nr
-      uu = u2[i, j]
-      vv = v2[i, j]
-      if (abs(u - uu) < tol) && (abs(v - vv) < tol)
-        r1 = dvi * r[i, j]
-        r2 = r1 * r1
-        r3 = r2 * r1
-        # near the evaluation point: Taylor fixup
-        #Below computes the x and y coordinate of:
-        #(τ(u,v) - τ(u-r*du,v-r*dv))/r = dτᵤ(u,v) * du +  dτᵥ(u,v) * dv - r*(...)
-        Dx = (dui * dux + dvi * dvx) -
-             r1 * (dui * duvx + dvi * (dv2x / 2)) +
-             r2 * (dui * (duv2x / 2) + dvi * (dv3x / 6)) -
-             r3 * (dui * (duv3x / 6) + dvi * (dv4x / 24))
-
-        Dy = (dui * duy + dvi * dvy) -
-             r1 * (dui * duvy + dvi * (dv2y / 2)) +
-             r2 * (dui * (duv2y / 2) + dvi * (dv3y / 6)) -
-             r3 * (dui * (duv3y / 6) + dvi * (dv4y / 24))
-
-        out[i, j] = hypot(Dx, Dy)
+   # --- rectangular patch (reg == 5): closed form, no mapping needed
+   if p.reg == 5
+      if d.L2 >= d.L1
+         cDx, cDy = d.L2 * αt, d.L1 * αc
       else
-        # far: direct geometric difference
-        out[i, j] = hypot(tux - Zx[i, j], tvy - Zy[i, j]) / r[i, j]
+         cDx, cDy = d.L2 * αc, d.L1 * αt
       end
-    end
-  end
 
-  return nothing
+      fill!(DJ, cDx * cDy)
+
+      @inbounds for i in 1:nt
+         dui = du[i]
+         dvi = dv[i]
+         Dx = (cDx * d.Cθ) * dui - (cDy * d.Sθ) * dvi
+         Dy = (cDx * d.Sθ) * dui + (cDy * d.Cθ) * dvi
+         hD = hypot(Dx, Dy)
+         for j in 1:nr
+            out[i, j] = hD
+         end
+      end
+
+      return nothing
+   end
+
+   mapxy_Dmap!(Zx, Zy, DJ, d, u2, v2, k)
+
+   # affine maps: [-1,1] → [ck0,ck1] × [tk0,tk1]
+   û = muladd(αc, u, p.ck0 + αc)
+   v̂ = muladd(αt, v, p.tk0 + αt)
+
+   # angle/trig
+   vt = muladd(π / 2, v̂, (2 * p.reg - 3) * (π / 4))
+   svt, cvt = sincos(vt)
+
+   # common combos 
+   A = d.R1 * d.Cθ * svt + d.R2 * d.Sθ * cvt                  # (R1*ct*svt + R2*st*cvt)
+   B = d.R1 * d.Cθ * cvt - d.R2 * d.Sθ * svt                  # (R1*ct*cvt - R2*st*svt)
+   C = -d.R1 * d.Sθ * svt + d.R2 * d.Cθ * cvt                 # (-R1*st*svt + R2*ct*cvt)
+   D = d.R1 * d.Sθ * cvt + d.R2 * d.Cθ * svt                  # (R1*st*cvt + R2*ct*svt)
+
+   # folded pi/alpha_t powers
+   πa = π * αt
+   πa2 = πa * πa          # π^2 * αt^2
+   πa3 = πa2 * πa         # π^3 * αt^3
+   πa4 = πa2 * πa2        # π^4 * αt^4
+   πa5 = πa4 * πa         # π^5 * αt^5
+
+   if p.reg == 1
+      dux = αc * (d.L1 * (2 * v̂ - 1) * d.Sθ / 2 - d.L2 * d.Cθ / 2 + B)
+      dvx = αt * ((û - 1) * d.L1 * d.Sθ - (π / 2) * û * A)
+      duvx = αt * αc * (d.L1 * d.Sθ - (π / 2) * A)
+
+      duy = αc * (d.L1 * (1 - 2 * v̂) * d.Cθ / 2 - d.L2 * d.Sθ / 2 + D)
+      dvy = αt * ((1 - û) * d.L1 * d.Cθ + (π / 2) * û * C)
+      duvy = αt * αc * (-d.L1 * d.Cθ + (π / 2) * C)
+
+   elseif p.reg == 2
+      dux = αc * (d.L2 * (2 * v̂ - 1) * d.Cθ / 2 + d.L1 * d.Sθ / 2 + B)
+      dvx = αt * ((û - 1) * d.L2 * d.Cθ - (π / 2) * û * A)
+      duvx = αt * αc * (d.L2 * d.Cθ - (π / 2) * A)
+
+      duy = αc * (d.L2 * (2 * v̂ - 1) * d.Sθ / 2 - d.L1 * d.Cθ / 2 + D)
+      dvy = αt * ((û - 1) * d.L2 * d.Sθ + (π / 2) * û * C)
+      duvy = αt * αc * (d.L2 * d.Sθ + (π / 2) * C)
+
+   elseif p.reg == 3
+      dux = αc * (-d.L1 * (2 * v̂ - 1) * d.Sθ / 2 + d.L2 * d.Cθ / 2 + B)
+      dvx = αt * (-(û - 1) * d.L1 * d.Sθ - (π / 2) * û * A)
+      duvx = αt * αc * (-d.L1 * d.Sθ - (π / 2) * A)
+
+      duy = αc * (-d.L1 * (1 - 2 * v̂) * d.Cθ / 2 + d.L2 * d.Sθ / 2 + D)
+      dvy = αt * (-(1 - û) * d.L1 * d.Cθ + (π / 2) * û * C)
+      duvy = αt * αc * (d.L1 * d.Cθ + (π / 2) * C)
+
+   else # p.reg == 4
+      dux = αc * (-d.L2 * (2 * v̂ - 1) * d.Cθ / 2 - d.L1 * d.Sθ / 2 + B)
+      dvx = αt * (-(û - 1) * d.L2 * d.Cθ - (π / 2) * û * A)
+      duvx = αt * αc * (-d.L2 * d.Cθ - (π / 2) * A)
+
+      duy = αc * (-d.L2 * (2 * v̂ - 1) * d.Sθ / 2 + d.L1 * d.Cθ / 2 + D)
+      dvy = αt * (-(û - 1) * d.L2 * d.Sθ + (π / 2) * û * C)
+      duvy = αt * αc * (-d.L2 * d.Sθ + (π / 2) * C)
+   end
+
+   dv2x = -(πa2 / 4) * û * B
+   duv2x = -(πa2 / 4) * αc * B
+   dv3x = (πa3 / 8) * û * A
+   duv3x = (πa3 / 8) * αc * A
+   dv4x = (πa4 / 16) * û * B
+   duv4x = (πa4 / 16) * αc * B
+   dv5x = -(πa5 / 32) * û * A
+
+   dv2y = -(πa2 / 4) * û * D
+   duv2y = -(πa2 / 4) * αc * D
+   dv3y = -(πa3 / 8) * û * C
+   duv3y = -(πa3 / 8) * αc * C
+   dv4y = (πa4 / 16) * û * D
+   duv4y = (πa4 / 16) * αc * D
+   dv5y = (πa5 / 32) * û * C
+
+   # --- general case (reg ∈ {1,2,3,4})
+   # Map the reference scalar point and the whole grid
+   tux, tvy = mapxy(d, u, v, k)
+
+   @inbounds for i in 1:nt
+      dvi = dv[i]
+      dui = du[i]
+      @inbounds for j in 1:nr
+         uu = u2[i, j]
+         vv = v2[i, j]
+         if (abs(u - uu) < tol) && (abs(v - vv) < tol)
+            r1 = dvi * r[i, j]
+            r2 = r1 * r1
+            r3 = r2 * r1
+            r4 = r3 * r1
+
+            # near the evaluation point: Taylor fixup
+            #Below computes the x and y coordinate of:
+            #(τ(u,v) - τ(u-r*du,v-r*dv))/r = dτᵤ(u,v) * du +  dτᵥ(u,v) * dv - r*(...)
+            Dx = (dui * dux + dvi * dvx) -
+                 r1 * (dui * duvx + dvi * (dv2x / 2)) +
+                 r2 * (dui * (duv2x / 2) + dvi * (dv3x / 6)) -
+                 r3 * (dui * (duv3x / 6) + dvi * (dv4x / 24)) +
+                 r4 * (dui * (duv4x / 24) + dvi * (dv5x / 120))
+
+            Dy = (dui * duy + dvi * dvy) -
+                 r1 * (dui * duvy + dvi * (dv2y / 2)) +
+                 r2 * (dui * (duv2y / 2) + dvi * (dv3y / 6)) -
+                 r3 * (dui * (duv3y / 6) + dvi * (dv4y / 24)) +
+                 r4 * (dui * (duv4y / 24) + dvi * (dv5y / 120))
+
+            out[i, j] = hypot(Dx, Dy)
+         else
+            # far: direct geometric difference
+            out[i, j] = hypot(tux - Zx[i, j], tvy - Zy[i, j]) / r[i, j]
+         end
+      end
+   end
+
+   return nothing
 end
 
 
@@ -2031,43 +2028,43 @@ for the `k`-th (non-quadrilateral) patch.
 
 Returns a Tuple `dvx, dvy`.
 """
-function Dwall(d::ellipse, u::Float64, v::Float64, k::Int)::Tuple{Float64, Float64}
+function Dwall(d::ellipse, u::Float64, v::Float64, k::Int)::Tuple{Float64,Float64}
 
-   
-  p = d.pths[k]
-  hc = p.ck1 - p.ck0
-  ht = p.tk1 - p.tk0
-  reg = p.reg
 
-  αu = hc / 2
-  αv = ht / 2
-  βu = p.ck0 + αu      # û = αu * u + βu
-  βv = p.tk0 + αv      # v̂ = αv * v + βv
+   p = d.pths[k]
+   hc = p.ck1 - p.ck0
+   ht = p.tk1 - p.tk0
+   reg = p.reg
 
-  û = muladd(αu, u, βu)
-  v̂ = muladd(αv, v, βv)
+   αu = hc / 2
+   αv = ht / 2
+   βu = p.ck0 + αu      # û = αu * u + βu
+   βv = p.tk0 + αv      # v̂ = αv * v + βv
 
-  vt = π * (v̂ / 2 + (2 * reg - 3) / 4)
-  svt, cvt = sincos(vt)
+   û = muladd(αu, u, βu)
+   v̂ = muladd(αv, v, βv)
 
-  if reg == 1
-    dvx = (û - 1) * d.L1 * d.Sθ - π * û * (d.R1 * d.Cθ * svt + d.R2 * d.Sθ * cvt) / 2
-    dvy = (1 - û) * d.L1 * d.Cθ + π * û * (-d.R1 * d.Sθ * svt + d.R2 * d.Cθ * cvt) / 2
+   vt = π * (v̂ / 2 + (2 * reg - 3) / 4)
+   svt, cvt = sincos(vt)
 
-  elseif reg == 2
-    dvx = (û - 1) * d.L2 * d.Cθ - π * û * (d.R1 * d.Cθ * svt + d.R2 * d.Sθ * cvt) / 2
-    dvy = (û - 1) * d.L2 * d.Sθ + π * û * (-d.R1 * d.Sθ * svt + d.R2 * d.Cθ * cvt) / 2
+   if reg == 1
+      dvx = (û - 1) * d.L1 * d.Sθ - π * û * (d.R1 * d.Cθ * svt + d.R2 * d.Sθ * cvt) / 2
+      dvy = (1 - û) * d.L1 * d.Cθ + π * û * (-d.R1 * d.Sθ * svt + d.R2 * d.Cθ * cvt) / 2
 
-  elseif reg == 3
-    dvx = (1 - û) * d.L1 * d.Sθ - π * û * (d.R1 * d.Cθ * svt + d.R2 * d.Sθ * cvt) / 2
-    dvy = (û - 1) * d.L1 * d.Cθ + π * û * (-d.R1 * d.Sθ * svt + d.R2 * d.Cθ * cvt) / 2
+   elseif reg == 2
+      dvx = (û - 1) * d.L2 * d.Cθ - π * û * (d.R1 * d.Cθ * svt + d.R2 * d.Sθ * cvt) / 2
+      dvy = (û - 1) * d.L2 * d.Sθ + π * û * (-d.R1 * d.Sθ * svt + d.R2 * d.Cθ * cvt) / 2
 
-  else # reg == 4
-    dvx = (1 - û) * d.L2 * d.Cθ - π * û * (d.R1 * d.Cθ * svt + d.R2 * d.Sθ * cvt) / 2
-    dvy = (1 - û) * d.L2 * d.Sθ + π * û * (-d.R1 * d.Sθ * svt + d.R2 * d.Cθ * cvt) / 2
-  end
+   elseif reg == 3
+      dvx = (1 - û) * d.L1 * d.Sθ - π * û * (d.R1 * d.Cθ * svt + d.R2 * d.Sθ * cvt) / 2
+      dvy = (û - 1) * d.L1 * d.Cθ + π * û * (-d.R1 * d.Sθ * svt + d.R2 * d.Cθ * cvt) / 2
 
-  return dvx, dvy
+   else # reg == 4
+      dvx = (1 - û) * d.L2 * d.Cθ - π * û * (d.R1 * d.Cθ * svt + d.R2 * d.Sθ * cvt) / 2
+      dvy = (1 - û) * d.L2 * d.Sθ + π * û * (-d.R1 * d.Sθ * svt + d.R2 * d.Cθ * cvt) / 2
+   end
+
+   return dvx, dvy
 end
 
 
@@ -2091,113 +2088,113 @@ otherwise:
 #true || "nope"   # returns true
 function boundquad!(P::SubArray{Float64}, d::ellipse, k::Int)
 
-  p = d.pths[k]
+   p = d.pths[k]
 
-  # Four corners (tuples immediately unpacked into scalars)
-  L1p1x, L1p1y = mapm1(d, -1.0, k)   # (u=-1, v=-1)
-  L1p2x, L1p2y = mapp1(d, -1.0, k)   # (u=+1, v=-1)
-  L2p1x, L2p1y = mapm1(d, 1.0, k)   # (u=-1, v=+1)
-  L2p2x, L2p2y = mapp1(d, 1.0, k)   # (u=+1, v=+1)
+   # Four corners (tuples immediately unpacked into scalars)
+   L1p1x, L1p1y = mapm1(d, -1.0, k)   # (u=-1, v=-1)
+   L1p2x, L1p2y = mapp1(d, -1.0, k)   # (u=+1, v=-1)
+   L2p1x, L2p1y = mapm1(d, 1.0, k)   # (u=-1, v=+1)
+   L2p2x, L2p2y = mapp1(d, 1.0, k)   # (u=+1, v=+1)
 
-  if p.reg == 5
-    # already a quadrilateral: corners in CCW order
-    P[1] = L1p1x
-    P[2] = L1p1y
-    P[3] = L1p2x
-    P[4] = L1p2y
-    P[5] = L2p2x
-    P[6] = L2p2y
-    P[7] = L2p1x
-    P[8] = L2p1y
-    return nothing
-  end
-  # Common t grid
-  N = 101
-  tpts = range(-1.0, 1.0; length=N)
+   if p.reg == 5
+      # already a quadrilateral: corners in CCW order
+      P[1] = L1p1x
+      P[2] = L1p1y
+      P[3] = L1p2x
+      P[4] = L1p2y
+      P[5] = L2p2x
+      P[6] = L2p2y
+      P[7] = L2p1x
+      P[8] = L2p1y
+      return nothing
+   end
+   # Common t grid
+   N = 101
+   tpts = range(-1.0, 1.0; length=N)
 
-  # ---------- side away from boundary: u = -1 ----------
-  best_score1 = Inf
-  best_idx1 = 0
+   # ---------- side away from boundary: u = -1 ----------
+   best_score1 = Inf
+   best_idx1 = 0
 
-  for (i, t) in enumerate(tpts)
-    # point on u = -1 wall
-    Cx, Cy = mapm1(d, t, k)
-    dvx, dvy = Dwall(d, -1.0, t, k)
+   for (i, t) in enumerate(tpts)
+      # point on u = -1 wall
+      Cx, Cy = mapm1(d, t, k)
+      dvx, dvy = Dwall(d, -1.0, t, k)
 
-    # z1, z2 = parameters returned by tanginterp (u, v or similar)
-    z1, z2 = tanginterp(
-      L1p1x, L1p1y, L1p2x, L1p2y,
-      Cx, Cy, dvx, dvy,
-      L2p1x, L2p1y, L2p2x, L2p2y)
+      # z1, z2 = parameters returned by tanginterp (u, v or similar)
+      z1, z2 = tanginterp(
+         L1p1x, L1p1y, L1p2x, L1p2y,
+         Cx, Cy, dvx, dvy,
+         L2p1x, L2p1y, L2p2x, L2p2y)
 
-    ok, s = SVum1(z1, z2)
-    if ok && s < best_score1
-      best_score1 = s
-      best_idx1 = i
-    end
-  end
+      ok, s = SVum1(z1, z2)
+      if ok && s < best_score1
+         best_score1 = s
+         best_idx1 = i
+      end
+   end
 
-  if best_idx1 != 0
-    to = tpts[best_idx1]
-    # recompute geometry at best t
-    Cx, Cy = mapm1(d, to, k)
-    dvx, dvy = Dwall(d, -1.0, to, k)
+   if best_idx1 != 0
+      to = tpts[best_idx1]
+      # recompute geometry at best t
+      Cx, Cy = mapm1(d, to, k)
+      dvx, dvy = Dwall(d, -1.0, to, k)
 
-    P1x, P1y, P2x, P2y = tanginterx(
-      L1p1x, L1p1y, L1p2x, L1p2y,
-      Cx, Cy, dvx, dvy,
-      L2p1x, L2p1y, L2p2x, L2p2y)
-  else
-    # fallback
-    P1x, P1y = L1p1x, L1p1y
-    P2x, P2y = L2p1x, L2p1y
-  end
+      P1x, P1y, P2x, P2y = tanginterx(
+         L1p1x, L1p1y, L1p2x, L1p2y,
+         Cx, Cy, dvx, dvy,
+         L2p1x, L2p1y, L2p2x, L2p2y)
+   else
+      # fallback
+      P1x, P1y = L1p1x, L1p1y
+      P2x, P2y = L2p1x, L2p1y
+   end
 
-  # ---------- side closer to boundary: u = +1 ----------
-  best_score2 = Inf
-  best_idx2 = 0
+   # ---------- side closer to boundary: u = +1 ----------
+   best_score2 = Inf
+   best_idx2 = 0
 
-  for (i, t) in enumerate(tpts)
-    Cx, Cy = mapp1(d, t, k)
-    dvx, dvy = Dwall(d, 1.0, t, k)
+   for (i, t) in enumerate(tpts)
+      Cx, Cy = mapp1(d, t, k)
+      dvx, dvy = Dwall(d, 1.0, t, k)
 
-    z1, z2 = tanginterp(
-      L1p1x, L1p1y, L1p2x, L1p2y,
-      Cx, Cy, dvx, dvy,
-      L2p1x, L2p1y, L2p2x, L2p2y)
+      z1, z2 = tanginterp(
+         L1p1x, L1p1y, L1p2x, L1p2y,
+         Cx, Cy, dvx, dvy,
+         L2p1x, L2p1y, L2p2x, L2p2y)
 
-    ok, s = SVup1(z1, z2)
-    if ok && s < best_score2
-      best_score2 = s
-      best_idx2 = i
-    end
-  end
+      ok, s = SVup1(z1, z2)
+      if ok && s < best_score2
+         best_score2 = s
+         best_idx2 = i
+      end
+   end
 
-  if best_idx2 != 0
-    to = tpts[best_idx2]
-    Cx, Cy = mapp1(d, to, k)
-    dvx, dvy = Dwall(d, 1.0, to, k)
+   if best_idx2 != 0
+      to = tpts[best_idx2]
+      Cx, Cy = mapp1(d, to, k)
+      dvx, dvy = Dwall(d, 1.0, to, k)
 
-    P3x, P3y, P4x, P4y = tanginterx(
-      L1p1x, L1p1y, L1p2x, L1p2y,
-      Cx, Cy, dvx, dvy,
-      L2p1x, L2p1y, L2p2x, L2p2y)
-  else
-    P3x, P3y = L1p2x, L1p2y
-    P4x, P4y = L2p2x, L2p2y
-  end
+      P3x, P3y, P4x, P4y = tanginterx(
+         L1p1x, L1p1y, L1p2x, L1p2y,
+         Cx, Cy, dvx, dvy,
+         L2p1x, L2p1y, L2p2x, L2p2y)
+   else
+      P3x, P3y = L1p2x, L1p2y
+      P4x, P4y = L2p2x, L2p2y
+   end
 
-  # assemble in CCW order
-  P[1] = P1x
-  P[2] = P1y
-  P[3] = P3x
-  P[4] = P3y
-  P[5] = P4x
-  P[6] = P4y
-  P[7] = P2x
-  P[8] = P2y
+   # assemble in CCW order
+   P[1] = P1x
+   P[2] = P1y
+   P[3] = P3x
+   P[4] = P3y
+   P[5] = P4x
+   P[6] = P4y
+   P[7] = P2x
+   P[8] = P2y
 
-  return nothing
+   return nothing
 end
 
 
@@ -2212,69 +2209,69 @@ Notes
 - `Qpts` uses `boundquad(d,k)`; `Qptsbd` uses `boundquadbd(d,k)` for patches in `d.kd`.
 """
 function refine!(d::ellipse, Nc::Int, Nt::Int, K::Vector{Int})
-    @assert Nc ≥ 1 && Nt ≥ 1 "Nc and Nt must be ≥ 1"
-    @assert !isempty(K) "K (set of patches to refine) is empty"
+   @assert Nc ≥ 1 && Nt ≥ 1 "Nc and Nt must be ≥ 1"
+   @assert !isempty(K) "K (set of patches to refine) is empty"
 
-    # create the subdivided children
-    children = Patch[]
-    sizehint!(children, length(K) * Nc * Nt)
+   # create the subdivided children
+   children = Patch[]
+   sizehint!(children, length(K) * Nc * Nt)
 
-    for k in K
-        p = d.pths[k]
-        cc = range(p.ck0, p.ck1; length = Nc + 1)
-        tt = range(p.tk0, p.tk1; length = Nt + 1)
-        for i in 1:Nc, j in 1:Nt
-            push!(children, Patch(p.reg, cc[i], cc[i+1], tt[j], tt[j+1]))
-        end
-    end
+   for k in K
+      p = d.pths[k]
+      cc = range(p.ck0, p.ck1; length=Nc + 1)
+      tt = range(p.tk0, p.tk1; length=Nt + 1)
+      for i in 1:Nc, j in 1:Nt
+         push!(children, Patch(p.reg, cc[i], cc[i+1], tt[j], tt[j+1]))
+      end
+   end
 
-    # merge and sort
-    d.pths = vcat([d.pths[i] for i in 1:d.Npat if !(i in K)], children)
-    sort!(d.pths, by = q -> (q.reg, q.ck0, q.ck1, q.tk0, q.tk1))
+   # merge and sort
+   d.pths = vcat([d.pths[i] for i in 1:d.Npat if !(i in K)], children)
+   sort!(d.pths, by=q -> (q.reg, q.ck0, q.ck1, q.tk0, q.tk1))
 
-    # update counts
-    d.Npat = length(d.pths)
+   # update counts
+   d.Npat = length(d.pths)
 
-    # --- recompute kd (boundary-touching patches) and quadrilaterals
-    d.kd = [k for k in 1:d.Npat if d.pths[k].reg != 5 && d.pths[k].ck1 == 1.0]
+   # --- recompute kd (boundary-touching patches) and quadrilaterals
+   d.kd = [k for k in 1:d.Npat if d.pths[k].reg != 5 && d.pths[k].ck1 == 1.0]
 
-    # Qpts: 8 × Npat, each column is boundquad of that patch
-    d.Qpts = zeros(Float64, 8, d.Npat)
-    @inbounds for k in 1:d.Npat
+   # Qpts: 8 × Npat, each column is boundquad of that patch
+   d.Qpts = zeros(Float64, 8, d.Npat)
+   @inbounds for k in 1:d.Npat
       @views V = d.Qpts[:, k]
       boundquad!(V, d, k)
-    end
- 
-    # Qptsbd: 8 × |kd|, boundary quads for boundary patches (in kd order)
-    d.Qptsbd = zeros(Float64, 8, length(d.kd))
-    @inbounds for (ℓ, k) in enumerate(d.kd)
+   end
+
+   # Qptsbd: 8 × |kd|, boundary quads for boundary patches (in kd order)
+   d.Qptsbd = zeros(Float64, 8, length(d.kd))
+   @inbounds for (ℓ, k) in enumerate(d.kd)
       @views V = d.Qptsbd[:, ℓ]
       boundquadbd!(V, d, k)
-    end
+   end
 
-    return d
+   return d
 end
 
 function Base.show(io::IO, d::ellipse)
-  println(io, "ellipse with properties:")
-  println(io, "  (A , B )  = (", d.A,",", d.B,")")
-  println(io, "  (R₁, R₂)  = (", d.R1,",", d.R2,")")
-  println(io, "  (L₁, L₂)  = (", d.L1,",", d.L2,")")
-  println(io, "  (cos,sin) = (", d.Cθ,",", d.Sθ,")")
-  println(io, "  No. of holes   = ", d.nh)
+   println(io, "ellipse with properties:")
+   println(io, "  (A , B )  = (", d.A, ",", d.B, ")")
+   println(io, "  (R₁, R₂)  = (", d.R1, ",", d.R2, ")")
+   println(io, "  (L₁, L₂)  = (", d.L1, ",", d.L2, ")")
+   println(io, "  (cos,sin) = (", d.Cθ, ",", d.Sθ, ")")
+   println(io, "  No. of holes   = ", d.nh)
 
-  if length(d.kd) <= 6
-    L = "Int[" * join(d.kd, ' ') * "]"
-  else
-    head = join(d.kd[1:3], ' ')
-    tail = join(d.kd[end-3+1:end], ' ')
-    L = "Int[$head … $tail]"
-  end
-  
-  println(io, "  kd     = ", L)
-  println(io, "  Npat   = ", d.Npat)
-  println(io, "  pths   = Vector{Patch} (", length(d.pths), " patches)")
-  println(io, "  Qpts   = ", size(d.Qpts, 1), "×", size(d.Qpts, 2), " Matrix")
-  println(io, "  Qptsbd = ", size(d.Qptsbd, 1), "×", size(d.Qptsbd, 2), " Matrix")
+   if length(d.kd) <= 6
+      L = "Int[" * join(d.kd, ' ') * "]"
+   else
+      head = join(d.kd[1:3], ' ')
+      tail = join(d.kd[end-3+1:end], ' ')
+      L = "Int[$head … $tail]"
+   end
+
+   println(io, "  kd     = ", L)
+   println(io, "  Npat   = ", d.Npat)
+   println(io, "  pths   = Vector{Patch} (", length(d.pths), " patches)")
+   println(io, "  Qpts   = ", size(d.Qpts, 1), "×", size(d.Qpts, 2), " Matrix")
+   println(io, "  Qptsbd = ", size(d.Qptsbd, 1), "×", size(d.Qptsbd, 2), " Matrix")
 
 end

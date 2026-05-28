@@ -2854,81 +2854,81 @@ end
 #   outer component: regions 1:4
 #   inner component: regions 5:8
 function bdinv(d::annulus, t::Float64, l::Int, k::Int)::Float64
-  @inbounds begin
-    pl = d.pths[l]
-    pk = d.pths[k]
+   @inbounds begin
+      pl = d.pths[l]
+      pk = d.pths[k]
 
-    rl = pl.reg
-    rk = pk.reg
+      rl = pl.reg
+      rk = pk.reg
 
-    outer_l = rl <= 4
-    outer_k = rk <= 4
+      outer_l = rl <= 4
+      outer_k = rk <= 4
 
-    outer_l == outer_k || throw(ArgumentError(
-      "bdinv annulus requires l and k on the same boundary; got reg(l)=$rl, reg(k)=$rk"
-    ))
+      outer_l == outer_k || throw(ArgumentError(
+         "bdinv annulus requires l and k on the same boundary; got reg(l)=$rl, reg(k)=$rk"
+      ))
 
-    # Map t on patch l from [-1,1] to ξ_l ∈ [pl.tk0, pl.tk1].
-    ξl = muladd(0.5 * (pl.tk1 - pl.tk0), t, 0.5 * (pl.tk0 + pl.tk1))
+      # Map t on patch l from [-1,1] to ξ_l ∈ [pl.tk0, pl.tk1].
+      ξl = muladd(0.5 * (pl.tk1 - pl.tk0), t, 0.5 * (pl.tk0 + pl.tk1))
 
-    if rl == rk
-      return xi_inv(pk.tk0, pk.tk1, ξl)
-    end
+      if rl == rk
+         return xi_inv(ξl, pk.tk0, pk.tk1)
+      end
 
-    # Source angle θ = Δθ_l * ξ_l + θ0_l.
-    th0_l, Δth_l = if rl == 1
-      d.T1[1], d.T1[2] - d.T1[1]
-    elseif rl == 2
-      d.T1[2], d.T1[3] - d.T1[2]
-    elseif rl == 3
-      d.T1[3], d.T1[4] - d.T1[3]
-    elseif rl == 4
-      d.T1[4], d.T1[1] - d.T1[4] + 2.0π
-    elseif rl == 5
-      d.T2[1], d.T2[2] - d.T2[1]
-    elseif rl == 6
-      d.T2[2], d.T2[3] - d.T2[2]
-    elseif rl == 7
-      d.T2[3], d.T2[4] - d.T2[3]
-    elseif rl == 8
-      d.T2[4], d.T2[1] - d.T2[4] + 2.0π
-    else
-      throw(ArgumentError("bdinv annulus expects source reg ∈ 1:8; got reg=$rl"))
-    end
+      # Source angle θ = Δθ_l * ξ_l + θ0_l.
+      th0_l, Δth_l = if rl == 1
+         d.T1[1], d.T1[2] - d.T1[1]
+      elseif rl == 2
+         d.T1[2], d.T1[3] - d.T1[2]
+      elseif rl == 3
+         d.T1[3], d.T1[4] - d.T1[3]
+      elseif rl == 4
+         d.T1[4], d.T1[1] - d.T1[4] + 2.0π
+      elseif rl == 5
+         d.T2[1], d.T2[2] - d.T2[1]
+      elseif rl == 6
+         d.T2[2], d.T2[3] - d.T2[2]
+      elseif rl == 7
+         d.T2[3], d.T2[4] - d.T2[3]
+      elseif rl == 8
+         d.T2[4], d.T2[1] - d.T2[4] + 2.0π
+      else
+         throw(ArgumentError("bdinv annulus expects source reg ∈ 1:8; got reg=$rl"))
+      end
 
-    θ = muladd(Δth_l, ξl, th0_l)
+      θ = muladd(Δth_l, ξl, th0_l)
 
-    # Target angle map θ = Δθ_k * ξ_k + θ0_k.
-    th0_k, Δth_k = if rk == 1
-      d.T1[1], d.T1[2] - d.T1[1]
-    elseif rk == 2
-      d.T1[2], d.T1[3] - d.T1[2]
-    elseif rk == 3
-      d.T1[3], d.T1[4] - d.T1[3]
-    elseif rk == 4
-      d.T1[4], d.T1[1] - d.T1[4] + 2.0π
-    elseif rk == 5
-      d.T2[1], d.T2[2] - d.T2[1]
-    elseif rk == 6
-      d.T2[2], d.T2[3] - d.T2[2]
-    elseif rk == 7
-      d.T2[3], d.T2[4] - d.T2[3]
-    elseif rk == 8
-      d.T2[4], d.T2[1] - d.T2[4] + 2.0π
-    else
-      throw(ArgumentError("bdinv annulus expects target reg ∈ 1:8; got reg=$rk"))
-    end
+      # Target angle map θ = Δθ_k * ξ_k + θ0_k.
+      th0_k, Δth_k = if rk == 1
+         d.T1[1], d.T1[2] - d.T1[1]
+      elseif rk == 2
+         d.T1[2], d.T1[3] - d.T1[2]
+      elseif rk == 3
+         d.T1[3], d.T1[4] - d.T1[3]
+      elseif rk == 4
+         d.T1[4], d.T1[1] - d.T1[4] + 2.0π
+      elseif rk == 5
+         d.T2[1], d.T2[2] - d.T2[1]
+      elseif rk == 6
+         d.T2[2], d.T2[3] - d.T2[2]
+      elseif rk == 7
+         d.T2[3], d.T2[4] - d.T2[3]
+      elseif rk == 8
+         d.T2[4], d.T2[1] - d.T2[4] + 2.0π
+      else
+         throw(ArgumentError("bdinv annulus expects target reg ∈ 1:8; got reg=$rk"))
+      end
 
-    # Shift θ by multiples of 2π so it is closest to the target angular interval.
-    center_k = th0_k + 0.5 * Δth_k
-    m = round((center_k - θ) / (2π))
-    θs = θ + 2π * m
+      # Shift θ by multiples of 2π so it is closest to the target angular interval.
+      center_k = th0_k + 0.5 * Δth_k
+      m = round((center_k - θ) / (2π))
+      θs = θ + 2π * m
 
-    # Convert angle to target ξ_k, then ξ_k to local coordinate s.
-    ξk = (θs - th0_k) / Δth_k
+      # Convert angle to target ξ_k, then ξ_k to local coordinate s.
+      ξk = (θs - th0_k) / Δth_k
 
-    return xi_inv(pk.tk0, pk.tk1, ξk)
-  end
+      return xi_inv(ξk, pk.tk0, pk.tk1)
+   end
 end
 
 """

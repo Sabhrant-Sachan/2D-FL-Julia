@@ -10,10 +10,11 @@ function run_one_peanut!(io, case; s::Float64, p::Int, nJac::Int=5)
 
     f!, uex, _ = makepeanutfuex(nJac, s)
 
-    # Per-case controls, with defaults
-    δ        = getfield_default(case, :δ, 0.1)
-    δ_near   = getfield_default(case, :δ_near, 0.15)
-    δ_intp   = getfield_default(case, :δ_intp, 5e-3)
+    # New domprop controls
+    δv_near   = getfield_default(case, :δv_near, 0.15)
+    δv_close  = getfield_default(case, :δv_close, 8e-3)
+    δ_near    = getfield_default(case, :δ_near, 0.15)
+    δ_intp    = getfield_default(case, :δ_intp, 5e-3)
 
     plot_u     = getfield_default(case, :plot, false)
     solver     = getfield_default(case, :solver, :direct)
@@ -32,15 +33,13 @@ function run_one_peanut!(io, case; s::Float64, p::Int, nJac::Int=5)
     prob = Problem(;
         N = case.N,
         nₚᵣ = case.nₚᵣ,
-        s = s,
-        p = p,
-        δ = δ,
+        s = s, p = p,
+        δv_near = δv_near,
+        δv_close = δv_close,
         δ_near = δ_near,
         δ_intp = δ_intp,
-        f! = f!,
-        uex = uex,
-        dom = case.dom
-    )
+        f! = f!, uex = uex,
+        dom = case.dom)
 
     opts = Options(;
         plot = plot_u,
@@ -49,12 +48,10 @@ function run_one_peanut!(io, case; s::Float64, p::Int, nJac::Int=5)
         benchmark = benchmark,
         matrixfree = matrixfree,
         s_small = s_small,
-        nr = nr,
-        nbd = nbd,
+        nr = nr, nbd = nbd,
         nr_bdy = nr_bdy,
         ns_near = ns_near,
-        pbd = pbd
-    )
+        pbd = pbd)
 
     core = solveFL(prob; opts=opts)
 
@@ -72,11 +69,17 @@ open("test_temp.txt", "w") do io
     println(io, "p = ", p)
     flush(io)
 
-    case = (dom = FL2D.peanut(b=[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]),
-            N=12, nₚᵣ=512, δ=0.5, δ_near=0.15, δ_intp=5e-3, nr = 32,
-            plot = true, s_small = false, benchmark = false, cond_num = false)
+   case = (dom=FL2D.peanut(b=[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]),
+      N=12, nₚᵣ=128,
+      δv_near=0.15, δv_close=8e-3,
+      δ_near=0.15, δ_intp=5e-3,
+      nr=32,
+      s_small=false,
+      benchmark=false,
+      cond_num=false,
+      plot=true)
 
-    run_one_peanut!(io, case; s=s, p=p, nJac=0)
+    run_one_peanut!(io, case; s=s, p=p, nJac=5)
 
     flush(io)
 end

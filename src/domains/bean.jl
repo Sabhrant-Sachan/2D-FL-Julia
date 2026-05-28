@@ -4534,8 +4534,8 @@ end
              DJ::StridedArray{Float64}, d::bean,
              u::Float64, v::Float64,
              u2::Matrix{Float64}, v2::Matrix{Float64},
-             du::AbstractVector, dv::AbstractVector,
-             r::Matrix{Float64}, k::Int;
+             r::Matrix{Float64} du::AbstractVector,
+             dv::AbstractVector, k::Int;
              tol = 1e-4)
 
 Fill `out` with
@@ -4550,8 +4550,8 @@ function diff_rmap!(out::Matrix{Float64},
    Zx::Matrix{Float64}, Zy::Matrix{Float64}, DJ::StridedArray{Float64},
    d::bean, u::Float64, v::Float64,
    u2::Matrix{Float64}, v2::Matrix{Float64},
-   du::AbstractVector, dv::AbstractVector,
-   r::Matrix{Float64}, k::Int;
+   r::Matrix{Float64}, du::AbstractVector,
+   dv::AbstractVector, k::Int;
    tol::Float64 = 1e-4)
 
    nd_u = size(out, 1)
@@ -4590,15 +4590,14 @@ function diff_rmap!(out::Matrix{Float64},
          ey = rp.e₁y
       end
 
-      @inbounds for j in 1:nd_v
-         dvj = dv[j]
+      @inbounds for i in 1:nd_u
+         dui = du[i]
+         dvi = dv[i]
 
-         @inbounds for i in 1:nd_u
-            dui = du[i]
+         @inbounds for j in 1:nd_v
 
-            # Algebraically correct sign for the bean map.
-            Dx = (cV * dvj) * ex + (cU * dui) * qx
-            Dy = (cV * dvj) * ey + (cU * dui) * qy
+            Dx = (cV * dvi) * ex + (cU * dui) * qx
+            Dy = (cV * dvi) * ey + (cU * dui) * qy
 
             out[i, j] = hypot(Dx, Dy)
          end
@@ -4798,33 +4797,33 @@ function diff_rmap!(out::Matrix{Float64},
 
    tux, tvy = mapxy(d, u, v, k)
 
-   @inbounds for j in 1:nd_v
+   @inbounds for i in 1:nd_u
 
-      dvj = dv[j]
+      dui = du[i]
+      dvi = dv[i]
 
-      @inbounds for i in 1:nd_u
+      @inbounds for j in 1:nd_v
 
          uu = u2[i, j]
          vv = v2[i, j]
 
          if abs(u - uu) < tol && abs(v - vv) < tol
 
-            dui = du[i]
             rij = r[i, j]
 
-            r1 = dvj * rij
+            r1 = dvi * rij
             r2 = r1 * r1
             r3 = r2 * r1
 
-            Dx = (dui * dux + dvj * dvx) -
-                 r1 * (dui * duvx + dvj * dv2x / 2.0) +
-                 r2 * (dui * duv2x / 2.0 + dvj * dv3x / 6.0) -
-                 r3 * (dui * duv3x / 6.0 + dvj * dv4x / 24.0)
+            Dx = (dui * dux + dvi * dvx) -
+                 r1 * (dui * duvx + dvi * dv2x / 2.0) +
+                 r2 * (dui * duv2x / 2.0 + dvi * dv3x / 6.0) -
+                 r3 * (dui * duv3x / 6.0 + dvi * dv4x / 24.0)
 
-            Dy = (dui * duy + dvj * dvy) -
-                 r1 * (dui * duvy + dvj * dv2y / 2.0) +
-                 r2 * (dui * duv2y / 2.0 + dvj * dv3y / 6.0) -
-                 r3 * (dui * duv3y / 6.0 + dvj * dv4y / 24.0)
+            Dy = (dui * duy + dvi * dvy) -
+                 r1 * (dui * duvy + dvi * dv2y / 2.0) +
+                 r2 * (dui * duv2y / 2.0 + dvi * dv3y / 6.0) -
+                 r3 * (dui * duv3y / 6.0 + dvi * dv4y / 24.0)
 
             out[i, j] = hypot(Dx, Dy)
 
@@ -4833,9 +4832,7 @@ function diff_rmap!(out::Matrix{Float64},
             out[i, j] = hypot(tux - Zx[i, j], tvy - Zy[i, j]) / r[i, j]
 
          end
-
       end
-
    end
 
    return nothing

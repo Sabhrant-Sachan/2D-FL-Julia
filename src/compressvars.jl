@@ -16,6 +16,8 @@ function compress_vars(d::abstractdomain, dp::domprop, s::Float64,
     Np = N * N
     M = d.Npat
     Mbd = length(d.kd)
+    Ni = M * Np
+    Nb = Mbd * N
     # Constant Cs
     Cs = -sinpi(s) * (gamma(s) / (π * 2^(1 - s)))^2
 
@@ -309,11 +311,11 @@ function compress_vars(d::abstractdomain, dp::domprop, s::Float64,
         #   Axbdop!, Axbdpth!, Axintpth!
         # I do not pack matrix-free-only buffers or FFTW matrices here.
         # ============================================================
-        IV1 = (N=N, Np=Np, Cs=Cs, M=M, Mbd=Mbd, nbd=nbd)
+        IV1 = (N=N, Np=Np, Cs=Cs, M=M, Mbd=Mbd, Nb=Nb, Ni=Ni)
 
         IVr = (nr=nr, fwr=fwr, nrp=nrp, zx=zx, zt=zt, zy=zy, Df=Df, idctrg=idctrg)
 
-        IVbdth = (zx2=zx2, zy2=zy2, coeffs=coeffs, coeffs_sum=coeffs_sum)
+        IVbdth = (zx2=zx2, zy2=zy2, coeffs=coeffs, coeffs_sum=coeffs_sum, nbd=nbd)
 
         IVt = (Zx=Zx, Zy=Zy, DJ=DJ, KIr=KIr, Wrg=Wrg, Grgtmp=Grgtmp, Grg=Grg)
 
@@ -376,7 +378,7 @@ function compress_vars(d::abstractdomain, dp::domprop, s::Float64,
     else
         # ------ matrix-free-only coefficient machinery ------
 
-        chebcoef = Vector{Float64}(undef, M * Np + Mbd * N)
+        chebcoef = Vector{Float64}(undef, Ni + Mbd * N)
         ufin = Vector{Float64}(undef, M * nrp)
 
         # Boundary density values:
@@ -520,7 +522,9 @@ function compress_vars(d::abstractdomain, dp::domprop, s::Float64,
             Np=Np,
             Cs=Cs,
             M=M,
-            Mbd=Mbd
+            Mbd=Mbd,
+            Nb=Nb,
+            Ni=Ni
         )
 
         IVr = (

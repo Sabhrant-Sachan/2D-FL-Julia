@@ -38,6 +38,11 @@ d = FL2D.squircle(b=[1, 1, 1, 1, 1], L1=0.8, L2=0.8, P=4.0)
 
 
 
+d = FL2D.ellipse(
+      b=[2, 2, 2, 2, 2],
+      a=[1, 1, 1, 1, 1],
+      R1=1.0, R2=2.0, L1=2.0, L2=0.8)
+
 d = FL2D.ellipse(b=[6, 6, 6, 6, 6],a=[3, 3, 3, 3, 4],R1=1,R2=2,L1=2,L2=0.8)
 
 
@@ -72,6 +77,40 @@ FL2D.plotfunc(dp, d, f!)
 b = FL2D.bvec(d, dp, 0.75, f!);
 
 FL2D.plotfunc(dp,d,b)
+
+s=0.25
+p=4 
+
+IntS = FL2D.precompsL(d, dp, s, p; n=128);
+
+IV = FL2D.compress_vars(d, dp, s, p; matrix_form=true);
+
+(; N, Np, M, Mbd, Ni) = IV.IV1;
+
+Lp = Ni + Mbd * N;
+
+A = zeros(Float64, Lp, Lp);
+
+for k in 1:M
+   @views v = A[:, (1+Np*(k-1)):(Np*k)]
+   if !(k in d.kd)
+      FL2D.Axintpth!(v, k, IntS, d, dp, s, IV)
+   end
+end
+
+for k in 1:M
+   @views v = A[:, (1+Np*(k-1)):(Np*k)]
+   if k in d.kd
+      FL2D.Axbdpth!(v, k, IntS, d, dp, s, IV)
+   end
+end
+
+
+
+for k in 1:Mbd
+   @views v = A[:, Ni+N*(k-1)+1:Ni+N*k]
+   Axbdop!(v, k, d, dp, s, IV)
+end
 
 bex = FL2D.bvec(d, dp, 0.75, f!, n=256); 
 for n in [32, 64, 128] 

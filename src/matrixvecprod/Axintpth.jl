@@ -1,164 +1,172 @@
 function Axintpth!(v::SubArray{Float64}, kM::Int, IntS::Matrix{Float64},
-    d::D, dp::domprop, s::Float64, IV::IVT) where {D<:abstractdomain, IVT}
-    # --------- Unpack IV (NamedTuple) ---------
-    (; IV1, IVr, IVbdth, IVt) = IV
-    (; N, Np, Cs, M, Mbd) = IV1
-    (; nr, fwr, zx, zt, zy, Df, idctrg) = IVr
-    (; Zx, Zy, DJ, KIr, Wrg, Grgtmp, Grg) = IVt
-    (; coeffs) = IVbdth  # size N×N
+   d::D, dp::domprop, s::Float64, IV::IVT) where {D<:abstractdomain,IVT}
+   # --------- Unpack IV (NamedTuple) ---------
+   (; IV1, IVr, IVbdth, IVt) = IV
+   (; N, Np, Cs, M, Nb, Ni) = IV1
+   (; nr, fwr, zx, zt, zy, Df, idctrg) = IVr
+   (; Zx, Zy, DJ, KIr, Wrg, Grgtmp, Grg) = IVt
+   (; coeffs) = IVbdth  # size N×N
 
-    # v is M*Np + Mbd*N by Np matrix (preallocated given)
-    # that is, size(v) == (M*Np + Mbd*N, Np)
+   # v is M*Np + Mbd*N by Np matrix (preallocated given)
+   # that is, size(v) == (M*Np + Mbd*N, Np)
 
-    # --------- Compute regular patch (kM) ---------
-    # Zx, Zy: images of Chebyshev grid (zx,zy) on patch kM
-    # Determinant of map and distance function on regular patch
-    mapxy_Dmap!(Zx, Zy, DJ, d, zx, zy, kM) # nr×nr Zx, Zy, DJ
+   VOL_FAR = UInt8(0)
+   # --------- Compute regular patch (kM) ---------
+   # Zx, Zy: images of Chebyshev grid (zx,zy) on patch kM
+   # Determinant of map and distance function on regular patch
+   mapxy_Dmap!(Zx, Zy, DJ, d, zx, zy, kM) # nr×nr Zx, Zy, DJ
 
-    dfunc!(Df, d, kM, zt, s)  # zt = 1-zx
+   dfunc!(Df, d, kM, zt, s)  # zt = 1-zx
 
-    @inbounds for j in 1:nr
-        @inbounds for i in 1:nr
-            Wrg[i, j] = fwr[i] * DJ[i, j] * Df[i, j] * fwr[j]
-        end
-    end
+   @inbounds for j in 1:nr
+      @inbounds for i in 1:nr
+         Wrg[i, j] = fwr[i] * DJ[i, j] * Df[i, j] * fwr[j]
+      end
+   end
 
-    # --------- interior rows  ---------
-    Ni = M * Np
+   colns = dp.pthgo[kM] + Np
 
-    @inbounds for row in 1:Ni
+   # --------- interior rows  ---------
+   @inbounds for row in 1:Ni
 
-        x1 = dp.tgtpts[1, row]
-        x2 = dp.tgtpts[2, row]
+      x1 = dp.tgtpts[1, row]
+      x2 = dp.tgtpts[2, row]
 
-        l = cld(row, Np)
-        j = row - (l - 1)*Np
+      l = cld(row, Np)
+      jloc = row - (l - 1) * Np
 
-        if l == kM
-            # ---------- Singular patch ----------
-            col = dp.pthgo[l] + j - 1
+      if l == kM
+         # ---------------- Singular/self block ----------------
+         col = dp.pthgo[kM] + jloc - 1
 
-            @views SI = IntS[:, col]  # length Np vector
+         @views SI = IntS[:, col]
+         @views IM = reshape(SI, N, N)
 
-            @views IM = reshape(SI, N, N) # Integral matrix
+         @inbounds for jj in 1:Np
+            q, r = divrem(jj - 1, N)
+            j1 = r + 1
+            j2 = q + 1
+
+            @views c1 = coeffs[:, j1]
+            @views c2 = coeffs[:, j2]
+
+            v[row, jj] = Cs * dot(c1, IM, c2)
+         end
+
+      elseif dp.volmode[row, kM] != VOL_FAR
+         # ---------------- Near/close block ----------------
+         @views NSI = IntS[:, colns]
+         @views IM = reshape(NSI, N, N)
+
+         @inbounds for jj in 1:Np
+            q, r = divrem(jj - 1, N)
+            j1 = r + 1
+            j2 = q + 1
+
+            @views c1 = coeffs[:, j1]
+            @views c2 = coeffs[:, j2]
+
+            v[row, jj] = Cs * dot(c1, IM, c2)
+         end
+
+         colns += 1
+
+      else
+         # ---------------- Regular/far block ----------------
+         @inbounds for j in 1:nr
+            @inbounds for i in 1:nr
+               dx = x1 - Zx[i, j]
+               dy = x2 - Zy[i, j]
+               r2 = dx * dx + dy * dy
+               KIr[i, j] = Wrg[i, j] / (r2^s)
+            end
+         end
+
+         mul!(Grgtmp, idctrg', KIr)
+         mul!(Grg, Grgtmp, idctrg)
+
+         @inbounds for jj in 1:Np
+            v[row, jj] = Cs * Grg[jj]
+         end
+      end
+   end
+
+   #Integrals involved for boundary points when s is small
+   # --------- Part 2: boundary rows (if s < 0.5) ---------
+   if s < 0.5
+
+      Nt = Ni + Nb
+
+      bcol = dp.pthgo[M+1] + Nb + (dp.invgo[M+kM] - dp.invgo[M+1])
+
+      @inbounds for row in (Ni+1):Nt
+
+         x1 = dp.tgtpts[1, row]
+         x2 = dp.tgtpts[2, row]
+
+         ib = row - Ni
+         ibp = cld(ib, N)
+         kt = d.kd[ibp]
+         ip = ib - (ibp - 1) * N
+
+         if kt == kM
+            # ---------------- Boundary singular block ----------------
+            col = dp.pthgo[M+1] + (ibp - 1) * N + ip - 1
+
+            @views SI = IntS[:, col]
+            @views IM = reshape(SI, N, N)
 
             @inbounds for jj in 1:Np
+               q, r = divrem(jj - 1, N)
+               j1 = r + 1
+               j2 = q + 1
 
-                q, r = divrem(jj - 1, N)
-                j1 = r + 1     # remainder
-                j2 = q + 1     # quotient
+               @views c1 = coeffs[:, j1]
+               @views c2 = coeffs[:, j2]
 
-                @views c1 = coeffs[:, j1]
-                @views c2 = coeffs[:, j2]
-
-                #mul!(CN, c1, c2')
-                #v[row, jj] = Cs * dot(CN, IM)
-                v[row, jj] = Cs * dot(c1, IM, c2)
+               v[row, jj] = Cs * dot(c1, IM, c2)
             end
 
-        else
-            # --------- Check for near-singular patch ----------
-            # dp.hmap is keyed by (row,kM) :: Tuple{UInt,Int}
-            Ikey = packkey(row, kM)
-            col = get(dp.hmap, Ikey, 0)
+         elseif dp.volmode[row, kM] != VOL_FAR
+            # ---------------- Boundary near/close block ----------------
+            @views NSI = IntS[:, bcol]
+            @views IM = reshape(NSI, N, N)
 
-            if col != 0
+            @inbounds for jj in 1:Np
+               q, r = divrem(jj - 1, N)
+               j1 = r + 1
+               j2 = q + 1
 
-                @views NSI = IntS[:, col]
+               @views c1 = coeffs[:, j1]
+               @views c2 = coeffs[:, j2]
 
-                @views IM = reshape(NSI, N, N)
-
-                @inbounds for jj in 1:Np
-
-                    q, r = divrem(jj - 1, N)
-                    j1 = r + 1     # remainder
-                    j2 = q + 1     # quotient
-
-                    @views c1 = coeffs[:, j1]
-                    @views c2 = coeffs[:, j2]
-
-                    #mul!(CN, c1, c2')
-                    #v[row, jj] = Cs * dot(CN, IM)
-                    v[row, jj] = Cs * dot(c1, IM, c2)
-                end
-
-            else
-                @inbounds for j in 1:nr
-                    @inbounds for i in 1:nr
-                        dx = x1 - Zx[i, j]
-                        dy = x2 - Zy[i, j]
-                        r2 = dx * dx + dy * dy
-                        KIr[i, j] = Wrg[i, j] / (r2^s)
-                    end
-                end
-
-                mul!(Grgtmp, idctrg', KIr)  # N × nr
-                mul!(Grg, Grgtmp, idctrg)   # N × N
-
-                @inbounds for jj in 1:Np
-                    v[row, jj] = Cs * Grg[jj]
-                end
+               v[row, jj] = Cs * dot(c1, IM, c2)
             end
-        end
-    end
 
-    #Integrals involved for boundary points when s is small
-    # --------- Part 2: boundary rows (if s < 0.5) ---------
-    if s < 0.5
+            bcol += 1
 
-        Nb = Mbd * N
-        Lₚₘ = Ni + 1
-        Lₚₙ = Ni + Nb
-
-        @inbounds for row in Lₚₘ:Lₚₙ
-
-            x1 = dp.tgtpts[1, row]
-            x2 = dp.tgtpts[2, row]
-
-            Ikey = packkey(row, kM)
-            col = get(dp.hmap, Ikey, 0)
-
-            if col != 0
-
-                @views NSI = IntS[:, col]
-
-                @views IM = reshape(NSI, N, N)
-
-                @inbounds for jj in 1:Np
-
-                    q, r = divrem(jj - 1, N)
-                    j1 = r + 1     # remainder
-                    j2 = q + 1     # quotient
-
-                    @views c1 = coeffs[:, j1]
-                    @views c2 = coeffs[:, j2]
-
-                    #mul!(CN, c1, c2')
-                    #v[row, jj] = Cs * dot(CN, IM)
-                    v[row, jj] = Cs * dot(c1, IM, c2)
-                end
-
-            else
-                @inbounds for j in 1:nr
-                    @inbounds for i in 1:nr
-                        dx = x1 - Zx[i, j]
-                        dy = x2 - Zy[i, j]
-                        r2 = dx * dx + dy * dy
-                        KIr[i, j] = Wrg[i, j] / (r2^s)
-                    end
-                end
-
-                mul!(Grgtmp, idctrg', KIr)  # N × nr
-                mul!(Grg, Grgtmp, idctrg)   # N × N
-
-                @inbounds for jj in 1:Np
-                    v[row, jj] = Cs * Grg[jj]
-                end
+         else
+            # ---------------- Boundary regular/far block ----------------
+            @inbounds for j in 1:nr
+               @inbounds for i in 1:nr
+                  dx = x1 - Zx[i, j]
+                  dy = x2 - Zy[i, j]
+                  r2 = dx * dx + dy * dy
+                  KIr[i, j] = Wrg[i, j] / (r2^s)
+               end
             end
-        end
-    end
 
-    return nothing
+            mul!(Grgtmp, idctrg', KIr)
+            mul!(Grg, Grgtmp, idctrg)
+
+            @inbounds for jj in 1:Np
+               v[row, jj] = Cs * Grg[jj]
+            end
+         end
+      end
+   end
+
+   return nothing
 end
 
 #Old way of computing regular patch integral

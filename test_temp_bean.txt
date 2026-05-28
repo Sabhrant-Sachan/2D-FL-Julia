@@ -3,16 +3,19 @@ p = 5
 ============ FractionalLaplacian2D ============
 
 ----------- Domain -----------
-disc with properties:
-  (A , B )  = (0.0,0.0)
-  (L₁, L₂)  = (0.8,0.8)
-  Radius of disc = 1.0
-  No. of holes   = 0
-  kd     = Int[3 4 7 … 12 15 16]
-  Npat   = 20
-  pths   = Vector{Patch} (20 patches)
-  Qpts   = 8×20 Matrix
-  Qptsbd = 8×8 Matrix
+bean with properties:
+  (A, B)   = (0.0, 0.0)
+  R        = 1.0
+  (L1, L2) = (0.3, 0.25)
+  tht1     = 0.23
+  tht2     = 0.225
+  tht3     = 0.35
+  No. of holes = 0
+  kd     = Int[1 2 3 … 8 9 10]
+  Npat   = 12
+  pths   = Vector{Patch} (12 patches)
+  Qpts   = 8×12 Matrix
+  Qptsbd = 8×10 Matrix
 
 
 ----------- Parameters -----------
@@ -29,17 +32,14 @@ Boundary DLP mode-1   : ns_near = 128
 Boundary DLP smoothing: pbd = 2
 
 ----------- System -----------
-Target points (Vars.) : 2976
-Stored near/close pts : 5840
-IntS layout columns   : 8816
+Target points (Vars.) : 1848
+Stored near/close pts : 3598
+IntS layout columns   : 5446
 
 ----------- Solve -----------
 Solver : direct
 
 ----------- Error -----------
-Max Error   : 4.57e-10
-Max Rel err : 4.57e-10
-L^2 error   : 3.77e-09
-Root MSE err: 7.02e-11
+(No exact solution provided)
 ===============================================
 
