@@ -1653,7 +1653,7 @@ function diff_map!(out::Matrix{Float64},
    d::ellipse, u::Float64, v::Float64,
    u2::Matrix{Float64}, v2::Matrix{Float64},
    du::Vector{Float64}, dv::Vector{Float64}, k::Int;
-   tol::Float64=1e-5)
+   tol::Float64=1e-4)
 
    #nd_u, nd_v = length(du), length(dv)
    nd_u = size(out, 1)
@@ -1831,11 +1831,11 @@ function diff_map!(out::Matrix{Float64},
 end
 
 """
-  diff_rmap!(out::Matrix{Float64}, x::Matrix{Float64}, Zy::Matrix{Float64}, DJ::StridedArray{Float64}
-            d::ellipse, u::Float64, v::Float64,
-            u2::Matrix{Float64}, v2::Matrix{Float64}, r::Matrix{Float64},
-            du::Vector{Float64}, dv::Vector{Float64}, k::Int;
-            tol = 1e-4)
+  diff_rmap!(out::Matrix{Float64}, Zx::Matrix{Float64}, Zy::Matrix{Float64},
+   DJ::StridedArray{Float64}, d::ellipse, u::Float64, v::Float64,
+   u2::Matrix{Float64}, v2::Matrix{Float64}, r::Matrix{Float64},
+   du::Vector{Float64}, dv::Vector{Float64}, k::Int;
+   tol = 1e-3)
 
 Compute ‖(τ(u,v) - τ(u₂,v₂)) / r‖ for the `k`-th patch, with
 `u₂ = u - r .* du`, `v₂ = v - r .* dv`.
@@ -1856,7 +1856,7 @@ function diff_rmap!(out::Matrix{Float64},
    d::ellipse, u::Float64, v::Float64,
    u2::Matrix{Float64}, v2::Matrix{Float64}, r::Matrix{Float64},
    du::Vector{Float64}, dv::Vector{Float64}, k::Int;
-   tol::Float64=7e-4)
+   tol::Float64=1e-3)
 
    nt = size(out, 1)   # angular
    nr = size(out, 2)   # radial
@@ -1923,6 +1923,7 @@ function diff_rmap!(out::Matrix{Float64},
    πa3 = πa2 * πa         # π^3 * αt^3
    πa4 = πa2 * πa2        # π^4 * αt^4
    πa5 = πa4 * πa         # π^5 * αt^5
+   πa6 = πa3 * πa3
 
    if p.reg == 1
       dux = αc * (d.L1 * (2 * v̂ - 1) * d.Sθ / 2 - d.L2 * d.Cθ / 2 + B)
@@ -1968,6 +1969,9 @@ function diff_rmap!(out::Matrix{Float64},
    dv4x = (πa4 / 16) * û * B
    duv4x = (πa4 / 16) * αc * B
    dv5x = -(πa5 / 32) * û * A
+   duv5x = -(πa5 / 32) * αc * A
+   dv6x = -(πa6 / 64) * û * B
+
 
    dv2y = -(πa2 / 4) * û * D
    duv2y = -(πa2 / 4) * αc * D
@@ -1976,6 +1980,8 @@ function diff_rmap!(out::Matrix{Float64},
    dv4y = (πa4 / 16) * û * D
    duv4y = (πa4 / 16) * αc * D
    dv5y = (πa5 / 32) * û * C
+   duv5y =  (πa5 / 32) * αc * C
+   dv6y = -(πa6 / 64) * û * D
 
    # --- general case (reg ∈ {1,2,3,4})
    # Map the reference scalar point and the whole grid
@@ -1992,21 +1998,23 @@ function diff_rmap!(out::Matrix{Float64},
             r2 = r1 * r1
             r3 = r2 * r1
             r4 = r3 * r1
-
+            r5 = r4 * r1
             # near the evaluation point: Taylor fixup
             #Below computes the x and y coordinate of:
             #(τ(u,v) - τ(u-r*du,v-r*dv))/r = dτᵤ(u,v) * du +  dτᵥ(u,v) * dv - r*(...)
             Dx = (dui * dux + dvi * dvx) -
-                 r1 * (dui * duvx + dvi * (dv2x / 2)) +
-                 r2 * (dui * (duv2x / 2) + dvi * (dv3x / 6)) -
-                 r3 * (dui * (duv3x / 6) + dvi * (dv4x / 24)) +
-                 r4 * (dui * (duv4x / 24) + dvi * (dv5x / 120))
+                 r1 * (dui * duvx + dvi * dv2x / 2.0) +
+                 r2 * (dui * duv2x / 2.0 + dvi * dv3x / 6.0) -
+                 r3 * (dui * duv3x / 6.0 + dvi * dv4x / 24.0) +
+                 r4 * (dui * duv4x / 24.0 + dvi * dv5x / 120.0) -
+                 r5 * (dui * duv5x / 120.0 + dvi * dv6x / 720.0)
 
             Dy = (dui * duy + dvi * dvy) -
-                 r1 * (dui * duvy + dvi * (dv2y / 2)) +
-                 r2 * (dui * (duv2y / 2) + dvi * (dv3y / 6)) -
-                 r3 * (dui * (duv3y / 6) + dvi * (dv4y / 24)) +
-                 r4 * (dui * (duv4y / 24) + dvi * (dv5y / 120))
+                 r1 * (dui * duvy + dvi * dv2y / 2.0) +
+                 r2 * (dui * duv2y / 2.0 + dvi * dv3y / 6.0) -
+                 r3 * (dui * duv3y / 6.0 + dvi * dv4y / 24.0) +
+                 r4 * (dui * duv4y / 24.0 + dvi * dv5y / 120.0) -
+                 r5 * (dui * duv5y / 120.0 + dvi * dv6y / 720.0)
 
             out[i, j] = hypot(Dx, Dy)
          else

@@ -3749,7 +3749,7 @@ function diff_map!(out::Matrix{Float64},
   d::kite, u::Float64, v::Float64,
   u2::Matrix{Float64}, v2::Matrix{Float64},
   du::Vector{Float64}, dv::Vector{Float64}, k::Int;
-  tol::Float64=1e-5)
+  tol::Float64=1e-4)
 
   nd_u = size(out, 1)
   nd_v = size(out, 2)
@@ -4163,10 +4163,10 @@ function diff_map!(out::Matrix{Float64},
 end
 
 """
-  diff_rmap!(out::Matrix{Float64}, x::Matrix{Float64}, Zy::Matrix{Float64}, 
+  diff_rmap!(out::Matrix{Float64}, Zx::Matrix{Float64}, Zy::Matrix{Float64}, 
   DJ::StridedArray{Float64}, d::kite, u::Float64, v::Float64,
   u2::Matrix{Float64}, v2::Matrix{Float64}, r::Matrix{Float64},
-  du::Vector{Float64}, dv::Vector{Float64}, k::Int; tol = 1e-4)
+  du::Vector{Float64}, dv::Vector{Float64}, k::Int; tol = 1e-3)
 
 Compute ‖(τ(u,v) - τ(u₂,v₂)) / r‖ for the `k`-th patch, with
 `u₂ = u - r .* du`, `v₂ = v - r .* dv`.
@@ -4183,436 +4183,353 @@ with affine mappings are not updated!
 But the Jacobian DJ is always updated.
 """
 function diff_rmap!(out::Matrix{Float64},
-  Zx::Matrix{Float64}, Zy::Matrix{Float64}, DJ::StridedArray{Float64},
-  d::kite, u::Float64, v::Float64,
-  u2::Matrix{Float64}, v2::Matrix{Float64}, r::Matrix{Float64},
-  du::Vector{Float64}, dv::Vector{Float64}, k::Int;
-  tol::Float64=1e-4)
-
-  nt = size(out, 1)   # angular
-  nr = size(out, 2)   # radial
-  #passed all these assert tests!
-  # @assert length(du) == nt
-  # @assert length(dv) == nt
-  # @assert size(r) == (nt, nr)
-  # @assert size(out) == (nt, nr)
-  # @assert size(u2)  == size(out)
-  # @assert size(v2)  == size(out)
-  # @assert size(du) == size(dv)
-  # @inbounds for i in 1:nt, j in 1:nr
-  #   @assert isapprox(u2[i, j], u - r[i, j] * du[i]; rtol=0, atol=1e-14)
-  #   @assert isapprox(v2[i, j], v - r[i, j] * dv[i]; rtol=0, atol=1e-14)
-  # end
-
-  p = d.pths[k]
-  reg = p.reg
-  # affine scalings for reference -> (ck0,ck1)/(tk0,tk1)
-  hc = p.ck1 - p.ck0
-  ht = p.tk1 - p.tk0
-  αu = 0.5 * hc
-  αv = 0.5 * ht
-  βu = p.ck0 + αu
-  βv = p.tk0 + αv
-
-  # --- Precomputed geometry params
-  e1x = d.RP.e₁x
-  e1y = d.RP.e₁y
-  e2x = d.RP.e₂x
-  e2y = d.RP.e₂y
-  nme = d.RP.nme
-  q1x = d.RP.q₁x
-  q1y = d.RP.q₁y
-  q2x = d.RP.q₂x
-  q2y = d.RP.q₂y
-  α1x = d.RP.α₁x
-  α1y = d.RP.α₁y
-  α2x = d.RP.α₂x
-  α2y = d.RP.α₂y
-
-  invn = inv(nme)
-
-  if reg == 11
-
-    fill!(DJ, d.L1 * d.L2 * αu * αv)
-
-    if d.L2 >= d.L1
-      cV = d.L1 * αu * invn   # multiplies dv
-      cU = d.L2 * αv * invn   # multiplies du
-    else
-      cV = d.L1 * αv * invn
-      cU = d.L2 * αu * invn
-    end
-
-    @inbounds for i in 1:nt
-      dui = du[i]
-      dvi = dv[i]
-      Dx = (cV * dvi) * e2x - (cU * dui) * q2x
-      Dy = (cV * dvi) * e2y - (cU * dui) * q2y
-      hD = hypot(Dx, Dy)
-      for j in 1:nr
-        out[i, j] = hD
-      end
-    end
-
-    return nothing
-
-  elseif reg == 12
-
-    fill!(DJ, d.L1 * d.L2 * αu * αv)
-
-    if d.L2 >= d.L1
-      cV = d.L1 * αu * invn
-      cU = d.L2 * αv * invn
-    else
-      cV = d.L1 * αv * invn
-      cU = d.L2 * αu * invn
-    end
-
-    @inbounds for i in 1:nt
-      dui = du[i]
-      dvi = dv[i]
-      Dx = (cV * dvi) * e1x - (cU * dui) * q1x
-      Dy = (cV * dvi) * e1y - (cU * dui) * q1y
-      hD = hypot(Dx, Dy)
-      for j in 1:nr
-        out[i, j] = hD
-      end
-    end
-
-    return nothing
-
-  end
-
-  # ------------------------
-  # General case reg ∈ 1:10
-  # ------------------------
-
-  mapxy_Dmap!(Zx, Zy, DJ, d, u2, v2, k)
-
-  tux, tvy = mapxy(d, u, v, k)
-
-  # mapped scalar (u,v) to (xi1,xi2)
-  xi1 = muladd(αu, u, βu)
-  xi2 = muladd(αv, v, βv)
-
-  if reg == 1
-    Δth = d.tht4 - d.tht3
-    th0 = -d.tht4
-  elseif reg == 2
-    Δth = d.tht3 - d.tht1
-    th0 = -d.tht3
-  elseif reg == 3
-    Δth = d.tht1
-    th0 = -d.tht1
-  elseif reg == 4
-    Δth = d.tht1
-    th0 = 0.0
-  elseif reg == 5
-    Δth = d.tht3 - d.tht1
-    th0 = d.tht1
-  elseif reg == 6
-    Δth = d.tht4 - d.tht3
-    th0 = d.tht3
-  elseif reg == 7
-    Δth = π - d.tht2 - d.tht4
-    th0 = d.tht4
-  elseif reg == 8
-    Δth = d.tht2
-    th0 = π - d.tht2
-  elseif reg == 9
-    Δth = d.tht2
-    th0 = π
-  else # reg == 10
-    Δth = π - d.tht2 - d.tht4
-    th0 = π + d.tht2
-  end
-
-  th = muladd(xi2, Δth, th0)
-
-  st, ct = sincos(th)
-  st2 = 2.0 * st * ct
-  ct2 = cos(2.0 * th)
-
-  # x-derivs
-  gx  = d.R1 * ct - d.P * (st * st)
-  dgx = -d.R1 * st - d.P * st2
-  d2gx = -d.R1 * ct - 2.0 * d.P * ct2
-  d3gx =  d.R1 * st + 4.0 * d.P * st2
-  d4gx =  d.R1 * ct + 8.0 * d.P * ct2
-
-  # y-derivs
-  gy  = d.R2 * st
-  dgy = d.R2 * ct
-  d2gy = -gy
-  d3gy = -dgy
-  d4gy =  gy
-
-  # powers of αv
-  αv2 = αv * αv
-  αv3 = αv2 * αv
-  αv4 = αv2 * αv2
-
-  if reg == 1
-    dux = αu * (gx - α1x - (2.0 * xi2 - 1.0) * d.L1 * e2x * (0.5 * invn) - d.L2 * q2x * invn)
-    duy = αu * (gy - α1y - (2.0 * xi2 - 1.0) * d.L1 * e2y * (0.5 * invn) - d.L2 * q2y * invn)
-
-    dvx  = αv * ( d.L1 * (1.0 - xi1) * e2x * invn + Δth * xi1 * dgx )
-    dvy  = αv * ( d.L1 * (1.0 - xi1) * e2y * invn + Δth * xi1 * dgy )
-
-    duvx = αu * αv * ( -d.L1 * e2x * invn + Δth * dgx )
-    duvy = αu * αv * ( -d.L1 * e2y * invn + Δth * dgy )
-
-    dv2x  = αv2 * (Δth^2) * (xi1 * d2gx)
-    dv2y  = αv2 * (Δth^2) * (xi1 * d2gy)
-    duv2x = αu * αv2 * (Δth^2) * d2gx
-    duv2y = αu * αv2 * (Δth^2) * d2gy
-
-    dv3x  = αv3 * (Δth^3) * (xi1 * d3gx)
-    dv3y  = αv3 * (Δth^3) * (xi1 * d3gy)
-    duv3x = αu * αv3 * (Δth^3) * d3gx
-    duv3y = αu * αv3 * (Δth^3) * d3gy
-
-    dv4x  = αv4 * (Δth^4) * (xi1 * d4gx)
-    dv4y  = αv4 * (Δth^4) * (xi1 * d4gy)
-
-  elseif reg == 2
-    dux = αu * (gx - α1x - d.L1 * e2x * (0.5 * invn) - (1.0 - xi2) * d.L2 * q2x * invn)
-    duy = αu * (gy - α1y - d.L1 * e2y * (0.5 * invn) - (1.0 - xi2) * d.L2 * q2y * invn)
-
-    dvx  = αv * ( -d.L2 * (1.0 - xi1) * q2x * invn + Δth * xi1 * dgx )
-    dvy  = αv * ( -d.L2 * (1.0 - xi1) * q2y * invn + Δth * xi1 * dgy )
-
-    duvx = αu * αv * ( d.L2 * q2x * invn + Δth * dgx )
-    duvy = αu * αv * ( d.L2 * q2y * invn + Δth * dgy )
-
-    dv2x  = αv2 * (Δth^2) * (xi1 * d2gx)
-    dv2y  = αv2 * (Δth^2) * (xi1 * d2gy)
-    duv2x = αu * αv2 * (Δth^2) * d2gx
-    duv2y = αu * αv2 * (Δth^2) * d2gy
-
-    dv3x  = αv3 * (Δth^3) * (xi1 * d3gx)
-    dv3y  = αv3 * (Δth^3) * (xi1 * d3gy)
-    duv3x = αu * αv3 * (Δth^3) * d3gx
-    duv3y = αu * αv3 * (Δth^3) * d3gy
-
-    dv4x  = αv4 * (Δth^4) * (xi1 * d4gx)
-    dv4y  = αv4 * (Δth^4) * (xi1 * d4gy)
-
-  elseif reg == 3
-    dux = αu * (gx - (1.0 - xi2) * α1x)
-    duy = αu * (gy - (1.0 - xi2) * α1y)
-
-    dvx  = αv * ( -(1.0 - xi1) * α1x + Δth * xi1 * dgx )
-    dvy  = αv * ( -(1.0 - xi1) * α1y + Δth * xi1 * dgy )
-
-    duvx = αu * αv * ( α1x + Δth * dgx )
-    duvy = αu * αv * ( α1y + Δth * dgy )
-
-    dv2x  = αv2 * (Δth^2) * (xi1 * d2gx)
-    dv2y  = αv2 * (Δth^2) * (xi1 * d2gy)
-    duv2x = αu * αv2 * (Δth^2) * d2gx
-    duv2y = αu * αv2 * (Δth^2) * d2gy
-
-    dv3x  = αv3 * (Δth^3) * (xi1 * d3gx)
-    dv3y  = αv3 * (Δth^3) * (xi1 * d3gy)
-    duv3x = αu * αv3 * (Δth^3) * d3gx
-    duv3y = αu * αv3 * (Δth^3) * d3gy
-
-    dv4x  = αv4 * (Δth^4) * (xi1 * d4gx)
-    dv4y  = αv4 * (Δth^4) * (xi1 * d4gy)
-
-  elseif reg == 4
-    dux = αu * (gx - xi2 * α2x)
-    duy = αu * (gy - xi2 * α2y)
-
-    dvx  = αv * ( (1.0 - xi1) * α2x + Δth * xi1 * dgx )
-    dvy  = αv * ( (1.0 - xi1) * α2y + Δth * xi1 * dgy )
-
-    duvx = αu * αv * ( -α2x + Δth * dgx )
-    duvy = αu * αv * ( -α2y + Δth * dgy )
-
-    dv2x  = αv2 * (Δth^2) * (xi1 * d2gx)
-    dv2y  = αv2 * (Δth^2) * (xi1 * d2gy)
-    duv2x = αu * αv2 * (Δth^2) * d2gx
-    duv2y = αu * αv2 * (Δth^2) * d2gy
-
-    dv3x  = αv3 * (Δth^3) * (xi1 * d3gx)
-    dv3y  = αv3 * (Δth^3) * (xi1 * d3gy)
-    duv3x = αu * αv3 * (Δth^3) * d3gx
-    duv3y = αu * αv3 * (Δth^3) * d3gy
-
-    dv4x  = αv4 * (Δth^4) * (xi1 * d4gx)
-    dv4y  = αv4 * (Δth^4) * (xi1 * d4gy)
-
-  elseif reg == 5
-    dux = αu * (gx - α2x - d.L1 * e1x * (0.5 * invn) - xi2 * d.L2 * q1x * invn)
-    duy = αu * (gy - α2y - d.L1 * e1y * (0.5 * invn) - xi2 * d.L2 * q1y * invn)
-
-    dvx  = αv * ( d.L2 * (1.0 - xi1) * q1x * invn + Δth * xi1 * dgx )
-    dvy  = αv * ( d.L2 * (1.0 - xi1) * q1y * invn + Δth * xi1 * dgy )
-
-    duvx = αu * αv * ( -d.L2 * q1x * invn + Δth * dgx )
-    duvy = αu * αv * ( -d.L2 * q1y * invn + Δth * dgy )
-
-    dv2x  = αv2 * (Δth^2) * (xi1 * d2gx)
-    dv2y  = αv2 * (Δth^2) * (xi1 * d2gy)
-    duv2x = αu * αv2 * (Δth^2) * d2gx
-    duv2y = αu * αv2 * (Δth^2) * d2gy
-
-    dv3x  = αv3 * (Δth^3) * (xi1 * d3gx)
-    dv3y  = αv3 * (Δth^3) * (xi1 * d3gy)
-    duv3x = αu * αv3 * (Δth^3) * d3gx
-    duv3y = αu * αv3 * (Δth^3) * d3gy
-
-    dv4x  = αv4 * (Δth^4) * (xi1 * d4gx)
-    dv4y  = αv4 * (Δth^4) * (xi1 * d4gy)
-
-  elseif reg == 6
-    dux = αu * (gx - α2x + (2.0 * xi2 - 1.0) * d.L1 * e1x * (0.5 * invn) - d.L2 * q1x * invn)
-    duy = αu * (gy - α2y + (2.0 * xi2 - 1.0) * d.L1 * e1y * (0.5 * invn) - d.L2 * q1y * invn)
-
-    dvx  = αv * ( -d.L1 * (1.0 - xi1) * e1x * invn + Δth * xi1 * dgx )
-    dvy  = αv * ( -d.L1 * (1.0 - xi1) * e1y * invn + Δth * xi1 * dgy )
-
-    duvx = αu * αv * ( d.L1 * e1x * invn + Δth * dgx )
-    duvy = αu * αv * ( d.L1 * e1y * invn + Δth * dgy )
-
-    dv2x  = αv2 * (Δth^2) * (xi1 * d2gx)
-    dv2y  = αv2 * (Δth^2) * (xi1 * d2gy)
-    duv2x = αu * αv2 * (Δth^2) * d2gx
-    duv2y = αu * αv2 * (Δth^2) * d2gy
-
-    dv3x  = αv3 * (Δth^3) * (xi1 * d3gx)
-    dv3y  = αv3 * (Δth^3) * (xi1 * d3gy)
-    duv3x = αu * αv3 * (Δth^3) * d3gx
-    duv3y = αu * αv3 * (Δth^3) * d3gy
-
-    dv4x  = αv4 * (Δth^4) * (xi1 * d4gx)
-    dv4y  = αv4 * (Δth^4) * (xi1 * d4gy)
-
-  elseif reg == 7
-    dux = αu * (gx - α2x + d.L1 * e1x * (0.5 * invn) - (1.0 - xi2) * d.L2 * q1x * invn)
-    duy = αu * (gy - α2y + d.L1 * e1y * (0.5 * invn) - (1.0 - xi2) * d.L2 * q1y * invn)
-
-    dvx  = αv * ( -d.L2 * (1.0 - xi1) * q1x * invn + Δth * xi1 * dgx )
-    dvy  = αv * ( -d.L2 * (1.0 - xi1) * q1y * invn + Δth * xi1 * dgy )
-
-    duvx = αu * αv * ( d.L2 * q1x * invn + Δth * dgx )
-    duvy = αu * αv * ( d.L2 * q1y * invn + Δth * dgy )
-
-    dv2x  = αv2 * (Δth^2) * (xi1 * d2gx)
-    dv2y  = αv2 * (Δth^2) * (xi1 * d2gy)
-    duv2x = αu * αv2 * (Δth^2) * d2gx
-    duv2y = αu * αv2 * (Δth^2) * d2gy
-
-    dv3x  = αv3 * (Δth^3) * (xi1 * d3gx)
-    dv3y  = αv3 * (Δth^3) * (xi1 * d3gy)
-    duv3x = αu * αv3 * (Δth^3) * d3gx
-    duv3y = αu * αv3 * (Δth^3) * d3gy
-
-    dv4x  = αv4 * (Δth^4) * (xi1 * d4gx)
-    dv4y  = αv4 * (Δth^4) * (xi1 * d4gy)
-
-  elseif reg == 8
-    dux = αu * (gx - (1.0 - xi2) * α2x)
-    duy = αu * (gy - (1.0 - xi2) * α2y)
-
-    dvx  = αv * ( -(1.0 - xi1) * α2x + Δth * xi1 * dgx )
-    dvy  = αv * ( -(1.0 - xi1) * α2y + Δth * xi1 * dgy )
-
-    duvx = αu * αv * ( α2x + Δth * dgx )
-    duvy = αu * αv * ( α2y + Δth * dgy )
-
-    dv2x  = αv2 * (Δth^2) * (xi1 * d2gx)
-    dv2y  = αv2 * (Δth^2) * (xi1 * d2gy)
-    duv2x = αu * αv2 * (Δth^2) * d2gx
-    duv2y = αu * αv2 * (Δth^2) * d2gy
-
-    dv3x  = αv3 * (Δth^3) * (xi1 * d3gx)
-    dv3y  = αv3 * (Δth^3) * (xi1 * d3gy)
-    duv3x = αu * αv3 * (Δth^3) * d3gx
-    duv3y = αu * αv3 * (Δth^3) * d3gy
-
-    dv4x  = αv4 * (Δth^4) * (xi1 * d4gx)
-    dv4y  = αv4 * (Δth^4) * (xi1 * d4gy)
-
-  elseif reg == 9
-    dux = αu * (gx - xi2 * α1x)
-    duy = αu * (gy - xi2 * α1y)
-
-    dvx  = αv * ( (1.0 - xi1) * α1x + Δth * xi1 * dgx )
-    dvy  = αv * ( (1.0 - xi1) * α1y + Δth * xi1 * dgy )
-
-    duvx = αu * αv * ( -α1x + Δth * dgx )
-    duvy = αu * αv * ( -α1y + Δth * dgy )
-
-    dv2x  = αv2 * (Δth^2) * (xi1 * d2gx)
-    dv2y  = αv2 * (Δth^2) * (xi1 * d2gy)
-    duv2x = αu * αv2 * (Δth^2) * d2gx
-    duv2y = αu * αv2 * (Δth^2) * d2gy
-
-    dv3x  = αv3 * (Δth^3) * (xi1 * d3gx)
-    dv3y  = αv3 * (Δth^3) * (xi1 * d3gy)
-    duv3x = αu * αv3 * (Δth^3) * d3gx
-    duv3y = αu * αv3 * (Δth^3) * d3gy
-
-    dv4x  = αv4 * (Δth^4) * (xi1 * d4gx)
-    dv4y  = αv4 * (Δth^4) * (xi1 * d4gy)
-
-  else # reg == 10
-    dux = αu * (gx - α1x + d.L1 * e2x * (0.5 * invn) - xi2 * d.L2 * q2x * invn)
-    duy = αu * (gy - α1y + d.L1 * e2y * (0.5 * invn) - xi2 * d.L2 * q2y * invn)
-
-    dvx  = αv * ( d.L2 * (1.0 - xi1) * q2x * invn + Δth * xi1 * dgx )
-    dvy  = αv * ( d.L2 * (1.0 - xi1) * q2y * invn + Δth * xi1 * dgy )
-
-    duvx = αu * αv * ( -d.L2 * q2x * invn + Δth * dgx )
-    duvy = αu * αv * ( -d.L2 * q2y * invn + Δth * dgy )
-
-    dv2x  = αv2 * (Δth^2) * (xi1 * d2gx)
-    dv2y  = αv2 * (Δth^2) * (xi1 * d2gy)
-    duv2x = αu * αv2 * (Δth^2) * d2gx
-    duv2y = αu * αv2 * (Δth^2) * d2gy
-
-    dv3x  = αv3 * (Δth^3) * (xi1 * d3gx)
-    dv3y  = αv3 * (Δth^3) * (xi1 * d3gy)
-    duv3x = αu * αv3 * (Δth^3) * d3gx
-    duv3y = αu * αv3 * (Δth^3) * d3gy
-
-    dv4x  = αv4 * (Δth^4) * (xi1 * d4gx)
-    dv4y  = αv4 * (Δth^4) * (xi1 * d4gy)
-  end
-
-  @inbounds for i in 1:nt
-    dvi = dv[i]
-    dui = du[i]
-    @inbounds for j in 1:nr
-      uu = u2[i, j]
-      vv = v2[i, j]
-      if (abs(u - uu) < tol) && (abs(v - vv) < tol)
-        r1 = dvi * r[i, j]
-        r2 = r1 * r1
-        r3 = r2 * r1
-        # near the evaluation point: Taylor fixup
-        #Below computes the x and y coordinate of:
-        #(τ(u,v) - τ(u-r*du,v-r*dv))/r = dτᵤ(u,v) * du +  dτᵥ(u,v) * dv - r*(...)
-        Dx = (dui * dux + dvi * dvx) -
-             r1 * (dui * duvx + dvi * (dv2x / 2)) +
-             r2 * (dui * (duv2x / 2) + dvi * (dv3x / 6)) -
-             r3 * (dui * (duv3x / 6) + dvi * (dv4x / 24))
-
-        Dy = (dui * duy + dvi * dvy) -
-             r1 * (dui * duvy + dvi * (dv2y / 2)) +
-             r2 * (dui * (duv2y / 2) + dvi * (dv3y / 6)) -
-             r3 * (dui * (duv3y / 6) + dvi * (dv4y / 24))
-
-        out[i, j] = hypot(Dx, Dy)
+   Zx::Matrix{Float64}, Zy::Matrix{Float64}, DJ::StridedArray{Float64},
+   d::kite, u::Float64, v::Float64,
+   u2::Matrix{Float64}, v2::Matrix{Float64}, r::Matrix{Float64},
+   du::Vector{Float64}, dv::Vector{Float64}, k::Int;
+   tol::Float64=1e-3)
+
+   nt = size(out, 1)   # angular
+   nr = size(out, 2)   # radial
+   #passed all these assert tests!
+   # @assert length(du) == nt
+   # @assert length(dv) == nt
+   # @assert size(r) == (nt, nr)
+   # @assert size(out) == (nt, nr)
+   # @assert size(u2)  == size(out)
+   # @assert size(v2)  == size(out)
+   # @assert size(du) == size(dv)
+   # @inbounds for i in 1:nt, j in 1:nr
+   #   @assert isapprox(u2[i, j], u - r[i, j] * du[i]; rtol=0, atol=1e-14)
+   #   @assert isapprox(v2[i, j], v - r[i, j] * dv[i]; rtol=0, atol=1e-14)
+   # end
+
+   p = d.pths[k]
+   reg = p.reg
+   # affine scalings for reference -> (ck0,ck1)/(tk0,tk1)
+   hc = p.ck1 - p.ck0
+   ht = p.tk1 - p.tk0
+   αu = 0.5 * hc
+   αv = 0.5 * ht
+   βu = p.ck0 + αu
+   βv = p.tk0 + αv
+
+   # --- Precomputed geometry params
+   e1x = d.RP.e₁x
+   e1y = d.RP.e₁y
+   e2x = d.RP.e₂x
+   e2y = d.RP.e₂y
+   nme = d.RP.nme
+   q1x = d.RP.q₁x
+   q1y = d.RP.q₁y
+   q2x = d.RP.q₂x
+   q2y = d.RP.q₂y
+   α1x = d.RP.α₁x
+   α1y = d.RP.α₁y
+   α2x = d.RP.α₂x
+   α2y = d.RP.α₂y
+
+   invn = inv(nme)
+
+   if reg == 11
+
+      fill!(DJ, d.L1 * d.L2 * αu * αv)
+
+      if d.L2 >= d.L1
+         cV = d.L1 * αu * invn   # multiplies dv
+         cU = d.L2 * αv * invn   # multiplies du
       else
-        # far: direct geometric difference
-        out[i, j] = hypot(tux - Zx[i, j], tvy - Zy[i, j]) / r[i, j]
+         cV = d.L1 * αv * invn
+         cU = d.L2 * αu * invn
       end
-    end
-  end
+
+      @inbounds for i in 1:nt
+         dui = du[i]
+         dvi = dv[i]
+         Dx = (cV * dvi) * e2x - (cU * dui) * q2x
+         Dy = (cV * dvi) * e2y - (cU * dui) * q2y
+         hD = hypot(Dx, Dy)
+         for j in 1:nr
+            out[i, j] = hD
+         end
+      end
+
+      return nothing
+
+   elseif reg == 12
+
+      fill!(DJ, d.L1 * d.L2 * αu * αv)
+
+      if d.L2 >= d.L1
+         cV = d.L1 * αu * invn
+         cU = d.L2 * αv * invn
+      else
+         cV = d.L1 * αv * invn
+         cU = d.L2 * αu * invn
+      end
+
+      @inbounds for i in 1:nt
+         dui = du[i]
+         dvi = dv[i]
+         Dx = (cV * dvi) * e1x - (cU * dui) * q1x
+         Dy = (cV * dvi) * e1y - (cU * dui) * q1y
+         hD = hypot(Dx, Dy)
+         for j in 1:nr
+            out[i, j] = hD
+         end
+      end
+
+      return nothing
+
+   end
+
+   # ------------------------
+   # General case reg ∈ 1:10
+   # ------------------------
+
+   mapxy_Dmap!(Zx, Zy, DJ, d, u2, v2, k)
+
+   tux, tvy = mapxy(d, u, v, k)
+
+   # mapped scalar (u,v) to (xi1,xi2)
+   xi1 = muladd(αu, u, βu)
+   xi2 = muladd(αv, v, βv)
+
+   if reg == 1
+      Δth = d.tht4 - d.tht3
+      th0 = -d.tht4
+   elseif reg == 2
+      Δth = d.tht3 - d.tht1
+      th0 = -d.tht3
+   elseif reg == 3
+      Δth = d.tht1
+      th0 = -d.tht1
+   elseif reg == 4
+      Δth = d.tht1
+      th0 = 0.0
+   elseif reg == 5
+      Δth = d.tht3 - d.tht1
+      th0 = d.tht1
+   elseif reg == 6
+      Δth = d.tht4 - d.tht3
+      th0 = d.tht3
+   elseif reg == 7
+      Δth = π - d.tht2 - d.tht4
+      th0 = d.tht4
+   elseif reg == 8
+      Δth = d.tht2
+      th0 = π - d.tht2
+   elseif reg == 9
+      Δth = d.tht2
+      th0 = π
+   else # reg == 10
+      Δth = π - d.tht2 - d.tht4
+      th0 = π + d.tht2
+   end
+
+   th = muladd(xi2, Δth, th0)
+
+   st, ct = sincos(th)
+   st2 = 2.0 * st * ct
+   ct2 = cos(2.0 * th)
+
+   # x-derivs
+   gx = d.R1 * ct - d.P * (st * st)
+   dgx = -d.R1 * st - d.P * st2
+   d2gx = -d.R1 * ct - 2.0 * d.P * ct2
+   d3gx = d.R1 * st + 4.0 * d.P * st2
+   d4gx = d.R1 * ct + 8.0 * d.P * ct2
+   d5gx = -d.R1 * st - 16.0 * d.P * st2
+   d6gx = -d.R1 * ct - 32.0 * d.P * ct2
+
+   # y-derivs
+   gy = d.R2 * st
+   dgy = d.R2 * ct
+   d2gy = -gy
+   d3gy = -dgy
+   d4gy = gy
+   d5gy = dgy
+   d6gy = d2gy
+
+   # powers of αv
+   αv2 = αv * αv
+   αv3 = αv2 * αv
+   αv4 = αv2 * αv2
+   αv5 = αv4 * αv
+   αv6 = αv3 * αv3
+
+   # powers of Δth
+   Δth2 = Δth * Δth
+   Δth3 = Δth2 * Δth
+   Δth4 = Δth2 * Δth2
+   Δth5 = Δth4 * Δth
+   Δth6 = Δth3 * Δth3
+
+   if reg == 1
+      dux = αu * (gx - α1x - (2.0 * xi2 - 1.0) * d.L1 * e2x * (0.5 * invn) - d.L2 * q2x * invn)
+      duy = αu * (gy - α1y - (2.0 * xi2 - 1.0) * d.L1 * e2y * (0.5 * invn) - d.L2 * q2y * invn)
+
+      dvx = αv * (d.L1 * (1.0 - xi1) * e2x * invn + Δth * xi1 * dgx)
+      dvy = αv * (d.L1 * (1.0 - xi1) * e2y * invn + Δth * xi1 * dgy)
+
+      duvx = αu * αv * (-d.L1 * e2x * invn + Δth * dgx)
+      duvy = αu * αv * (-d.L1 * e2y * invn + Δth * dgy)
+
+   elseif reg == 2
+      dux = αu * (gx - α1x - d.L1 * e2x * (0.5 * invn) - (1.0 - xi2) * d.L2 * q2x * invn)
+      duy = αu * (gy - α1y - d.L1 * e2y * (0.5 * invn) - (1.0 - xi2) * d.L2 * q2y * invn)
+
+      dvx = αv * (-d.L2 * (1.0 - xi1) * q2x * invn + Δth * xi1 * dgx)
+      dvy = αv * (-d.L2 * (1.0 - xi1) * q2y * invn + Δth * xi1 * dgy)
+
+      duvx = αu * αv * (d.L2 * q2x * invn + Δth * dgx)
+      duvy = αu * αv * (d.L2 * q2y * invn + Δth * dgy)
+
+   elseif reg == 3
+      dux = αu * (gx - (1.0 - xi2) * α1x)
+      duy = αu * (gy - (1.0 - xi2) * α1y)
+
+      dvx = αv * (-(1.0 - xi1) * α1x + Δth * xi1 * dgx)
+      dvy = αv * (-(1.0 - xi1) * α1y + Δth * xi1 * dgy)
+
+      duvx = αu * αv * (α1x + Δth * dgx)
+      duvy = αu * αv * (α1y + Δth * dgy)
+
+   elseif reg == 4
+      dux = αu * (gx - xi2 * α2x)
+      duy = αu * (gy - xi2 * α2y)
+
+      dvx = αv * ((1.0 - xi1) * α2x + Δth * xi1 * dgx)
+      dvy = αv * ((1.0 - xi1) * α2y + Δth * xi1 * dgy)
+
+      duvx = αu * αv * (-α2x + Δth * dgx)
+      duvy = αu * αv * (-α2y + Δth * dgy)
+
+   elseif reg == 5
+      dux = αu * (gx - α2x - d.L1 * e1x * (0.5 * invn) - xi2 * d.L2 * q1x * invn)
+      duy = αu * (gy - α2y - d.L1 * e1y * (0.5 * invn) - xi2 * d.L2 * q1y * invn)
+
+      dvx = αv * (d.L2 * (1.0 - xi1) * q1x * invn + Δth * xi1 * dgx)
+      dvy = αv * (d.L2 * (1.0 - xi1) * q1y * invn + Δth * xi1 * dgy)
+
+      duvx = αu * αv * (-d.L2 * q1x * invn + Δth * dgx)
+      duvy = αu * αv * (-d.L2 * q1y * invn + Δth * dgy)
+
+   elseif reg == 6
+      dux = αu * (gx - α2x + (2.0 * xi2 - 1.0) * d.L1 * e1x * (0.5 * invn) - d.L2 * q1x * invn)
+      duy = αu * (gy - α2y + (2.0 * xi2 - 1.0) * d.L1 * e1y * (0.5 * invn) - d.L2 * q1y * invn)
+
+      dvx = αv * (-d.L1 * (1.0 - xi1) * e1x * invn + Δth * xi1 * dgx)
+      dvy = αv * (-d.L1 * (1.0 - xi1) * e1y * invn + Δth * xi1 * dgy)
+
+      duvx = αu * αv * (d.L1 * e1x * invn + Δth * dgx)
+      duvy = αu * αv * (d.L1 * e1y * invn + Δth * dgy)
+
+   elseif reg == 7
+      dux = αu * (gx - α2x + d.L1 * e1x * (0.5 * invn) - (1.0 - xi2) * d.L2 * q1x * invn)
+      duy = αu * (gy - α2y + d.L1 * e1y * (0.5 * invn) - (1.0 - xi2) * d.L2 * q1y * invn)
+
+      dvx = αv * (-d.L2 * (1.0 - xi1) * q1x * invn + Δth * xi1 * dgx)
+      dvy = αv * (-d.L2 * (1.0 - xi1) * q1y * invn + Δth * xi1 * dgy)
+
+      duvx = αu * αv * (d.L2 * q1x * invn + Δth * dgx)
+      duvy = αu * αv * (d.L2 * q1y * invn + Δth * dgy)
+
+   elseif reg == 8
+      dux = αu * (gx - (1.0 - xi2) * α2x)
+      duy = αu * (gy - (1.0 - xi2) * α2y)
+
+      dvx = αv * (-(1.0 - xi1) * α2x + Δth * xi1 * dgx)
+      dvy = αv * (-(1.0 - xi1) * α2y + Δth * xi1 * dgy)
+
+      duvx = αu * αv * (α2x + Δth * dgx)
+      duvy = αu * αv * (α2y + Δth * dgy)
+
+   elseif reg == 9
+      dux = αu * (gx - xi2 * α1x)
+      duy = αu * (gy - xi2 * α1y)
+
+      dvx = αv * ((1.0 - xi1) * α1x + Δth * xi1 * dgx)
+      dvy = αv * ((1.0 - xi1) * α1y + Δth * xi1 * dgy)
+
+      duvx = αu * αv * (-α1x + Δth * dgx)
+      duvy = αu * αv * (-α1y + Δth * dgy)
+
+   elseif reg == 10
+      dux = αu * (gx - α1x + d.L1 * e2x * (0.5 * invn) - xi2 * d.L2 * q2x * invn)
+      duy = αu * (gy - α1y + d.L1 * e2y * (0.5 * invn) - xi2 * d.L2 * q2y * invn)
+
+      dvx = αv * (d.L2 * (1.0 - xi1) * q2x * invn + Δth * xi1 * dgx)
+      dvy = αv * (d.L2 * (1.0 - xi1) * q2y * invn + Δth * xi1 * dgy)
+
+      duvx = αu * αv * (-d.L2 * q2x * invn + Δth * dgx)
+      duvy = αu * αv * (-d.L2 * q2y * invn + Δth * dgy)
+
+   else
+      throw(ArgumentError("diff_rmap! for kite expects reg 1–12; got reg=$reg"))
+      
+   end
+
+
+   dv2x = αv2 * Δth2 * xi1 * d2gx
+   dv2y = αv2 * Δth2 * xi1 * d2gy
+   duv2x = αu * αv2 * Δth2 * d2gx
+   duv2y = αu * αv2 * Δth2 * d2gy
+
+   dv3x = αv3 * Δth3 * xi1 * d3gx
+   dv3y = αv3 * Δth3 * xi1 * d3gy
+   duv3x = αu * αv3 * Δth3 * d3gx
+   duv3y = αu * αv3 * Δth3 * d3gy
+
+   dv4x = αv4 * Δth4 * xi1 * d4gx
+   dv4y = αv4 * Δth4 * xi1 * d4gy
+   duv4x = αu * αv4 * Δth4 * d4gx
+   duv4y = αu * αv4 * Δth4 * d4gy
+
+   dv5x = αv5 * Δth5 * xi1 * d5gx
+   dv5y = αv5 * Δth5 * xi1 * d5gy
+   duv5x = αu * αv5 * Δth5 * d5gx
+   duv5y = αu * αv5 * Δth5 * d5gy
+
+   dv6x = αv6 * Δth6 * xi1 * d6gx
+   dv6y = αv6 * Δth6 * xi1 * d6gy
+
+   @inbounds for i in 1:nt
+      dvi = dv[i]
+      dui = du[i]
+      @inbounds for j in 1:nr
+         uu = u2[i, j]
+         vv = v2[i, j]
+         if (abs(u - uu) < tol) && (abs(v - vv) < tol)
+            r1 = dvi * r[i, j]
+            r2 = r1 * r1
+            r3 = r2 * r1
+            r4 = r2 * r2
+            r5 = r4 * r1
+            # near the evaluation point: Taylor fixup
+            #Below computes the x and y coordinate of:
+            #(τ(u,v) - τ(u-r*du,v-r*dv))/r = dτᵤ(u,v) * du +  dτᵥ(u,v) * dv - r*(...)
+            Dx = (dui * dux + dvi * dvx) -
+                 r1 * (dui * duvx + dvi * dv2x / 2.0) +
+                 r2 * (dui * duv2x / 2.0 + dvi * dv3x / 6.0) -
+                 r3 * (dui * duv3x / 6.0 + dvi * dv4x / 24.0) +
+                 r4 * (dui * duv4x / 24.0 + dvi * dv5x / 120.0) -
+                 r5 * (dui * duv5x / 120.0 + dvi * dv6x / 720.0)
+
+            Dy = (dui * duy + dvi * dvy) -
+                 r1 * (dui * duvy + dvi * dv2y / 2.0) +
+                 r2 * (dui * duv2y / 2.0 + dvi * dv3y / 6.0) -
+                 r3 * (dui * duv3y / 6.0 + dvi * dv4y / 24.0) +
+                 r4 * (dui * duv4y / 24.0 + dvi * dv5y / 120.0) -
+                 r5 * (dui * duv5y / 120.0 + dvi * dv6y / 720.0)
+
+            out[i, j] = hypot(Dx, Dy)
+         else
+            # far: direct geometric difference
+            out[i, j] = hypot(tux - Zx[i, j], tvy - Zy[i, j]) / r[i, j]
+         end
+      end
+   end
 
 end
 

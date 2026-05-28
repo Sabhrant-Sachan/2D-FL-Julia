@@ -1,4 +1,4 @@
-Run started: 2026-05-21T23:47:07.665
+Run started: 2026-05-28T11:19:01.880
 s = 0.9999
 p = 5000
 ============ FractionalLaplacian2D ============
@@ -17,14 +17,22 @@ disc with properties:
 
 
 ----------- Parameters -----------
-N=10, nₚᵣ=128, s=0.9999, p=5000, δ=0.1,
+N=10, nₚᵣ=128, s=0.9999, p=5000,
+δv_near=0.15, δv_close=0.008
 Precomps nodes: r = nₚᵣ, θ = 2nₚᵣ,
-Lᵢₙ=5, δ_near=0.15, δ_intp=0.005.
+Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
+
+----------- Quadrature -----------
+Vol. regular patches  : nr = 32  (32×32 grid)
+Vol. boundary patches : nbd = 128 (128×32 grid)
+Boundary DLP mode-0   : nr_bdy = 64
+Boundary DLP mode-1   : ns_near = 128
+Boundary DLP smoothing: pbd = 2
 
 ----------- System -----------
 Target points (Vars.) : 540
-Precomputation points : 916
-Near-singular  points : 376
+Stored near/close pts : 488
+IntS layout columns   : 1028
 
 ----------- Solve -----------
 Solver : direct
@@ -33,7 +41,7 @@ Solver : direct
 Max Error   : 1.57e-04
 Max Rel err : 2.14e-04
 L^2 error   : 1.84e-03
-Root MSE err: 8.22e-05
+Root MSE err: 8.23e-05
 ===============================================
 
 ============ FractionalLaplacian2D ============
@@ -52,14 +60,22 @@ disc with properties:
 
 
 ----------- Parameters -----------
-N=12, nₚᵣ=128, s=0.9999, p=5000, δ=0.1,
+N=12, nₚᵣ=128, s=0.9999, p=5000,
+δv_near=0.15, δv_close=0.008
 Precomps nodes: r = nₚᵣ, θ = 2nₚᵣ,
-Lᵢₙ=5, δ_near=0.15, δ_intp=0.005.
+Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
+
+----------- Quadrature -----------
+Vol. regular patches  : nr = 32  (32×32 grid)
+Vol. boundary patches : nbd = 128 (128×32 grid)
+Boundary DLP mode-0   : nr_bdy = 64
+Boundary DLP mode-1   : ns_near = 128
+Boundary DLP smoothing: pbd = 2
 
 ----------- System -----------
 Target points (Vars.) : 768
-Precomputation points : 1336
-Near-singular  points : 568
+Stored near/close pts : 664
+IntS layout columns   : 1432
 
 ----------- Solve -----------
 Solver : direct
@@ -67,7 +83,7 @@ Solver : direct
 ----------- Error -----------
 Max Error   : 1.23e-05
 Max Rel err : 1.51e-05
-L^2 error   : 5.20e-05
+L^2 error   : 5.21e-05
 Root MSE err: 1.94e-06
 ===============================================
 
@@ -87,14 +103,22 @@ disc with properties:
 
 
 ----------- Parameters -----------
-N=12, nₚᵣ=128, s=0.9999, p=5000, δ=0.1,
+N=12, nₚᵣ=128, s=0.9999, p=5000,
+δv_near=0.15, δv_close=0.008
 Precomps nodes: r = nₚᵣ, θ = 2nₚᵣ,
-Lᵢₙ=5, δ_near=0.15, δ_intp=0.005.
+Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
+
+----------- Quadrature -----------
+Vol. regular patches  : nr = 32  (32×32 grid)
+Vol. boundary patches : nbd = 128 (128×32 grid)
+Boundary DLP mode-0   : nr_bdy = 64
+Boundary DLP mode-1   : ns_near = 128
+Boundary DLP smoothing: pbd = 2
 
 ----------- System -----------
 Target points (Vars.) : 2976
-Precomputation points : 7412
-Near-singular  points : 4436
+Stored near/close pts : 5840
+IntS layout columns   : 8816
 
 ----------- Solve -----------
 Solver : direct
@@ -102,8 +126,8 @@ Solver : direct
 ----------- Error -----------
 Max Error   : 2.57e-06
 Max Rel err : 2.57e-06
-L^2 error   : 1.76e-05
-Root MSE err: 3.29e-07
+L^2 error   : 1.72e-05
+Root MSE err: 3.20e-07
 ===============================================
 
 ============ FractionalLaplacian2D ============
@@ -122,14 +146,22 @@ disc with properties:
 
 
 ----------- Parameters -----------
-N=12, nₚᵣ=256, s=0.9999, p=5000, δ=0.1,
+N=12, nₚᵣ=256, s=0.9999, p=5000,
+δv_near=0.15, δv_close=0.008
 Precomps nodes: r = nₚᵣ, θ = 2nₚᵣ,
-Lᵢₙ=5, δ_near=0.15, δ_intp=0.005.
+Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
+
+----------- Quadrature -----------
+Vol. regular patches  : nr = 32  (32×32 grid)
+Vol. boundary patches : nbd = 128 (128×32 grid)
+Boundary DLP mode-0   : nr_bdy = 64
+Boundary DLP mode-1   : ns_near = 128
+Boundary DLP smoothing: pbd = 2
 
 ----------- System -----------
 Target points (Vars.) : 2976
-Precomputation points : 7412
-Near-singular  points : 4436
+Stored near/close pts : 5840
+IntS layout columns   : 8816
 
 ----------- Solve -----------
 Solver : direct
@@ -157,49 +189,22 @@ disc with properties:
 
 
 ----------- Parameters -----------
-N=12, nₚᵣ=128, s=0.9999, p=5000, δ=0.1,
+N=12, nₚᵣ=256, s=0.9999, p=5000,
+δv_near=0.15, δv_close=0.008
 Precomps nodes: r = nₚᵣ, θ = 2nₚᵣ,
-Lᵢₙ=5, δ_near=0.15, δ_intp=0.005.
+Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
+
+----------- Quadrature -----------
+Vol. regular patches  : nr = 32  (32×32 grid)
+Vol. boundary patches : nbd = 128 (128×32 grid)
+Boundary DLP mode-0   : nr_bdy = 64
+Boundary DLP mode-1   : ns_near = 128
+Boundary DLP smoothing: pbd = 2
 
 ----------- System -----------
 Target points (Vars.) : 4464
-Precomputation points : 12092
-Near-singular  points : 7628
-
------------ Solve -----------
-Solver : direct
-
------------ Error -----------
-Max Error   : 4.04e-06
-Max Rel err : 4.08e-06
-L^2 error   : 3.45e-05
-Root MSE err: 5.25e-07
-===============================================
-
-============ FractionalLaplacian2D ============
-
------------ Domain -----------
-disc with properties:
-  (A , B )  = (0.0,0.0)
-  (L₁, L₂)  = (0.8,0.8)
-  Radius of disc = 1.0
-  No. of holes   = 0
-  kd     = Int[4 5 6 … 22 23 24]
-  Npat   = 30
-  pths   = Vector{Patch} (30 patches)
-  Qpts   = 8×30 Matrix
-  Qptsbd = 8×12 Matrix
-
-
------------ Parameters -----------
-N=12, nₚᵣ=256, s=0.9999, p=5000, δ=0.1,
-Precomps nodes: r = nₚᵣ, θ = 2nₚᵣ,
-Lᵢₙ=5, δ_near=0.15, δ_intp=0.005.
-
------------ System -----------
-Target points (Vars.) : 4464
-Precomputation points : 12092
-Near-singular  points : 7628
+Stored near/close pts : 10048
+IntS layout columns   : 14512
 
 ----------- Solve -----------
 Solver : direct
@@ -227,49 +232,22 @@ disc with properties:
 
 
 ----------- Parameters -----------
-N=12, nₚᵣ=128, s=0.9999, p=5000, δ=0.1,
+N=12, nₚᵣ=256, s=0.9999, p=5000,
+δv_near=0.15, δv_close=0.008
 Precomps nodes: r = nₚᵣ, θ = 2nₚᵣ,
-Lᵢₙ=5, δ_near=0.15, δ_intp=0.005.
+Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
+
+----------- Quadrature -----------
+Vol. regular patches  : nr = 32  (32×32 grid)
+Vol. boundary patches : nbd = 128 (128×32 grid)
+Boundary DLP mode-0   : nr_bdy = 64
+Boundary DLP mode-1   : ns_near = 128
+Boundary DLP smoothing: pbd = 2
 
 ----------- System -----------
 Target points (Vars.) : 11760
-Precomputation points : 43516
-Near-singular  points : 31756
-
------------ Solve -----------
-Solver : direct
-
------------ Error -----------
-Max Error   : 2.25e-06
-Max Rel err : 2.26e-06
-L^2 error   : 2.36e-05
-Root MSE err: 2.20e-07
-===============================================
-
-============ FractionalLaplacian2D ============
-
------------ Domain -----------
-disc with properties:
-  (A , B )  = (0.0,0.0)
-  (L₁, L₂)  = (0.8,0.8)
-  Radius of disc = 1.0
-  No. of holes   = 0
-  kd     = Int[11 12 13 … 58 59 60]
-  Npat   = 80
-  pths   = Vector{Patch} (80 patches)
-  Qpts   = 8×80 Matrix
-  Qptsbd = 8×20 Matrix
-
-
------------ Parameters -----------
-N=12, nₚᵣ=256, s=0.9999, p=5000, δ=0.1,
-Precomps nodes: r = nₚᵣ, θ = 2nₚᵣ,
-Lᵢₙ=5, δ_near=0.15, δ_intp=0.005.
-
------------ System -----------
-Target points (Vars.) : 11760
-Precomputation points : 43516
-Near-singular  points : 31756
+Stored near/close pts : 48388
+IntS layout columns   : 60148
 
 ----------- Solve -----------
 Solver : direct
@@ -281,41 +259,3 @@ L^2 error   : 1.21e-06
 Root MSE err: 1.13e-08
 ===============================================
 
-============ FractionalLaplacian2D ============
-
------------ Domain -----------
-disc with properties:
-  (A , B )  = (0.0,0.0)
-  (L₁, L₂)  = (0.8,0.8)
-  Radius of disc = 1.0
-  No. of holes   = 0
-  kd     = Int[11 12 13 … 58 59 60]
-  Npat   = 80
-  pths   = Vector{Patch} (80 patches)
-  Qpts   = 8×80 Matrix
-  Qptsbd = 8×20 Matrix
-
-
------------ Parameters -----------
-N=12, nₚᵣ=512, s=0.9999, p=5000, δ=0.1,
-Precomps nodes: r = nₚᵣ, θ = 2nₚᵣ,
-Lᵢₙ=5, δ_near=0.15, δ_intp=0.005.
-
------------ System -----------
-Target points (Vars.) : 11760
-Precomputation points : 43516
-Near-singular  points : 31756
-
------------ Solve -----------
-Solver : direct
-
------------ Error -----------
-Max Error   : 1.19e-09
-Max Rel err : 1.20e-09
-L^2 error   : 6.98e-09
-Root MSE err: 6.50e-11
-===============================================
-
-
-==End of Disc==
-Run finished: 2026-05-22T01:41:11.960

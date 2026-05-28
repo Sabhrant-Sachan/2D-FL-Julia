@@ -1427,11 +1427,12 @@ function dfunc!(out::StridedArray{Float64}, d::disc, k::Int, t::StridedArray{Flo
 end
 
 """
-  diff_map!(out::Matrix{Float64}, Zx::Matrix{Float64}, Zy::Matrix{Float64}, DJ::StridedArray{Float64},
-            d::disc, u::Float64, v::Float64,
-            u2::Matrix{Float64}, v2::Matrix{Float64},
-            du::AbstractVector, dv::AbstractVector, k::Int;
-            tol = 1e-4)
+  diff_map!(out::Matrix{Float64}, Zx::Matrix{Float64}, 
+   Zy::Matrix{Float64}, DJ::StridedArray{Float64},
+   d::disc, u::Float64, v::Float64,
+   u2::Matrix{Float64}, v2::Matrix{Float64},
+   du::AbstractVector, dv::AbstractVector, k::Int;
+   tol = 1e-4)
 
 Fill `out` with ‖τ(u,v) - τ(u₂,v₂)‖ on patch `k`, where `(u,v)` are scalars and
 `u2,v2` are matrices (meshgrid-like) with size `(length(du), length(dv))`.
@@ -1614,11 +1615,12 @@ function diff_map!(out::Matrix{Float64},
 end
 
 """
-  diff_rmap!(out::Matrix{Float64}, x::Matrix{Float64}, Zy::Matrix{Float64}, DJ::StridedArray{Float64}
-            d::disc, u::Float64, v::Float64,
-            u2::Matrix{Float64}, v2::Matrix{Float64}, r::Matrix{Float64},
-            du::AbstractVector, dv::AbstractVector, k::Int;
-            tol = 1e-4)
+  diff_rmap!(out::Matrix{Float64}, Zx::Matrix{Float64}, 
+   Zy::Matrix{Float64}, DJ::StridedArray{Float64}
+   d::disc, u::Float64, v::Float64,
+   u2::Matrix{Float64}, v2::Matrix{Float64}, r::Matrix{Float64},
+   du::AbstractVector, dv::AbstractVector, k::Int;
+   tol = 1e-3)
 
 Compute ‖(τ(u,v) - τ(u₂,v₂)) / r‖ for the `k`-th patch, with
 `u₂ = u - r .* du`, `v₂ = v - r .* dv`.
@@ -1635,161 +1637,168 @@ with affine mappings are not updated!
 But the Jacobian DJ is always updated.
 """
 function diff_rmap!(out::Matrix{Float64},
-  Zx::Matrix{Float64}, Zy::Matrix{Float64}, DJ::StridedArray{Float64},
-  d::disc, u::Float64, v::Float64,
-  u2::Matrix{Float64}, v2::Matrix{Float64}, r::Matrix{Float64},
-  du::AbstractVector, dv::AbstractVector, k::Int;
-  tol::Float64=7e-4)
+   Zx::Matrix{Float64}, Zy::Matrix{Float64}, DJ::StridedArray{Float64},
+   d::disc, u::Float64, v::Float64,
+   u2::Matrix{Float64}, v2::Matrix{Float64}, r::Matrix{Float64},
+   du::AbstractVector, dv::AbstractVector, k::Int;
+   tol::Float64=1e-3)
 
-  nt = size(out, 1)   # angular
-  nr = size(out, 2)   # radial
-  #passed all these assert tests!
-  # @assert length(du) == nt
-  # @assert length(dv) == nt
-  # @assert size(r) == (nt, nr)
-  # @assert size(out) == (nt, nr)
-  # @assert size(u2)  == size(out)
-  # @assert size(v2)  == size(out)
-  # @assert size(du) == size(dv)
-  # @inbounds for i in 1:nt, j in 1:nr
-  #   @assert isapprox(u2[i, j], u - r[i, j] * du[i]; rtol=0, atol=1e-14)
-  #   @assert isapprox(v2[i, j], v - r[i, j] * dv[i]; rtol=0, atol=1e-14)
-  # end
+   nt = size(out, 1)   # angular
+   nr = size(out, 2)   # radial
+   #passed all these assert tests!
+   # @assert length(du) == nt
+   # @assert length(dv) == nt
+   # @assert size(r) == (nt, nr)
+   # @assert size(out) == (nt, nr)
+   # @assert size(u2)  == size(out)
+   # @assert size(v2)  == size(out)
+   # @assert size(du) == size(dv)
+   # @inbounds for i in 1:nt, j in 1:nr
+   #   @assert isapprox(u2[i, j], u - r[i, j] * du[i]; rtol=0, atol=1e-14)
+   #   @assert isapprox(v2[i, j], v - r[i, j] * dv[i]; rtol=0, atol=1e-14)
+   # end
 
-  p = d.pths[k]
-  αc = (p.ck1 - p.ck0) / 2     # Δc/2
-  αt = (p.tk1 - p.tk0) / 2     # Δt/2
+   p = d.pths[k]
+   αc = (p.ck1 - p.ck0) / 2     # Δc/2
+   αt = (p.tk1 - p.tk0) / 2     # Δt/2
 
-  # --- rectangular patch (reg == 5): closed form, no mapping needed
-  if p.reg == 5
-    if d.L2 >= d.L1
-      cDx, cDy = d.L2 * αt, d.L1 * αc
-    else
-      cDx, cDy = d.L2 * αc, d.L1 * αt
-    end
+   # --- rectangular patch (reg == 5): closed form, no mapping needed
+   if p.reg == 5
+      if d.L2 >= d.L1
+         cDx, cDy = d.L2 * αt, d.L1 * αc
+      else
+         cDx, cDy = d.L2 * αc, d.L1 * αt
+      end
 
-    fill!(DJ, cDx * cDy)
+      fill!(DJ, cDx * cDy)
 
-    @inbounds for i in 1:nt
-        dui = du[i]
-        dvi = dv[i]
-        hD = hypot(cDx * dui, cDy * dvi)
-        for j in 1:nr
+      @inbounds for i in 1:nt
+         dui = du[i]
+         dvi = dv[i]
+         hD = hypot(cDx * dui, cDy * dvi)
+         for j in 1:nr
             out[i, j] = hD
-        end
-    end
+         end
+      end
 
-    return nothing
-  end
+      return nothing
+   end
 
-  mapxy_Dmap!(Zx, Zy, DJ, d, u2, v2, k)
+   mapxy_Dmap!(Zx, Zy, DJ, d, u2, v2, k)
 
-  # affine maps: [-1,1] → [ck0,ck1] × [tk0,tk1]
-  û = muladd(αc, u, p.ck0 + αc)
-  v̂ = muladd(αt, v, p.tk0 + αt)
+   # affine maps: [-1,1] → [ck0,ck1] × [tk0,tk1]
+   û = muladd(αc, u, p.ck0 + αc)
+   v̂ = muladd(αt, v, p.tk0 + αt)
 
-  # angle/trig
-  vt = muladd(π / 2, v̂, (2p.reg - 3) * (π / 4))
-  svt, cvt = sincos(vt)
-  svt *= d.R
-  cvt *= d.R
+   # angle/trig
+   vt = muladd(π / 2, v̂, (2p.reg - 3) * (π / 4))
+   svt, cvt = sincos(vt)
+   svt *= d.R
+   cvt *= d.R
 
-  # ===== coefficients simplified with αc, αt =====
-  # common scalars
-  L1 = d.L1
-  L2 = d.L2
+   # ===== coefficients simplified with αc, αt =====
+   # common scalars
+   L1 = d.L1
+   L2 = d.L2
 
-  πa = π * αt
-  πa_u = πa * û        # π * αt * û
-  πa_αc = πa * αc       # π * αt * αc
+   πa = π * αt
+   πa_u = πa * û        # π * αt * û
+   πa_αc = πa * αc       # π * αt * αc
 
-  πa2 = πa * πa        # π^2 * αt^2
-  πa3 = πa2 * πa       # π^3 * αt^3
-  πa4 = πa2 * πa2      # π^4 * αt^4
-  πa5 = πa4 * πa
+   πa2 = πa * πa        # π^2 * αt^2
+   πa3 = πa2 * πa       # π^3 * αt^3
+   πa4 = πa2 * πa2      # π^4 * αt^4
+   πa5 = πa4 * πa
+   πa6 = πa3 * πa3
 
-  # x-direction higher derivatives (common across regions)
-  C2x = -(πa2 * cvt) / 4        # factor in dv2x, duv2x
-  C3x = (πa3 * svt) / 8        # factor in dv3x, duv3x
-  C4x = (πa4 * cvt) / 16       # dv4x
-  C5x = -(πa5 * svt) / 32
+   # x-direction higher derivatives (common across regions)
+   C2x = -(πa2 * cvt) / 4        # factor in dv2x, duv2x
+   C3x = (πa3 * svt) / 8        # factor in dv3x, duv3x
+   C4x = (πa4 * cvt) / 16       # dv4x
+   C5x = -(πa5 * svt) / 32
+   C6x = -(πa6 * cvt) / 64
 
-  dv2x = C2x * û
-  duv2x = C2x * αc
-  dv3x = C3x * û
-  duv3x = C3x * αc
-  dv4x = C4x * û
-  duv4x = C5x * αc
-  dv5x  = C5x * û
+   dv2x = C2x * û
+   duv2x = C2x * αc
+   dv3x = C3x * û
+   duv3x = C3x * αc
+   dv4x = C4x * û
+   duv4x = C4x * αc
+   dv5x = C5x * û
+   duv5x = C5x * αc
+   dv6x = C6x * û
 
-  # y-direction higher derivatives (common across regions)
-  C2y = -(πa2 * svt) / 4
-  C3y = -(πa3 * cvt) / 8
-  C4y = (πa4 * svt) / 16
-  C5y =  (πa5 * cvt) / 32
+   # y-direction higher derivatives (common across regions)
+   C2y = -(πa2 * svt) / 4
+   C3y = -(πa3 * cvt) / 8
+   C4y = (πa4 * svt) / 16
+   C5y = (πa5 * cvt) / 32
+   C6y = -(πa6 * svt) / 64
 
-  dv2y = C2y * û
-  duv2y = C2y * αc
-  dv3y = C3y * û
-  duv3y = C3y * αc
-  dv4y = C4y * û
-  duv4y = C5y * αc
-  dv5y  = C5y * û
+   dv2y = C2y * û
+   duv2y = C2y * αc
+   dv3y = C3y * û
+   duv3y = C3y * αc
+   dv4y = C4y * û
+   duv4y = C4y * αc
+   dv5y = C5y * û
+   duv5y = C5y * αc
+   dv6y = C6y * û
 
-  # some other shared helpers
-  half_L1 = L1 / 2
-  half_L2 = L2 / 2
-  two_v̂_minus1 = 2v̂ - 1
-  one_minus_û = 1 - û
+   # some other shared helpers
+   half_L1 = L1 / 2
+   half_L2 = L2 / 2
+   two_v̂_minus1 = 2v̂ - 1
+   one_minus_û = 1 - û
 
-  # now split on region
-  if p.reg == 1
-    # x
-    dux = αc * (cvt - half_L2)
-    dvx = -(πa_u * svt) / 2
-    duvx = -(πa_αc * svt) / 2
+   # now split on region
+   if p.reg == 1
+      # x
+      dux = αc * (cvt - half_L2)
+      dvx = -(πa_u * svt) / 2
+      duvx = -(πa_αc * svt) / 2
 
-    # y
-    duy = αc * (svt - L1 * two_v̂_minus1 / 2)
-    dvy = one_minus_û * L1 * αt + (πa_u * cvt) / 2
-    duvy = (πa_αc * cvt) / 2 - αt * αc * L1
+      # y
+      duy = αc * (svt - L1 * two_v̂_minus1 / 2)
+      dvy = one_minus_û * L1 * αt + (πa_u * cvt) / 2
+      duvy = (πa_αc * cvt) / 2 - αt * αc * L1
 
-  elseif p.reg == 2
-    # x
-    dux = αc * (cvt - L2 * (1 - 2v̂) / 2)
-    dvx = -one_minus_û * L2 * αt - (πa_u * svt) / 2
-    duvx = αt * αc * L2 - (πa_αc * svt) / 2
+   elseif p.reg == 2
+      # x
+      dux = αc * (cvt - L2 * (1 - 2v̂) / 2)
+      dvx = -one_minus_û * L2 * αt - (πa_u * svt) / 2
+      duvx = αt * αc * L2 - (πa_αc * svt) / 2
 
-    # y
-    duy = αc * (svt - half_L1)
-    dvy = (πa_u * cvt) / 2
-    duvy = (πa_αc * cvt) / 2
+      # y
+      duy = αc * (svt - half_L1)
+      dvy = (πa_u * cvt) / 2
+      duvy = (πa_αc * cvt) / 2
 
-  elseif p.reg == 3
-    # x
-    dux = αc * (cvt + half_L2)
-    dvx = -(πa_u * svt) / 2
-    duvx = -(πa_αc * svt) / 2
+   elseif p.reg == 3
+      # x
+      dux = αc * (cvt + half_L2)
+      dvx = -(πa_u * svt) / 2
+      duvx = -(πa_αc * svt) / 2
 
-    # y
-    duy = αc * (svt + L1 * two_v̂_minus1 / 2)
-    dvy = -one_minus_û * L1 * αt + (πa_u * cvt) / 2
-    duvy = (πa_αc * cvt) / 2 + αt * αc * L1
+      # y
+      duy = αc * (svt + L1 * two_v̂_minus1 / 2)
+      dvy = -one_minus_û * L1 * αt + (πa_u * cvt) / 2
+      duvy = (πa_αc * cvt) / 2 + αt * αc * L1
 
-  else # p.reg == 4
-    # x
-    dux = αc * (cvt + L2 * (1 - 2v̂) / 2)
-    dvx = one_minus_û * L2 * αt - (πa_u * svt) / 2
-    duvx = -(αt * αc * L2) - (πa_αc * svt) / 2
+   else # p.reg == 4
+      # x
+      dux = αc * (cvt + L2 * (1 - 2v̂) / 2)
+      dvx = one_minus_û * L2 * αt - (πa_u * svt) / 2
+      duvx = -(αt * αc * L2) - (πa_αc * svt) / 2
 
-    # y
-    duy = αc * (svt + half_L1)
-    dvy = (πa_u * cvt) / 2
-    duvy = (πa_αc * cvt) / 2
-  end
-  # --- general case (reg ∈ {1,2,3,4})
-  # Map the reference scalar point and the whole grid
-  tux, tvy = mapxy(d, u, v, k)
+      # y
+      duy = αc * (svt + half_L1)
+      dvy = (πa_u * cvt) / 2
+      duvy = (πa_αc * cvt) / 2
+   end
+   # --- general case (reg ∈ {1,2,3,4})
+   # Map the reference scalar point and the whole grid
+   tux, tvy = mapxy(d, u, v, k)
 
    @inbounds for i in 1:nt
       dvi = dv[i]
@@ -1802,20 +1811,24 @@ function diff_rmap!(out::Matrix{Float64},
             r2 = r1 * r1
             r3 = r2 * r1
             r4 = r3 * r1
+            r5 = r4 * r1
+
             # near the evaluation point: Taylor fixup
             #Below computes the x and y coordinate of:
             #(τ(u,v) - τ(u-r*du,v-r*dv))/r = dτᵤ(u,v) * du +  dτᵥ(u,v) * dv - r*(...)
             Dx = (dui * dux + dvi * dvx) -
-                 r1 * (dui * duvx + dvi * (dv2x / 2)) +
-                 r2 * (dui * (duv2x / 2) + dvi * (dv3x / 6)) -
-                 r3 * (dui * (duv3x / 6) + dvi * (dv4x / 24)) +
-                 r4 * (dui * (duv4x / 24) + dvi * (dv5x / 120))
+                 r1 * (dui * duvx + dvi * dv2x / 2.0) +
+                 r2 * (dui * duv2x / 2.0 + dvi * dv3x / 6.0) -
+                 r3 * (dui * duv3x / 6.0 + dvi * dv4x / 24.0) +
+                 r4 * (dui * duv4x / 24.0 + dvi * dv5x / 120.0) -
+                 r5 * (dui * duv5x / 120.0 + dvi * dv6x / 720.0)
 
             Dy = (dui * duy + dvi * dvy) -
-                 r1 * (dui * duvy + dvi * (dv2y / 2)) +
-                 r2 * (dui * (duv2y / 2) + dvi * (dv3y / 6)) -
-                 r3 * (dui * (duv3y / 6) + dvi * (dv4y / 24)) +
-                 r4 * (dui * (duv4y / 24) + dvi * (dv5y / 120))
+                 r1 * (dui * duvy + dvi * dv2y / 2.0) +
+                 r2 * (dui * duv2y / 2.0 + dvi * dv3y / 6.0) -
+                 r3 * (dui * duv3y / 6.0 + dvi * dv4y / 24.0) +
+                 r4 * (dui * duv4y / 24.0 + dvi * dv5y / 120.0) -
+                 r5 * (dui * duv5y / 120.0 + dvi * dv6y / 720.0)
 
             out[i, j] = hypot(Dx, Dy)
          else
@@ -1825,7 +1838,7 @@ function diff_rmap!(out::Matrix{Float64},
       end
    end
 
-  return nothing
+   return nothing
 end
 
 

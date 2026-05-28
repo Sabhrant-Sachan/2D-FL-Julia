@@ -4530,13 +4530,71 @@ function diff_map!(out::Matrix{Float64},
 end
 
 """
+    gamderhigher6(d::bean, th::Float64)
+
+Return centered bean boundary values and derivatives through sixth order.
+
+Returns gx, gy, dgx, dgy, d2gx, d2gy, d3gx, d3gy, d4gx, d4gy, d5gx, d5gy, d6gx, d6gy
+
+where gx(th) = R*h(th)*cos(th), gy(th) = R*h(th)*sin(th),
+and h(th) = sin(th)^3 + cos(th)^3.
+"""
+function gamderhigher6(d::bean, th::Float64)
+
+   s, c = sincos(th)
+
+   h, h1, h2, h3, h4, h5, h6 = hderhigher(d, th)
+
+   gx = d.R * h * c
+   gy = d.R * h * s
+
+   dgx = d.R * (h1 * c - h * s)
+   dgy = d.R * (h1 * s + h * c)
+
+   d2gx = d.R * (h2 * c - 2.0 * h1 * s - h * c)
+   d2gy = d.R * (h2 * s + 2.0 * h1 * c - h * s)
+
+   d3gx = d.R * (h3 * c - 3.0 * h2 * s - 3.0 * h1 * c + h * s)
+   d3gy = d.R * (h3 * s + 3.0 * h2 * c - 3.0 * h1 * s - h * c)
+
+   d4gx = d.R * (h4 * c - 4.0 * h3 * s - 6.0 * h2 * c +
+                  4.0 * h1 * s + h * c)
+
+   d4gy = d.R * (h4 * s + 4.0 * h3 * c - 6.0 * h2 * s -
+                  4.0 * h1 * c + h * s)
+
+   d5gx = d.R * (h5 * c - 5.0 * h4 * s - 10.0 * h3 * c +
+                  10.0 * h2 * s + 5.0 * h1 * c - h * s)
+
+   d5gy = d.R * (h5 * s + 5.0 * h4 * c - 10.0 * h3 * s -
+                  10.0 * h2 * c + 5.0 * h1 * s + h * c)
+
+   d6gx = d.R * (h6 * c - 6.0 * h5 * s - 15.0 * h4 * c +
+                  20.0 * h3 * s + 15.0 * h2 * c -
+                  6.0 * h1 * s - h * c)
+
+   d6gy = d.R * (h6 * s + 6.0 * h5 * c - 15.0 * h4 * s -
+                  20.0 * h3 * c + 15.0 * h2 * s +
+                  6.0 * h1 * c - h * s)
+
+   return gx, gy,
+          dgx, dgy,
+          d2gx, d2gy,
+          d3gx, d3gy,
+          d4gx, d4gy,
+          d5gx, d5gy,
+          d6gx, d6gy
+
+end
+
+"""
   diff_rmap!(out::Matrix{Float64}, Zx::Matrix{Float64}, Zy::Matrix{Float64},
              DJ::StridedArray{Float64}, d::bean,
              u::Float64, v::Float64,
              u2::Matrix{Float64}, v2::Matrix{Float64},
              r::Matrix{Float64} du::AbstractVector,
              dv::AbstractVector, k::Int;
-             tol = 1e-4)
+             tol = 1e-3)
 
 Fill `out` with
 
@@ -4552,7 +4610,7 @@ function diff_rmap!(out::Matrix{Float64},
    u2::Matrix{Float64}, v2::Matrix{Float64},
    r::Matrix{Float64}, du::AbstractVector,
    dv::AbstractVector, k::Int;
-   tol::Float64 = 1e-4)
+   tol::Float64 = 1e-3)
 
    nd_u = size(out, 1)
    nd_v = size(out, 2)
@@ -4760,16 +4818,16 @@ function diff_rmap!(out::Matrix{Float64},
 
    th = muladd(ak, vhat, bk)
 
-   gx, gy,
-   dgx, dgy,
-   d2gx, d2gy,
-   d3gx, d3gy,
-   d4gx, d4gy = gamderhigher(d, th)
+   gx, gy, dgx, dgy, d2gx, d2gy, d3gx, d3gy,
+   d4gx, d4gy, d5gx, d5gy, d6gx, d6gy = gamderhigher6(d, th)
 
    q = αt * ak
+
    q2 = q * q
    q3 = q2 * q
    q4 = q2 * q2
+   q5 = q4 * q
+   q6 = q3 * q3
 
    dux = αc * (gx - Xx)
    duy = αc * (gy - Xy)
@@ -4795,6 +4853,18 @@ function diff_rmap!(out::Matrix{Float64},
    dv4x = uhat * q4 * d4gx
    dv4y = uhat * q4 * d4gy
 
+   duv4x = αc * q4 * d4gx
+   duv4y = αc * q4 * d4gy
+
+   dv5x = uhat * q5 * d5gx
+   dv5y = uhat * q5 * d5gy
+
+   duv5x = αc * q5 * d5gx
+   duv5y = αc * q5 * d5gy
+
+   dv6x = uhat * q6 * d6gx
+   dv6y = uhat * q6 * d6gy
+
    tux, tvy = mapxy(d, u, v, k)
 
    @inbounds for i in 1:nd_u
@@ -4814,16 +4884,22 @@ function diff_rmap!(out::Matrix{Float64},
             r1 = dvi * rij
             r2 = r1 * r1
             r3 = r2 * r1
+            r4 = r2 * r2
+            r5 = r4 * r1
 
             Dx = (dui * dux + dvi * dvx) -
                  r1 * (dui * duvx + dvi * dv2x / 2.0) +
                  r2 * (dui * duv2x / 2.0 + dvi * dv3x / 6.0) -
-                 r3 * (dui * duv3x / 6.0 + dvi * dv4x / 24.0)
+                 r3 * (dui * duv3x / 6.0 + dvi * dv4x / 24.0) +
+                 r4 * (dui * duv4x / 24.0 + dvi * dv5x / 120.0) -
+                 r5 * (dui * duv5x / 120.0 + dvi * dv6x / 720.0)
 
             Dy = (dui * duy + dvi * dvy) -
                  r1 * (dui * duvy + dvi * dv2y / 2.0) +
                  r2 * (dui * duv2y / 2.0 + dvi * dv3y / 6.0) -
-                 r3 * (dui * duv3y / 6.0 + dvi * dv4y / 24.0)
+                 r3 * (dui * duv3y / 6.0 + dvi * dv4y / 24.0) +
+                 r4 * (dui * duv4y / 24.0 + dvi * dv5y / 120.0) -
+                 r5 * (dui * duv5y / 120.0 + dvi * dv6y / 720.0)
 
             out[i, j] = hypot(Dx, Dy)
 
