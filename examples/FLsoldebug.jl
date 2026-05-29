@@ -53,6 +53,10 @@ d = FL2D.star(b=[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1])
 
 d = FL2D.star(b=[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],P=6,tht1=0.14,tht2=0.15,L1=0.3,L2=0.52)
 
+
+d = FL2D.ellipseNh(b=[1, 1, 1, 1, 1, 1, 1, 1])
+
+
 dp = FL2D.domprop(12, 0.15, 8e-3, 0.15, 5e-3, d; Lᵢₙ=5)
 
 FL2D.memory_report(dp)
