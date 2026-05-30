@@ -1,27 +1,22 @@
-s = 0.75
+s = 0.25
 p = 4
 ============ FractionalLaplacian2D ============
 
 ----------- Domain -----------
-star with properties:
-  (A , B )  = (0.0, 0.0)
-  R         = 1.0
-  P         = 5
-  Ps        = 1.0
-  Rc        = 0.6
-  Lc        = 0.48
-  (L₁, L₂)  = (0.35, 0.45)
-  (θ₁, θ₂)  = (0.22, 0.19)
-  No. holes = 0
-  kd     = Int[1 2 3 … 31 33 34]
-  Npat   = 40
-  pths   = Vector{Patch} (40 patches)
-  Qpts   = 8×40 Matrix
-  Qptsbd = 8×25 Matrix
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[3 4 7 … 12 15 16]
+  Npat   = 20
+  pths   = Vector{Patch} (20 patches)
+  Qpts   = 8×20 Matrix
+  Qptsbd = 8×8 Matrix
 
 
 ----------- Parameters -----------
-N=12, nₚᵣ=128, s=0.75, p=4,
+N=12, nₚᵣ=128, s=0.25, p=4,
 δv_near=0.15, δv_close=0.008
 Precomps nodes: r = nₚᵣ, θ = 2nₚᵣ,
 Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
@@ -34,14 +29,17 @@ Boundary DLP mode-1   : ns_near = 128
 Boundary DLP smoothing: pbd = 2
 
 ----------- System -----------
-Target points (Vars.) : 6060
-Stored near/close pts : 10140
-IntS layout columns   : 16200
+Target points (Vars.) : 2976
+Stored near/close pts : 5840
+IntS layout columns   : 8816
 
 ----------- Solve -----------
 Solver : direct
 
 ----------- Error -----------
-(No exact solution provided)
+Max Error   : 1.63e-09
+Max Rel err : 1.63e-09
+L^2 error   : 1.46e-08
+Root MSE err: 2.73e-10
 ===============================================
 

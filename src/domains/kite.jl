@@ -3730,6 +3730,24 @@ function dfunc!(out::StridedArray{Float64}, d::kite, k::Int, t::StridedArray{Flo
 
 end
 
+function dfunc!(out::StridedArray{Float64}, d::kite, k::Int, t::StridedArray{Float64})
+
+  p = d.pths[k]
+
+  if p.reg == 11 || p.reg == 12
+    fill!(out, 1.0)
+  else
+    αc = (p.ck1 - p.ck0) / 2
+    βc = 1.0 - p.ck1
+    @inbounds for i in eachindex(t)
+      out[i] = muladd(αc,t[i],βc)
+    end
+  end
+
+  return nothing
+
+end
+
 """
   diff_map!(out::Matrix{Float64}, Zx::Matrix{Float64}, Zy::Matrix{Float64}, 
   DJ::Matrix{Float64}, d::kite, u::Float64, v::Float64,

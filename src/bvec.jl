@@ -644,3 +644,1399 @@ function bvec(d::abstractdomain, dp::domprop, s::Float64, f!::Function
    return b
 
 end
+
+#------------------------------------------------------------------------
+#TODO: Work in progress!
+
+struct NSRWork
+   z::Vector{Float64}
+   z1::Vector{Float64}
+   z2::Vector{Float64}
+   dz::Vector{Float64}
+   fw::Vector{Float64}
+   fwm::Vector{Float64}
+
+   d1::Vector{Float64}
+   d2::Vector{Float64}
+   y1::Vector{Float64}
+   y2::Vector{Float64}
+   y1tmp::Vector{Float64}
+   wdf::Vector{Float64}
+   dw::Vector{Float64}
+   qw::Vector{Float64}
+   wr::Vector{Float64}
+
+   t1::Matrix{Float64}
+   t2::Matrix{Float64}
+   DJ::Matrix{Float64}
+   DIF::Matrix{Float64}
+   Zx::Matrix{Float64}
+   Zy::Matrix{Float64}
+end
+
+@inline function eval_close_piece_Rs(
+   work, d::abstractdomain,
+   k::Int, α₁::Float64, α₂::Float64,
+   y1::AbstractVector{Float64},
+   y2::AbstractVector{Float64},
+   d1::AbstractVector{Float64},
+   d2::AbstractVector{Float64},
+   dfy::AbstractVector{Float64},
+   wleft::AbstractVector{Float64},
+   wright::AbstractVector{Float64},
+   n::Int, s::Float64)::Float64
+
+   fill_meshgrid!(work.t1, work.t2, y1, y2)
+
+   diff_map!(work.DIF, work.Zx, work.Zy, work.DJ,
+      d, α₁, α₂, work.t1, work.t2, d1, d2, k)
+
+   work.f!(work.FX, work.Zx, work.Zy)
+
+   @. work.KS = work.DIF^2
+
+   for i in 1:n
+      for j in 1:n
+
+         βt1 = log(dfy[j] / work.KS[i, j])
+         βt2 = log(dfy[j])
+         βt3 = phi2_slr(βt1; α=s)
+         βt4 = phi2_slr(βt2; α=s)
+
+         work.βS[i, j] = (βt1)^2 * βt3 - (βt2)^2 * βt4
+
+         work.HS[i, j] = dfy[j] * expm1(-s * log(work.KS[i, j])) / s
+
+      end
+   end
+
+   @. work.KS = ( work.βS / (4 * pi) - work.αₛ * work.HS ) * work.FX * work.DJ
+
+   return dot(wleft, work.KS ,wright)
+end
+
+function NSclose_Rs(work, d::abstractdomain, k::Int,
+   α₁::Float64, α₂::Float64, s::Float64,
+   p::Int, n::Int, knbd)::Float64
+
+   (; z, z1, z2, fw, d1, d2, y1, y2,
+      y1tmp, wdf, dw, dfy, wr) = work
+
+   if 1.0 <= α₁
+      B1 = -winv(p, (α₁ - 1.0) / (α₁ + 1.0))
+   elseif α₁ <= -1.0
+      A1 = -winv(p, (-1.0 - α₁) / (1.0 - α₁))
+   end
+
+   if 1.0 <= α₂
+      B2 = -winv(p, (α₂ - 1.0) / (α₂ + 1.0))
+   elseif α₂ <= -1.0
+      A2 = -winv(p, (-1.0 - α₂) / (1.0 - α₂))
+   end
+
+   if k in knbd
+
+      if 1.0 <= α₁
+
+         wfunc!(d1, p, z1; α=-B1, β=α₁ + 1.0)
+         @. y1 = α₁ - d1
+         @. y1tmp = 1.0 - y1
+
+         dfunc!(dfy, d, k, y1tmp, s)
+         #Distance factor is not included in weight
+         #It is purely part of the knerel now!
+         dwfunc!(dw, p, z1; α=B1)
+         @. wdf = fw * dw
+
+         if 1.0 <= α₂
+
+            wfunc!(d2, p, z1; α=-B2, β=α₂ + 1.0)
+            @. y2 = α₂ - d2
+
+            dwfunc!(dw, p, z1; α=B2)
+            @. wr = fw * dw
+
+            I = eval_close_piece_Rs(work, d, k, α₁, α₂,
+               y1, y2, d1, d2, dfy, wdf, wr, n, s)
+
+            I *= B1 * B2 * (α₁ + 1.0) * (α₂ + 1.0) / 4.0
+
+         elseif -1.0 < α₂ && α₂ < 1.0
+
+            # Lower part in α₂.
+            wfunc!(d2, p, z1; α=-1.0, β=α₂ + 1.0)
+            @. y2 = α₂ - d2
+
+            dwfunc!(dw, p, z1)
+            @. wr = fw * dw
+
+            I₁ = eval_close_piece_Rs(work, d, k, α₁, α₂,
+               y1, y2, d1, d2, dfy, wdf, wr, n, s)
+
+            # Upper part in α₂.
+            wfunc!(d2, p, z2; α=-1.0, β=α₂ - 1.0)
+            @. y2 = α₂ - d2
+
+            dwfunc!(dw, p, z2)
+            @. wr = fw * dw
+
+            I₂ = eval_close_piece_Rs(work, d, k, α₁, α₂,
+               y1, y2, d1, d2, dfy, wdf, wr, n, s)
+
+            I = B1 * (α₁ + 1.0) *
+                   ((α₂ + 1.0) * I₁ + (1.0 - α₂) * I₂) / 4.0
+
+         elseif α₂ <= -1.0
+
+            wfunc!(d2, p, z2; α=-A2, β=α₂ - 1.0)
+            @. y2 = α₂ - d2
+
+            dwfunc!(dw, p, z2; α=A2)
+            @. wr = fw * dw
+
+            I = eval_close_piece_Rs(work, d, k, α₁, α₂,
+               y1, y2, d1, d2, dfy, wdf, wr, n, s)
+
+            I *= B1 * A2 * (α₁ + 1.0) * (1.0 - α₂) / 4.0
+         end
+
+      elseif -1.0 < α₁ && α₁ < 1.0
+
+         if 1.0 <= α₂
+
+            # Left part in α₁.
+            wfunc!(d1, p, z1; α=-1.0, β=α₁ + 1.0)
+            @. y1 = α₁ - d1
+            @. y1tmp = 1.0 - y1
+
+            dfunc!(dfy, d, k, y1tmp, s)
+
+            dwfunc!(dw, p, z1)
+            @. wdf = fw * dw
+
+            wfunc!(d2, p, z1; α=-B2, β=α₂ + 1.0)
+            @. y2 = α₂ - d2
+
+            dwfunc!(dw, p, z1; α=B2)
+            @. wr = fw * dw
+
+            I₁ = eval_close_piece_Rs(work, d, k, α₁, α₂,
+               y1, y2, d1, d2, dfy, wdf, wr, n, s)
+
+            # Right part in α₁.
+            wfunc!(d1, p, z2; α=-1.0, β=α₁ - 1.0)
+            @. y1 = α₁ - d1
+            @. y1tmp = 1.0 - y1
+
+            dfunc!(dfy, d, k, y1tmp, s)
+
+            dwfunc!(dw, p, z2)
+            @. wdf = fw * dw
+
+            I₂ = eval_close_piece_Rs(work, d, k, α₁, α₂,
+               y1, y2, d1, d2, dfy, wdf, wr, n, s)
+
+            I = B2 * (α₂ + 1.0) *
+                   ((α₁ + 1.0) * I₁ + (1.0 - α₁) * I₂) / 4.0
+
+         elseif α₂ <= -1.0
+
+            # Left part in α₁.
+            wfunc!(d1, p, z1; α=-1.0, β=α₁ + 1.0)
+            @. y1 = α₁ - d1
+            @. y1tmp = 1.0 - y1
+
+            dfunc!(dfy, d, k, y1tmp, s)
+
+            dwfunc!(dw, p, z1)
+            @. wdf = fw * dw
+
+            wfunc!(d2, p, z2; α=-A2, β=α₂ - 1.0)
+            @. y2 = α₂ - d2
+
+            dwfunc!(dw, p, z2; α=A2)
+            @. wr = fw * dw
+
+            I₁ = eval_close_piece_Rs(work, d, k, α₁, α₂,
+               y1, y2, d1, d2, dfy, wdf, wr, n, s)
+
+            # Right part in α₁.
+            wfunc!(d1, p, z2; α=-1.0, β=α₁ - 1.0)
+            @. y1 = α₁ - d1
+            @. y1tmp = 1.0 - y1
+
+            dfunc!(dfy, d, k, y1tmp, s)
+
+            dwfunc!(dw, p, z2)
+            @. wdf = fw * dw
+
+            I₂ = eval_close_piece_Rs(work, d, k, α₁, α₂,
+               y1, y2, d1, d2, dfy, wdf, wr, n, s)
+
+            I = A2 * (1.0 - α₂) *
+                   ((α₁ + 1.0) * I₁ + (1.0 - α₁) * I₂) / 4.0
+
+         else
+            error("Fatal error! mapinv not working correctly.")
+         end
+
+      elseif α₁ <= -1.0
+
+         wfunc!(d1, p, z2; α=-A1, β=α₁ - 1.0)
+         @. y1 = α₁ - d1
+         @. y1tmp = 1.0 - y1
+
+         dfunc!(dfy, d, k, y1tmp, s)
+
+         dwfunc!(dw, p, z2; α=A1)
+         @. wdf = fw * dw
+
+         if 1.0 <= α₂
+
+            wfunc!(d2, p, z1; α=-B2, β=α₂ + 1.0)
+            @. y2 = α₂ - d2
+
+            dwfunc!(dw, p, z1; α=B2)
+            @. wr = fw * dw
+
+            I = eval_close_piece_Rs(work, d, k, α₁, α₂,
+               y1, y2, d1, d2, dfy, wdf, wr, n, s)
+
+            I *= A1 * B2 * (1.0 - α₁) * (α₂ + 1.0) / 4.0
+
+         elseif -1.0 < α₂ && α₂ < 1.0
+
+            # Lower part in α₂.
+            wfunc!(d2, p, z1; α=-1.0, β=α₂ + 1.0)
+            @. y2 = α₂ - d2
+
+            dwfunc!(dw, p, z1)
+            @. wr = fw * dw
+
+            I₁ = eval_close_piece_Rs(work, d, k, α₁, α₂,
+               y1, y2, d1, d2, dfy, wdf, wr, n, s)
+
+            # Upper part in α₂.
+            wfunc!(d2, p, z2; α=-1.0, β=α₂ - 1.0)
+            @. y2 = α₂ - d2
+
+            dwfunc!(dw, p, z2)
+            @. wr = fw * dw
+
+            I₂ = eval_close_piece_Rs(work, d, k, α₁, α₂,
+               y1, y2, d1, d2, dfy, wdf, wr, n, s)
+
+            I = A1 * (1.0 - α₁) *
+                   ((α₂ + 1.0) * I₁ + (1.0 - α₂) * I₂) / 4.0
+
+         elseif α₂ <= -1.0
+
+            wfunc!(d2, p, z2; α=-A2, β=α₂ - 1.0)
+            @. y2 = α₂ - d2
+
+            dwfunc!(dw, p, z2; α=A2)
+            @. wr = fw * dw
+
+            I = eval_close_piece_Rs(work, d, k, α₁, α₂,
+               y1, y2, d1, d2, dfy, wdf, wr, n, s)
+
+            I *= A1 * A2 * (1.0 - α₁) * (1.0 - α₂) / 4.0
+         end
+      end
+
+   else
+      # Boundary-touching volume patch.
+
+      if 1.0 <= α₁
+
+         # α₁ = 1 boundary-side branch.
+         wfunc!(d1, p, z1; α=-1.0, β=2.0)
+         @. y1 = 1.0 - d1
+
+         dfunc!(dfy, d, k, d1, s)
+
+         dwfunc!(dw, p, z1)
+         @. wdf = fw * dw
+
+         if 1.0 <= α₂
+
+            wfunc!(d2, p, z1; α=-B2, β=α₂ + 1.0)
+            @. y2 = α₂ - d2
+
+            dwfunc!(dw, p, z1; α=B2)
+            @. wr = fw * dw
+
+            I = eval_close_piece_Rs(work, d, k, 1.0, α₂,
+               y1, y2, d1, d2, dfy, wdf, wr, n, s)
+
+            I *= B2 * (α₂ + 1.0) / 2.0
+
+         elseif -1.0 < α₂ && α₂ < 1.0
+
+            # Lower part in α₂.
+            wfunc!(d2, p, z1; α=-1.0, β=α₂ + 1.0)
+            @. y2 = α₂ - d2
+
+            dwfunc!(dw, p, z1)
+            @. wr = fw * dw
+
+            I₁ = eval_close_piece_Rs(work, d, k, 1.0, α₂,
+               y1, y2, d1, d2, dfy, wdf, wr, n, s)
+
+            # Upper part in α₂.
+            wfunc!(d2, p, z2; α=-1.0, β=α₂ - 1.0)
+            @. y2 = α₂ - d2
+
+            dwfunc!(dw, p, z2)
+            @. wr = fw * dw
+
+            I₂ = eval_close_piece_Rs(work, d, k, 1.0, α₂,
+               y1, y2, d1, d2, dfy, wdf, wr, n, s)
+
+            I = ((α₂ + 1.0) * I₁ + (1.0 - α₂) * I₂) / 2.0
+
+         elseif α₂ <= -1.0
+
+            wfunc!(d2, p, z2; α=-A2, β=α₂ - 1.0)
+            @. y2 = α₂ - d2
+
+            dwfunc!(dw, p, z2; α=A2)
+            @. wr = fw * dw
+
+            I = eval_close_piece_Rs(work, d, k, 1.0, α₂,
+               y1, y2, d1, d2, dfy, wdf, wr, n, s)
+
+            I *= A2 * (1.0 - α₂) / 2.0
+         end
+
+      elseif -1.0 < α₁ && α₁ < 1.0
+
+         if 1.0 <= α₂
+
+            # Left part in α₁: regular dfunc treatment.
+            wfunc!(d1, p, z1; α=-1.0, β=α₁ + 1.0)
+            @. y1 = α₁ - d1
+            @. y1tmp = 1.0 - y1
+
+            dfunc!(dfy, d, k, y1tmp, s)
+
+            dwfunc!(dw, p, z1)
+            @. wdf = fw * dw
+
+            wfunc!(d2, p, z1; α=-B2, β=α₂ + 1.0)
+            @. y2 = α₂ - d2
+
+            dwfunc!(dw, p, z1; α=B2)
+            @. wr = fw * dw
+
+            I₁ = eval_close_piece_Rs(work, d, k, α₁, α₂,
+               y1, y2, d1, d2, dfy, wdf, wr, n, s)
+
+            # Right part in α₁: boundary side, still d^s.
+            wfunc!(d1, p, z; α=1.0, β=(α₁ - 1.0) / 2.0)
+            @. y1 = α₁ - d1
+
+            wfunc!(y1tmp, p, z; α=-1.0, β=(1.0 - α₁) / 2.0)
+            dfunc!(dfy, d, k, y1tmp, s)
+
+            dwfunc!(dw, p, z)
+            @. wdf = fw * dw
+
+            I₂ = eval_close_piece_Rs(work, d, k, α₁, α₂,
+               y1, y2, d1, d2, dfy, wdf, wr, n, s)
+
+            I = B2 * (α₂ + 1.0) * ((α₁ + 1.0) * I₁ + (1.0 - α₁) * I₂) / 4.0
+
+         elseif α₂ <= -1.0
+
+            # Left part in α₁: regular dfunc treatment.
+            wfunc!(d1, p, z1; α=-1.0, β=α₁ + 1.0)
+            @. y1 = α₁ - d1
+            @. y1tmp = 1.0 - y1
+
+            dfunc!(dfy, d, k, y1tmp, s)
+
+            dwfunc!(dw, p, z1)
+            @. wdf = fw * dw
+
+            wfunc!(d2, p, z2; α=-A2, β=α₂ - 1.0)
+            @. y2 = α₂ - d2
+
+            dwfunc!(dw, p, z2; α=A2)
+            @. wr = fw * dw
+
+            I₁ = eval_close_piece_Rs( work, d, k, α₁, α₂,
+               y1, y2, d1, d2, dfy, wdf, wr, n, s)
+
+            # Right part in α₁: boundary side, still d^s.
+            wfunc!(d1, p, z; α=1.0, β=(α₁ - 1.0) / 2.0)
+            @. y1 = α₁ - d1
+
+            wfunc!(y1tmp, p, z; α=-1.0, β=(1.0 - α₁) / 2.0)
+            dfunc!(dfy, d, k, y1tmp, s)
+
+            dwfunc!(dw, p, z)
+            @. wdf = fw * dw
+
+            I₂ = eval_close_piece_Rs(work, d, k, α₁, α₂,
+               y1, y2, d1, d2, dfy, wdf, wr, n, s)
+
+            I = A2 * (1.0 - α₂) * ((α₁ + 1.0) * I₁ + (1.0 - α₁) * I₂) / 4.0
+
+         else
+            error("Fatal error! mapinv not working correctly.")
+         end
+
+      elseif α₁ <= -1.0
+
+         # Special boundary-patch left-side formula from precompsL.
+         A1 = 1.0 - winv(p, 2.0 * (-1.0 - α₁) / (1.0 - α₁))
+
+         wfunc!(d1, p, z2; α=-A1, β=(α₁ - 1.0) / 2.0, γ=1.0)
+         @. y1 = α₁ - d1
+
+         wfunc!(y1tmp, p, z2; α=A1, β=(1.0 - α₁) / 2.0, γ=-1.0)
+
+         dfunc!(dfy, d, k, y1tmp, s)
+
+         dwfunc!(dw, p, z2; α=-A1, β=1.0, γ=1.0)
+         @. wdf = fw * dw
+
+         if 1.0 <= α₂
+
+            wfunc!(d2, p, z1; α=-B2, β=α₂ + 1.0)
+            @. y2 = α₂ - d2
+
+            dwfunc!(dw, p, z1; α=B2)
+            @. wr = fw * dw
+
+            I = eval_close_piece_Rs( work, d, k, α₁, α₂,
+               y1, y2, d1, d2, dfy, wdf, wr, n, s)
+
+            I *= A1 * B2 * (1.0 - α₁) * (α₂ + 1.0) / 8.0
+
+         elseif -1.0 < α₂ && α₂ < 1.0
+
+            # Lower part in α₂.
+            wfunc!(d2, p, z1; α=-1.0, β=α₂ + 1.0)
+            @. y2 = α₂ - d2
+
+            dwfunc!(dw, p, z1)
+            @. wr = fw * dw
+
+            I₁ = eval_close_piece_Rs(work, d, k, α₁, α₂,
+               y1, y2, d1, d2, dfy, wdf, wr, n, s)
+
+            # Upper part in α₂.
+            wfunc!(d2, p, z2; α=-1.0, β=α₂ - 1.0)
+            @. y2 = α₂ - d2
+
+            dwfunc!(dw, p, z2)
+            @. wr = fw * dw
+
+            I₂ = eval_close_piece_Rs(work, d, k, α₁, α₂,
+               y1, y2, d1, d2, dfy, wdf, wr, n, s)
+
+            I = A1 * (1.0 - α₁) * ((α₂ + 1.0) * I₁ + (1.0 - α₂) * I₂) / 8.0
+
+         elseif α₂ <= -1.0
+
+            wfunc!(d2, p, z2; α=-A2, β=α₂ - 1.0)
+            @. y2 = α₂ - d2
+
+            dwfunc!(dw, p, z2; α=A2)
+            @. wr = fw * dw
+
+            I = eval_close_piece_Rs(work, d, k, α₁, α₂,
+               y1, y2, d1, d2, dfy, wdf, wr, n, s)
+
+            I *= A1 * A2 * (1.0 - α₁) * (1.0 - α₂) / 8.0
+         end
+      end
+   end
+
+   return I
+end
+
+@inline function eval_piece_Rs(
+   work, d::abstractdomain, 
+   k::Int, xt::Float64, yt::Float64,
+   y1::AbstractVector{Float64},
+   y2::AbstractVector{Float64},
+   dfy::AbstractVector{Float64},
+   wleft::AbstractVector{Float64},
+   wright::AbstractVector{Float64},
+   n::Int, s::Float64)::Float64
+
+   fill_meshgrid!(work.t1, work.t2, y1, y2)
+
+   mapxy_Dmap!(work.Zx, work.Zy, work.DJ, d, work.t1, work.t2, k)
+
+   work.f!(work.FX, work.Zx, work.Zy)
+
+   @. work.KS = (xt - work.Zx)^2 + (yt - work.Zy)^2
+
+   for i in 1:n
+      for j in 1:n
+
+         βt1 = log(dfy[j] / work.KS[i, j])
+         βt2 = log(dfy[j])
+         βt3 = phi2_slr(βt1; α=s)
+         βt4 = phi2_slr(βt2; α=s)
+
+         work.βS[i, j] = (βt1)^2 * βt3 - (βt2)^2 * βt4
+
+         work.HS[i, j] = dfy[j] * expm1(-s * log(work.KS[i, j])) / s
+
+      end
+   end
+
+   @. work.KS = ( work.βS / (4 * pi) - work.αₛ * work.HS ) * work.FX * work.DJ
+
+   return dot(wleft, work.KS ,wright)
+end
+
+function NSnear_Rs(work, d::abstractdomain,
+   k::Int, xt::Float64, yt::Float64,
+   u0::Float64, v0::Float64, s::Float64,
+   pn::Int, n::Int, knbd;
+   tolbd::Float64=1e-12)::Float64
+
+   (; z, fw, d1, y1, y2, y1tmp, wdf, dw, dfy, dz, fwm, I₁, I₂) = work
+
+   if k in knbd
+      # Non-boundary volume patch.
+      if abs(u0 - 1.0) < tolbd
+         # Projection on right wall: (1, v0).
+
+         @. y1 = 1.0 - 2.0 * dz
+         @. y1tmp = 2.0 * dz
+         dfunc!(dfy, d, k, y1tmp, s)
+         @. wdf = fwm * dfy
+
+         if abs(v0 - 1.0) < tolbd
+
+            @. y2 = 1.0 - 2.0 * dz
+
+            eval_piece_Ls!(I, work, d, k, xt, yt, y1, y2, wdf, fwm, n, s)
+
+         elseif abs(v0 + 1.0) < tolbd
+
+            @. y2 = -1.0 + 2.0 * dz
+
+            eval_piece_Ls!(I, work, d, k, xt, yt, y1, y2, wdf, fwm, n, s)
+
+         else
+
+            # Lower part in v.
+            @. y2 = v0 - (v0 + 1.0) * dz
+            eval_piece_Ls!(I₁, work, d, k, xt, yt, y1, y2, wdf, fwm, n, s)
+
+            # Upper part in v.
+            @. y2 = v0 - (v0 - 1.0) * dz
+            eval_piece_Ls!(I₂, work, d, k, xt, yt, y1, y2, wdf, fwm, n, s)
+
+            @. I = ((v0 + 1.0) * I₁ + (1.0 - v0) * I₂) / 2.0
+         end
+
+      elseif abs(u0 + 1.0) < tolbd
+         # Projection on left wall: (-1, v0).
+
+         @. y1 = -1.0 + 2.0 * dz
+         @. y1tmp = 2.0 * (1.0 - dz)
+         dfunc!(dfy, d, k, y1tmp, s)
+         @. wdf = fwm * dfy
+
+         if abs(v0 - 1.0) < tolbd
+
+            @. y2 = 1.0 - 2.0 * dz
+
+            eval_piece_Ls!(I, work, d, k, xt, yt, y1, y2, wdf, fwm, n, s)
+
+         elseif abs(v0 + 1.0) < tolbd
+
+            @. y2 = -1.0 + 2.0 * dz
+
+            eval_piece_Ls!(I, work, d, k, xt, yt, y1, y2, wdf, fwm, n, s)
+
+         else
+
+            # Lower part in v.
+            @. y2 = v0 - (v0 + 1.0) * dz
+            eval_piece_Ls!(I₁, work, d, k, xt, yt, y1, y2, wdf, fwm, n, s)
+
+            # Upper part in v.
+            @. y2 = v0 - (v0 - 1.0) * dz
+            eval_piece_Ls!(I₂, work, d, k, xt, yt, y1, y2, wdf, fwm, n, s)
+
+            @. I = ((v0 + 1.0) * I₁ + (1.0 - v0) * I₂) / 2.0
+         end
+
+      elseif abs(v0 - 1.0) < tolbd
+         # Projection on top wall: (u0, 1).
+
+         @. y2 = 1.0 - 2.0 * dz
+
+         # Left part in u.
+         @. y1 = u0 - (u0 + 1.0) * dz
+         @. y1tmp = 1.0 - y1
+         dfunc!(dfy, d, k, y1tmp, s)
+         @. wdf = fwm * dfy
+
+         eval_piece_Ls!(I₁, work, d, k, xt, yt, y1, y2, wdf, fwm, n, s)
+
+         # Right part in u.
+         @. y1 = u0 - (u0 - 1.0) * dz
+         @. y1tmp = 1.0 - y1
+         dfunc!(dfy, d, k, y1tmp, s)
+         @. wdf = fwm * dfy
+
+         eval_piece_Ls!(I₂, work, d, k, xt, yt, y1, y2, wdf, fwm, n, s)
+
+         @. I = ((u0 + 1.0) * I₁ + (1.0 - u0) * I₂) / 2.0
+
+      elseif abs(v0 + 1.0) < tolbd
+         # Projection on bottom wall: (u0, -1).
+
+         @. y2 = -1.0 + 2.0 * dz
+
+         # Left part in u.
+         @. y1 = u0 - (u0 + 1.0) * dz
+         @. y1tmp = 1.0 - y1
+         dfunc!(dfy, d, k, y1tmp, s)
+         @. wdf = fwm * dfy
+
+         eval_piece_Ls!(I₁, work, d, k, xt, yt, y1, y2, wdf, fwm, n, s)
+
+         # Right part in u.
+         @. y1 = u0 - (u0 - 1.0) * dz
+         @. y1tmp = 1.0 - y1
+         dfunc!(dfy, d, k, y1tmp, s)
+         @. wdf = fwm * dfy
+
+         eval_piece_Ls!(I₂, work, d, k, xt, yt, y1, y2, wdf, fwm, n, s)
+
+         @. I = ((u0 + 1.0) * I₁ + (1.0 - u0) * I₂) / 2.0
+
+      else
+         error("VOL_NEAR projection is not on patch boundary: patch=$k, u0=$u0, v0=$v0")
+      end
+
+   else
+      # Boundary-touching patch.
+      if abs(u0 - 1.0) < tolbd
+         # Projection on right wall: (1, v0).
+         # Projection side is also the physical boundary side.
+
+         @. y1 = 1.0 - 2.0 * dz
+         @. y1tmp = 2.0 * dz
+         dfunc!(dfy, d, k, y1tmp, s)
+         @. wdf = fwm * dfy
+
+         if abs(v0 - 1.0) < tolbd
+
+            @. y2 = 1.0 - 2.0 * dz
+
+            eval_piece_Ls!(I, work, d, k, xt, yt, y1, y2, wdf, fwm, n, s)
+
+         elseif abs(v0 + 1.0) < tolbd
+
+            @. y2 = -1.0 + 2.0 * dz
+
+            eval_piece_Ls!(I, work, d, k, xt, yt, y1, y2, wdf, fwm, n, s)
+
+         else
+
+            # Lower part in v.
+            @. y2 = v0 - (v0 + 1.0) * dz
+            eval_piece_Ls!(I₁, work, d, k, xt, yt, y1, y2, wdf, fwm, n, s)
+
+            # Upper part in v.
+            @. y2 = v0 - (v0 - 1.0) * dz
+            eval_piece_Ls!(I₂, work, d, k, xt, yt, y1, y2, wdf, fwm, n, s)
+
+            @. I = ((v0 + 1.0) * I₁ + (1.0 - v0) * I₂) / 2.0
+         end
+
+      elseif abs(u0 + 1.0) < tolbd
+         # Projection on left wall: (-1, v0).
+         # Need smoothing for left projection side and right boundary side.
+
+         wfunc!(y1, pn, z)
+         @. y1 = y1 - 1.0
+
+         wfunc!(y1tmp, pn, z; α=-1.0)   # y1tmp = w(-z) = 1 - y1
+         dfunc!(dfy, d, k, y1tmp, s)
+
+         dwfunc!(dw, pn, z)
+         @. wdf = fw * dw * dfy
+
+         if abs(v0 - 1.0) < tolbd
+
+            @. y2 = 1.0 - 2.0 * dz
+
+            eval_piece_Ls!(I, work, d, k, xt, yt, y1, y2, wdf, fwm, n, s)
+
+         elseif abs(v0 + 1.0) < tolbd
+
+            @. y2 = -1.0 + 2.0 * dz
+
+            eval_piece_Ls!(I, work, d, k, xt, yt, y1, y2, wdf, fwm, n, s)
+
+         else
+
+            # Lower part in v.
+            @. y2 = v0 - (v0 + 1.0) * dz
+            eval_piece_Ls!(I₁, work, d, k, xt, yt, y1, y2, wdf, fwm, n, s)
+
+            # Upper part in v.
+            @. y2 = v0 - (v0 - 1.0) * dz
+            eval_piece_Ls!(I₂, work, d, k, xt, yt, y1, y2, wdf, fwm, n, s)
+
+            @. I = ((v0 + 1.0) * I₁ + (1.0 - v0) * I₂) / 2.0
+         end
+
+      elseif abs(v0 - 1.0) < tolbd
+         # Projection on top wall: (u0, 1).
+         # Split u into regular-left and boundary-right pieces.
+
+         @. y2 = 1.0 - 2.0 * dz
+
+         # Left part in u: regular dfunc.
+         @. y1 = u0 - (u0 + 1.0) * dz
+         @. y1tmp = 1.0 - y1
+         dfunc!(dfy, d, k, y1tmp, s)
+         @. wdf = fwm * dfy
+
+         eval_piece_Ls!(I₁, work, d, k, xt, yt, y1, y2, wdf, fwm, n, s)
+
+         # Right part in u: boundary compensated rule.
+         wfunc!(d1, pn, z)
+         @. y1 = (1.0 - u0) * d1 / 2.0 + u0
+
+         wfunc!(y1tmp, pn, z; α=-1.0, β=(1.0 - u0) / 2.0)
+         dfunc!(dfy, d, k, y1tmp, s)
+
+         dwfunc!(dw, pn, z)
+         @. wdf = fw * dw * dfy
+
+         eval_piece_Ls!(I₂, work, d, k, xt, yt, y1, y2, wdf, fwm, n, s)
+
+         @. I = ((u0 + 1.0) * I₁ + (1.0 - u0) * I₂) / 2.0
+
+      elseif abs(v0 + 1.0) < tolbd
+         # Projection on bottom wall: (u0, -1).
+         # Split u into regular-left and boundary-right pieces.
+
+         @. y2 = -1.0 + 2.0 * dz
+
+         # Left part in u: regular dfunc.
+         @. y1 = u0 - (u0 + 1.0) * dz
+         @. y1tmp = 1.0 - y1
+         dfunc!(dfy, d, k, y1tmp, s)
+         @. wdf = fwm * dfy
+
+         eval_piece_Ls!(I₁, work, d, k, xt, yt, y1, y2, wdf, fwm, n, s)
+
+         # Right part in u: boundary compensated rule.
+         wfunc!(d1, pn, z)
+         @. y1 = (1.0 - u0) * d1 / 2.0 + u0
+
+         wfunc!(y1tmp, pn, z; α=-1.0, β=(1.0 - u0) / 2.0)
+         dfunc!(dfy, d, k, y1tmp, s)
+
+         dwfunc!(dw, pn, z)
+         @. wdf = fw * dw * dfy
+
+         eval_piece_Ls!(I₂, work, d, k, xt, yt, y1, y2, wdf, fwm, n, s)
+
+         @. I = ((u0 + 1.0) * I₁ + (1.0 - u0) * I₂) / 2.0
+
+      else
+         error("VOL_NEAR projection is not on patch boundary: patch=$k, u0=$u0, v0=$v0")
+      end
+   end
+
+   return nothing
+end
+
+function phi2_slr!(z::Float64; α::Float64=1.0)::Float64
+
+   z = α * z
+   az = abs(z)
+   out = 0.0
+
+   if az <= 5e-3
+
+      term = 0.5
+      out = term
+
+      @inbounds for k in 0:6
+         term *= z / (k + 3)
+         out += term
+      end
+
+   elseif az <= 0.5
+      term = 0.5
+      out = term
+
+      @inbounds for k in 0:14
+         term *= z / (k + 3)
+         out += term
+      end
+
+   else
+      out = (expm1(z) - z) / (z * z)
+   end
+
+   return out
+end
+
+#For s<0.5
+function bvec_small(d::abstractdomain, dp::domprop, s::Float64, f!::Function
+   ; n::Int=64)::Vector{Float64}
+
+   #------------------- Computing the αₛ constant -------------------
+   EULER_GAMMA = 0.5772156649015328606
+   ZETA3 = 1.2020569031595942854
+   ZETA5 = 1.0369277551433699263
+   ZETA7 = 1.0083492773819228268
+
+   Eₛ = if s <= 0.02
+      2 * s * ((log(2.0) - EULER_GAMMA) - ZETA3 * s^2 / 3 -
+               ZETA5 * s^4 / 5 - ZETA7 * s^6 / 7)
+   else
+      2 * s * log(2.0) + loggamma(1 + s) - loggamma(1 - s)
+   end
+
+   αₛ = -expm1(Eₛ) / (4 * π * s)
+
+   # n₂ is defined as the number of nodes for integration of regular integrals
+   # fw₂is defined as the Fejer 1st weights for corresponding nodes
+   nr = n
+   fwr = getF1W(nr)
+
+   #bookkeeping
+   M = d.Npat
+   Mbd = length(d.kd)
+   N = dp.N
+   Np = N^2
+   Ni = M * Np
+   Nd = Mbd * N
+
+   Nt = Ni + Nd
+
+   b = zeros(Float64, Ni + Nd)
+
+   bdloc = Dict{Int,Int}()
+   sizehint!(bdloc, Mbd)
+
+   @inbounds for ll in 1:Mbd
+      bdloc[d.kd[ll]] = ll
+   end
+
+   # ------------ Reg Integration ------------
+   # Store regular points
+   zr = Vector{Float64}(undef, nr)
+   zx = Matrix{Float64}(undef, nr, nr)
+   zy = Matrix{Float64}(undef, nr, nr)
+   zt = Vector{Float64}(undef, nr)
+
+   @inbounds for i in 1:nr
+      ph = π * (2 * i - 1) / (2 * nr)
+      cs = cos(ph)
+      ss = 2.0 * sin(ph / 2.0)^2 #1-cs
+      zr[i] = cs
+      zt[i] = ss   # 1-zx
+      @inbounds for j in 1:nr
+         # "meshgrid(zr)" :-> zx, zy of size (nr, nr)
+         zy[j, i] = cs   # rows are zr
+         zx[i, j] = cs   # columns are zr
+      end
+   end
+
+   Zx = Matrix{Float64}(undef, nr, nr)
+   Zy = Matrix{Float64}(undef, nr, nr)
+   DJ = Matrix{Float64}(undef, nr, nr)
+   FX = Matrix{Float64}(undef, nr, nr)
+   HS = Matrix{Float64}(undef, nr, nr)
+   βS = Matrix{Float64}(undef, nr, nr)
+
+   KS = Matrix{Float64}(undef, nr, nr)
+   Df = Vector{Float64}(undef, nr)
+
+   # ------------ Bd Integration ------------
+   # For boundary patches, which have singularity on boundary
+   nbd = 2*n
+   fwbd = getF1W(nbd)
+
+   # z1 = cospi((2*(1:nbd)-1)/(4*nbd)).^2
+   z1 = Vector{Float64}(undef, nbd)
+   # We need yvec = 1 - 2*w(-z1).
+   wz1 = similar(z1)
+   # [zy2, zx2] = meshgrid(zr, 1 - 2*w(-z1));
+   zy2 = Matrix{Float64}(undef, nbd, nr)
+   zx2 = Matrix{Float64}(undef, nbd, nr)
+   zt2 = Vector{Float64}(undef, nbd)
+   mfw = Vector{Float64}(undef, nbd)
+
+   dwfunc!(mfw, p, z1)
+
+   @. mfw = fwbd * mfw
+
+   @inbounds for i in 1:nbd
+      z1[i] = cos(π * (2 * i - 1) / (4 * nbd))^2
+   end
+
+   wfunc!(wz1, p, z1; α=-1.0)
+
+   @inbounds for i in 1:nbd 
+      yv = 2 * wz1[i]
+      zt2[i] = yv
+      @inbounds for j in 1:nr
+         zy2[i, j] = zr[j]     # each row of zy2 is zr
+         zx2[i, j] = 1 - yv   # each column of zx2 is 1-yv
+      end
+   end
+
+   Zx₂ = Matrix{Float64}(undef, nbd, nr)
+   Zy₂ = Matrix{Float64}(undef, nbd, nr)
+   DJ₂ = Matrix{Float64}(undef, nbd, nr)
+   FX₂ = Matrix{Float64}(undef, nbd, nr)
+   HS₂ = Matrix{Float64}(undef, nbd, nr)
+   βS₂ = Matrix{Float64}(undef, nbd, nr)
+
+   KS₂ = Matrix{Float64}(undef, nbd, nr)
+   Df₂ = vector{Float64}(undef, nbd)
+
+   #Singular integration 
+   ns= 2*n
+
+
+   # -----------------------------------------------------------------------
+   # main loop over target points (interior first, then optional boundary)
+   # -----------------------------------------------------------------------
+
+   VOL_NEAR = UInt8(1)
+   VOL_CLOSE = UInt8(2)
+
+   # knbd are patches which are not the boundary patches
+   # and d.kd are patches are touching the boundary
+   knbd = setdiff(collect(1:M), d.kd)
+
+   #Just do NS and regular integrals first
+   #Patch perspective
+   @inbounds for k in 1:M
+      
+      qin = dp.invgo[k]
+      qbd = dp.invgo[M+k]
+
+      kb = get(bdloc, k, 0)
+      isbdflag = kb != 0
+
+      if isbdflag
+         mapxy_Dmap!(Zx₂, Zy₂, DJ₂, d, zx2, zy2, k)
+
+         f!(FX₂, Zx₂, Zy₂)
+
+         dfunc!(Df₂, d, k, zt2, s)
+
+      else
+         mapxy_Dmap!(Zx, Zy, DJ, d, zx, zy, k)
+
+         f!(FX, Zx, Zy)
+
+         dfunc!(Df, d, k, zt, s)
+      end
+
+      # ----- Weightage of kth patch for ith point -----
+      @inbounds for i in 1:Nt
+
+         isbd = i > Ni
+
+         # tgtpts = [x, y, l, j]  
+         # x1, x2: nodes for the row/col of the (interior) collocation grid,
+         # or boundary node if i > M*Np
+         if isbd
+            # boundary point
+            k₀ = cld(i - Ni, N)
+            l = d.kd[k₀]
+            j = i - Ni - (k₀ - 1) * N
+         else
+            l = cld(i, Np)
+            j = i - (l - 1) * Np
+         end
+
+         l == k && continue
+
+         if dp.volmode[i, k] == VOL_CLOSE
+            # preimage (α₁, α₂)
+
+            if isbd
+               α₁ = dp.invpts[1, qbd]
+               α₂ = dp.invpts[2, qbd]
+               qbd += 1
+
+            else
+               α₁ = dp.invpts[1, qin]
+               α₂ = dp.invpts[2, qin]
+               qin += 1
+
+            end
+
+            b[i] += NSclose_Rs!(NSwork, d, k, α₁, α₂, s, p, ns, knbd)
+
+         elseif dp.volmode[i, k] == VOL_NEAR
+
+            xx = dp.tgtpts[1, i]
+            yy = dp.tgtpts[2, i]
+
+            if isbd
+               u0 = dp.invpts[1, qbd]
+               v0 = dp.invpts[2, qbd]
+               qbd += 1
+
+            else
+               u0 = dp.invpts[1, qin]
+               v0 = dp.invpts[2, qin]
+               qin += 1
+
+            end
+
+            b[i] += NSnear_Rs!(NSwork, d, k, xx, yy, u0, v0, s, p, ns, knbd)
+
+         else
+
+            xx = dp.tgtpts[1, i]
+            yy = dp.tgtpts[2, i]
+
+            if isbdflag
+
+               @. KS₂ = (xx - Zx₂)^2 + (yy - Zy₂)^2
+
+               for ii in 1:nr
+                  for jj in 1:nbd
+
+                     βt1 = log(Df₂[jj] / KS[ii, jj])
+                     βt2 = log(Df₂[jj])
+                     βt3 = phi2_slr(βt1; α=s)
+                     βt4 = phi2_slr(βt2; α=s)
+
+                     βS₂[ii, jj] = (βt1)^2 * βt3 - (βt2)^2 * βt4
+
+                     HS₂[ii, jj] = Df₂[jj] * expm1(-s * log(KS[ii, jj]) ) / s
+
+                  end
+               end
+
+               @. KS₂ = ( βS₂ / (4 * pi) - αₛ * HS₂ ) * FX₂ * DJ₂
+
+               b[i] += dot(mfw, KS₂, fwr)
+
+            else
+
+               @. KS = (xx - Zx)^2 + (yy - Zy)^2
+
+               for ii in 1:nr
+                  for jj in 1:nr
+
+                     βt1 = log(Df[jj] / KS[ii, jj])
+                     βt2 = log(Df[jj])
+                     βt3 = phi2_slr(βt1; α=s)
+                     βt4 = phi2_slr(βt2; α=s)
+
+                     βS[ii, jj] = (βt1)^2 * βt3 - (βt2)^2 * βt4
+
+                     HS[ii, jj] = Df[jj] * expm1(-s * log(KS[ii, jj]) ) / s
+
+                  end
+               end
+
+               @. KS = ( βS / (4 * pi) - αₛ * HS ) * FX * DJ
+
+               b[i] += dot(fwr, KS, fwr)
+
+            end
+         end
+      end
+   end
+
+   # -----------------------------------------------------------------------
+   #Do Singular integraltion now! 
+   # zp1 = zp+1, zp2 = xp-1 where zp = cos(pi*(2j-1)/(2N))
+   zp = Vector{Float64}(undef, N)
+   zp1 = Vector{Float64}(undef, N)
+   zp2 = Vector{Float64}(undef, N)
+
+   @inbounds for j in 1:N
+      zp[j] = cospi((2 * j - 1) / (2N))
+      zp1[j] = 2 * cospi((2 * j - 1) / (4N))^2
+      zp2[j] = -2 * sinpi((2 * j - 1) / (4N))^2
+   end
+
+   # z1 = (1+z)/2, z2 = (1-z)/2 where z = cos(pi*(2j-1)/(2n)) 
+   # are Chebyshev nodes in the interval [-1,1]. This is for 
+   # near singular integrals 
+   n = ns
+   fw = getF1W(ns)
+
+   z = Vector{Float64}(undef, n)
+   z1 = Vector{Float64}(undef, n)
+   z2 = Vector{Float64}(undef, n)
+
+   d1 = Vector{Float64}(undef, n)
+   d2 = Vector{Float64}(undef, n)
+
+   @inbounds for i in 1:n
+      c₁ = π * (2 * i - 1) / (2 * n)
+      z[i] = cos(c₁)
+      z1[i] = cos(c₁ / 2)^2
+      z2[i] = sin(c₁ / 2)^2
+   end
+
+   wmz₂ = Vector{Float64}(undef, n)
+   wz = Vector{Float64}(undef, n)
+   wmz = Vector{Float64}(undef, n)
+
+   wfunc!(wz, p, z) #wz = w(z)
+   wfunc!(wmz, p, z; α=-1.0) #wmz = w(z)
+   wfunc!(wmz₂, p, z2; α=-1.0) #wmz₂ = w(-z2)
+
+   fwm = similar(fw)
+   fwl = similar(fw)
+   dwfunc!(fwl, p, z)
+   dwfunc!(fwm, p, z2)   # fwm := dw(z2)
+   @. fwm = fw * fwm
+   @. fwl = fw * fwl
+
+   y1 = Vector{Float64}(undef, n)
+   wdf = similar(y1)
+   y1tmp = similar(y1)
+   y2 = similar(y1)
+   t1 = Matrix{Float64}(undef, n, n)  # meshgrid of y1/y2 
+   t2 = Matrix{Float64}(undef, n, n)  # (column = y2[j], row = y1[i])
+   DJ = Matrix{Float64}(undef, n, n)  # To store the Jacobian
+   DIF = similar(DJ)
+   Zx = similar(DJ)
+   Zy = similar(DJ)
+
+
+   FX = Matrix{Float64}(undef, n, n)
+   HS = Matrix{Float64}(undef, n, n)
+   βS = Matrix{Float64}(undef, n, n)
+
+   KS = Matrix{Float64}(undef, n, n)
+   Df = Vector{Float64}(undef, n)
+
+
+   A = Matrix{Float64}(undef, n, n)
+   dfy = Vector{Float64}(undef, n)
+
+   
+   #-Singular Integration of Interior patches-
+   @inbounds for j in 1:Np
+      # j in the linear index of the Chebyshev
+      # point. We will compute precomps of all 
+      # points τₖ(x₁,x₂) at once by now varying
+      # the patches k. This removes some 
+      # repeated calculations and thereby saves 
+      # time!
+      qq, rr = divrem(j - 1, N)
+      qq = qq + 1
+      rr = rr + 1
+
+      x1, x2 = zp[rr], zp[qq]
+      x1p, x2p = zp1[rr], zp1[qq]
+      x1m, x2m = zp2[rr], zp2[qq]
+      x̃₁ = x1p * x2p / 4.0
+      x̃₂ = -x1p * x2m / 4.0
+      x̃₃ = -x1m * x2p / 4.0
+      x̃₄ = x1m * x2m / 4.0
+
+      #Singular integration is sum of four parts
+      #I1,I2,I3,I4, they are all N*N matrices
+      #-----------------1st part-----------------
+
+      @. d1 = x1p * wmz₂
+      @. d2 = x2p * wmz₂
+      @. y1 = x1 - d1
+      @. y2 = x2 - d2
+      @. y1tmp = 1 - y1
+
+      fill_meshgrid!(t1, t2, y1, y2)
+
+      @inbounds for k in 1:M
+
+         diff_map!(DIF, Zx, Zy, DJ, d, x1, x2, t1, t2, d1, d2, k)
+
+         dfunc!(dfy, d, k, y1tmp, s)   # dfy = dfac(k, 1-y1)
+
+         #b[j + (k-1) * Np] += weight' * kernel * function values * wights 
+
+      end
+
+      #-----------------2nd part-----------------
+      #(reuse d1, y1, TN_y1, y1tmp; update d2,y2,t1,t2)
+      @. d2 = x2m * wmz₂
+      @. y2 = x2 - d2
+
+      fill_meshgrid!(t1, t2, y1, y2)
+
+      @inbounds for k in 1:M
+
+         diff_map!(DIF, Zx, Zy, DJ, d, x1, x2, t1, t2, d1, d2, k)
+
+         dfunc!(dfy, d, k, y1tmp, s)   # dfy = dfac(k, 1-y1)
+
+      end
+
+      #-----------------3rd part-----------------
+
+      @. d1 = x1m * wmz₂
+      @. d2 = x2p * wmz₂
+      @. y1 = x1 - d1
+      @. y2 = x2 - d2
+      @. y1tmp = 1 - y1
+
+      fill_meshgrid!(t1, t2, y1, y2)
+
+      @inbounds for k in knbd
+
+         diff_map!(DIF, Zx, Zy, DJ, d, x1, x2, t1, t2, d1, d2, k)
+
+         dfunc!(dfy, d, k, y1tmp, s)   # dfy = dfac(k, 1-y1)
+
+      end
+
+      #-----------------4th part-----------------
+      #(reuse d1, y1, TN_y1, y1tmp; update d2,y2,t1,t2)
+      @. d2 = x2m * wmz₂
+      @. y2 = x2 - d2
+
+      fill_meshgrid!(t1, t2, y1, y2)
+
+      @inbounds for k in knbd
+
+         diff_map!(DIF, Zx, Zy, DJ, d, x1, x2, t1, t2, d1, d2, k)
+
+         dfunc!(dfy, d, k, y1tmp, s)   # dfy = dfac(k, 1-y1)
+
+      end
+
+   end
+
+   #--Singular Integration of patches touching the boundary--
+   @inbounds for j in 1:Np
+      # j in the linear index of the Chebyshev
+      # point. We will compute precomps of all 
+      # points τₖ(x₁,x₂) at once by now varying
+      # the patches k. This removes some 
+      # repeated calculations and thereby saves 
+      # time!
+      qq, rr = divrem(j - 1, N)
+      qq = qq + 1
+      rr = rr + 1
+      x1, x2 = zp[rr], zp[qq]
+      x2p = zp1[qq]
+      x1m, x2m = zp2[rr], zp2[qq]
+      x̃₃ = -x1m * x2p / 4.0
+      x̃₄ = x1m * x2m / 4.0
+
+      # Singular and k is a boundary patch!
+      #-----------------3rd part-----------------
+
+      @. d1 = x1m * wz / 2.0
+      @. d2 = x2p * wmz₂
+      @. y1 = x1 - d1
+      @. y2 = x2 - d2
+      @. y1tmp = -x1m * wmz / 2.0
+
+      fill_meshgrid!(t1, t2, y1, y2)
+
+      @inbounds for k in d.kd
+
+         diff_map!(DIF, Zx, Zy, DJ, d, x1, x2, t1, t2, d1, d2, k)
+
+         dfunc!(dfy, d, k, y1tmp, s)   # dfy = dfac(k, 1-y1)
+ 
+      end
+
+      #-----------------4th part-----------------
+      #(reuse d1, y1, TN_y1, y1tmp; update d2,y2,t1,t2)
+      @. d2 = x2m * wmz₂
+      @. y2 = x2 - d2
+
+      fill_meshgrid!(t1, t2, y1, y2)
+
+      ChebyTN!(TN_y2, N, y2)
+
+      @inbounds for k in d.kd
+
+         diff_map!(DIF, Zx, Zy, DJ, d, x1, x2, t1, t2, d1, d2, k)
+
+         dfunc!(dfy, d, k, y1tmp, s)   # dfy = dfac(k, 1-y1)
+
+
+      end
+
+   end
+
+   Lₚₛ = dp.pthgo[M+1] - 1
+   #-Singular Integration For pts on bonudary-
+   #These points are ofcourse always on bd patches
+   @inbounds for j in 1:N
+      # j in the linear index of the Chebyshev
+      # point. We will compute precomps of all 
+      # points τₖ(x₁,x₂) at once by now varying
+      # the patches k.
+
+      x2 = zp[j]
+      x2p = zp1[j]
+      x2m = zp2[j]
+      x̃₁ = x2p / 2.0
+      x̃₂ = -x2m / 2.0
+
+      #Singular integration is sum of four parts
+      #I1,I2,I3,I4, they are all N*N matrices
+      #-----------------1st part-----------------
+
+      @. d1 = 2.0 * wmz₂
+      @. d2 = x2p * wmz₂
+      @. y1 = 1.0 - d1
+      @. y2 = x2 - d2
+
+      fill_meshgrid!(t1, t2, y1, y2)
+
+      @inbounds for ℓ in 1:Mbd
+
+         k = d.kd[ℓ]
+
+         diff_map!(DIF, Zx, Zy, DJ, d, 1.0, x2, t1, t2, d1, d2, k)
+
+         dfunc!(dfy, d, k, d1, s)   # dfy = dfac(k, 1-y1=d1)
+
+      end
+
+      #-----------------2nd part-----------------
+      #(reuse d1, y1, TN_y1; update d2,y2,t1,t2)
+      @. d2 = x2m * wmz₂
+      @. y2 = x2 - d2
+
+      fill_meshgrid!(t1, t2, y1, y2)
+
+      @inbounds for ℓ in 1:Mbd
+
+         k = d.kd[ℓ]
+
+         diff_map!(DIF, Zx, Zy, DJ, d, 1.0, x2, t1, t2, d1, d2, k)
+
+         dfunc!(dfy, d, k, d1, s)   # dfy = dfac(k, 1-y1)
+
+      end
+
+   end
+
+   return b
+
+end
+

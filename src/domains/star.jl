@@ -4298,6 +4298,32 @@ function dfunc!(out::StridedArray{Float64}, d::star, k::Int,
 
 end
 
+function dfunc!(out::StridedArray{Float64}, d::star, k::Int,
+   t::StridedArray{Float64})
+
+   p = d.pths[k]
+   r = p.reg
+
+   # Only petal regions touching the outer star boundary get the boundary factor.
+   if r > 7 * d.P || mod1(r, 7) == 7 || mod1(r, 7) == 4
+
+      fill!(out, 1.0)
+
+   else
+      αc = (p.ck1 - p.ck0) / 2.0
+      βc = 1.0 - p.ck1
+
+      @inbounds for i in eachindex(t)
+         out[i] = muladd(αc, t[i], βc)
+      end
+
+   end
+
+   return nothing
+
+end
+
+
 """
     gamderhigher(d::star, th::Float64)
 

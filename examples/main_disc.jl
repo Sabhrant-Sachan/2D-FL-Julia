@@ -62,7 +62,7 @@ end
 
 open("test_temp.txt", "w") do io
 
-   s, p = 0.9, 5
+   s, p = 0.25, 4
 
    println(io, "s = ", s)
    println(io, "p = ", p)

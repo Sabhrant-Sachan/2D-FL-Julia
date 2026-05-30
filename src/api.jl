@@ -217,12 +217,12 @@ function solveFL_core(prob::Problem; opts::Options=Options())
       prob.δv_near, prob.δv_close,
       prob.δ_near, prob.δ_intp, d)
 
-   #b vec computed first and then precomps
-   b = bvec(d, dp, prob.s, prob.f!)
-
    #In this case, a direct solver is always due to high
    #condition number of the discretized matrix
    if opts.s_small
+
+      #b vec computed first and then precomps
+      b = bvec(d, dp, prob.s, prob.f!)
 
       IntS = precompsLs(d, dp, prob.s, prob.p; n=n)
 
@@ -233,6 +233,10 @@ function solveFL_core(prob::Problem; opts::Options=Options())
       A = _assemble_matrix(dp, d, IntS, prob.s, IV; s_small=true)
 
    else
+
+      #b vec computed first and then precomps
+      b = bvec(d, dp, prob.s, prob.f!)
+
       IntS = prob.s >= 0.5 ?
              precompsH(d, dp, prob.s, prob.p; n=n) :
              precompsL(d, dp, prob.s, prob.p; n=n)
@@ -382,6 +386,23 @@ function solveFL_core(prob::Problem; opts::Options=Options())
       A = nothing
       GC.gc()
    end
+
+   # if opts.s_small
+   #    #ϕ = f + s * ̃ϕ
+   #    (; N, Np, M, Ni) = IV.IV1
+   #    FV = Vector{Float64}(undef, Ni)
+   #    X = Vector{Float64}(undef, Ni)
+   #    Y = Vector{Float64}(undef, Ni)
+   #    @inbounds for j in 1:Ni
+   #       X[j] = dp.tgtpts[1,j]
+   #       Y[j] = dp.tgtpts[2,j]
+   #    end
+   #    prob.f!(FV, X, Y)
+   #    @inbounds for j in 1:Ni
+   #       Uapp[j] = FV[j] + prob.s * Uapp[j]
+   #    end
+      
+   # end
 
    return CoreResult(dp=dp, d=d, IntS=IntS, A=A, b=b, Uapp=Uapp, info=info)
 

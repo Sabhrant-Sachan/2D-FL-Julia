@@ -1418,7 +1418,26 @@ function dfunc!(out::StridedArray{Float64}, d::disc, k::Int, t::StridedArray{Flo
     αc = (p.ck1 - p.ck0) / 2
     βc = 1.0 - p.ck1
     @inbounds for i in eachindex(t)
-      out[i] = (muladd(αc,t[i],1.0 - p.ck1))^exp
+      out[i] = (muladd(αc,t[i],βc))^exp
+    end
+  end
+
+  return nothing
+
+end
+
+# A function which purely return the distance, no powers of s.
+function dfunc!(out::StridedArray{Float64}, d::disc, k::Int, t::StridedArray{Float64})
+
+  p = d.pths[k]
+
+  if p.reg == 5
+    fill!(out, 1.0)
+  else
+    αc = (p.ck1 - p.ck0) / 2
+    βc = 1.0 - p.ck1
+    @inbounds for i in eachindex(t)
+      out[i] = muladd(αc,t[i],βc)
     end
   end
 
