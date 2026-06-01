@@ -646,8 +646,6 @@ function bvec(d::abstractdomain, dp::domprop, s::Float64, f!::Function
 end
 
 #------------------------------------------------------------------------
-#TODO: Work in progress!
-
 struct NSRWork
    z::Vector{Float64}
    z1::Vector{Float64}
@@ -663,7 +661,8 @@ struct NSRWork
    y1tmp::Vector{Float64}
    wdf::Vector{Float64}
    dw::Vector{Float64}
-   qw::Vector{Float64}
+   dfy::Vector{Float64}
+   dfys::Vector{Float64}
    wr::Vector{Float64}
 
    t1::Matrix{Float64}
@@ -672,6 +671,66 @@ struct NSRWork
    DIF::Matrix{Float64}
    Zx::Matrix{Float64}
    Zy::Matrix{Float64}
+
+   FX::Matrix{Float64}
+   KS::Matrix{Float64}
+   βS::Matrix{Float64}
+   HS::Matrix{Float64}
+
+   αₛ::Float64
+   f!::Function
+end
+
+function NSRWork(n::Int, p::Int, αₛ::Float64, f!::Function)
+   z = Vector{Float64}(undef, n)
+   z1 = similar(z)
+   z2 = similar(z)
+   dz = similar(z)
+
+   fw = getF1W(n)
+
+   @inbounds for i in 1:n
+      c = π * (2i - 1) / (2n)
+      z[i] = cos(c)
+      z1[i] = cos(c / 2)^2
+      z2[i] = sin(c / 2)^2
+   end
+
+   wfunc!(dz, p, z2; α = -1.0)
+
+   fwm = similar(fw)
+   dwfunc!(fwm, p, z2)
+   @. fwm = fw * fwm
+
+   d1 = similar(z)
+   d2 = similar(z)
+   y1 = similar(z)
+   y2 = similar(z)
+   y1tmp = similar(z)
+   wdf = similar(z)
+   dw = similar(z)
+   dfy = similar(z)
+   dfys = similar(z)
+   wr = similar(z)
+
+   t1 = Matrix{Float64}(undef, n, n)
+   t2 = Matrix{Float64}(undef, n, n)
+   DJ = Matrix{Float64}(undef, n, n)
+   DIF = Matrix{Float64}(undef, n, n)
+   Zx = Matrix{Float64}(undef, n, n)
+   Zy = Matrix{Float64}(undef, n, n)
+
+   FX = Matrix{Float64}(undef, n, n)
+   KS = Matrix{Float64}(undef, n, n)
+   βS = Matrix{Float64}(undef, n, n)
+   HS = Matrix{Float64}(undef, n, n)
+
+   return NSRWork(
+      z, z1, z2, dz, fw, fwm,
+      d1, d2, y1, y2, y1tmp, wdf, dw, dfy, 
+      dfys, wr, t1, t2, DJ, DIF, Zx, Zy,
+      FX, KS, βS, HS, αₛ, f!
+   )
 end
 
 @inline function eval_close_piece_Rs(
@@ -682,6 +741,7 @@ end
    d1::AbstractVector{Float64},
    d2::AbstractVector{Float64},
    dfy::AbstractVector{Float64},
+   dfys::AbstractVector{Float64},
    wleft::AbstractVector{Float64},
    wright::AbstractVector{Float64},
    n::Int, s::Float64)::Float64
@@ -693,34 +753,38 @@ end
 
    work.f!(work.FX, work.Zx, work.Zy)
 
-   @. work.KS = work.DIF^2
+   @inbounds for j in 1:n
+      @inbounds for i in 1:n
+         r2 = work.DIF[i, j]^2
 
-   for i in 1:n
-      for j in 1:n
+         dval = dfy[i]
+         ds = dfys[i]
 
-         βt1 = log(dfy[j] / work.KS[i, j])
-         βt2 = log(dfy[j])
+         logd = log(dval)
+         logr2 = log(r2)
+
+         βt1 = logd - logr2
+         βt2 = logd
+
          βt3 = phi2_slr(βt1; α=s)
          βt4 = phi2_slr(βt2; α=s)
 
-         work.βS[i, j] = (βt1)^2 * βt3 - (βt2)^2 * βt4
-
-         work.HS[i, j] = dfy[j] * expm1(-s * log(work.KS[i, j])) / s
-
+         work.βS[i, j] = βt1^2 * βt3 - βt2^2 * βt4
+         work.HS[i, j] = ds * expm1(-s * logr2) / s
       end
    end
 
-   @. work.KS = ( work.βS / (4 * pi) - work.αₛ * work.HS ) * work.FX * work.DJ
+   @. work.KS = (work.βS / (4.0 * pi) - work.αₛ * work.HS) * work.FX * work.DJ
 
-   return dot(wleft, work.KS ,wright)
+   return dot(wleft, work.KS, wright)
 end
 
-function NSclose_Rs(work, d::abstractdomain, k::Int,
+function NSclose_Rs!(work, d::abstractdomain, k::Int,
    α₁::Float64, α₂::Float64, s::Float64,
    p::Int, n::Int, knbd)::Float64
 
    (; z, z1, z2, fw, d1, d2, y1, y2,
-      y1tmp, wdf, dw, dfy, wr) = work
+      y1tmp, wdf, dw, dfy, dfys, wr) = work
 
    if 1.0 <= α₁
       B1 = -winv(p, (α₁ - 1.0) / (α₁ + 1.0))
@@ -742,7 +806,9 @@ function NSclose_Rs(work, d::abstractdomain, k::Int,
          @. y1 = α₁ - d1
          @. y1tmp = 1.0 - y1
 
-         dfunc!(dfy, d, k, y1tmp, s)
+         dfunc!(dfy, d, k, y1tmp)
+
+         dfunc!(dfys, d, k, y1tmp, s)
          #Distance factor is not included in weight
          #It is purely part of the knerel now!
          dwfunc!(dw, p, z1; α=B1)
@@ -757,7 +823,7 @@ function NSclose_Rs(work, d::abstractdomain, k::Int,
             @. wr = fw * dw
 
             I = eval_close_piece_Rs(work, d, k, α₁, α₂,
-               y1, y2, d1, d2, dfy, wdf, wr, n, s)
+               y1, y2, d1, d2, dfy, dfys, wdf, wr, n, s)
 
             I *= B1 * B2 * (α₁ + 1.0) * (α₂ + 1.0) / 4.0
 
@@ -771,7 +837,7 @@ function NSclose_Rs(work, d::abstractdomain, k::Int,
             @. wr = fw * dw
 
             I₁ = eval_close_piece_Rs(work, d, k, α₁, α₂,
-               y1, y2, d1, d2, dfy, wdf, wr, n, s)
+               y1, y2, d1, d2, dfy, dfys, wdf, wr, n, s)
 
             # Upper part in α₂.
             wfunc!(d2, p, z2; α=-1.0, β=α₂ - 1.0)
@@ -781,7 +847,7 @@ function NSclose_Rs(work, d::abstractdomain, k::Int,
             @. wr = fw * dw
 
             I₂ = eval_close_piece_Rs(work, d, k, α₁, α₂,
-               y1, y2, d1, d2, dfy, wdf, wr, n, s)
+               y1, y2, d1, d2, dfy, dfys, wdf, wr, n, s)
 
             I = B1 * (α₁ + 1.0) *
                    ((α₂ + 1.0) * I₁ + (1.0 - α₂) * I₂) / 4.0
@@ -795,7 +861,7 @@ function NSclose_Rs(work, d::abstractdomain, k::Int,
             @. wr = fw * dw
 
             I = eval_close_piece_Rs(work, d, k, α₁, α₂,
-               y1, y2, d1, d2, dfy, wdf, wr, n, s)
+               y1, y2, d1, d2, dfy, dfys, wdf, wr, n, s)
 
             I *= B1 * A2 * (α₁ + 1.0) * (1.0 - α₂) / 4.0
          end
@@ -809,7 +875,9 @@ function NSclose_Rs(work, d::abstractdomain, k::Int,
             @. y1 = α₁ - d1
             @. y1tmp = 1.0 - y1
 
-            dfunc!(dfy, d, k, y1tmp, s)
+            dfunc!(dfy, d, k, y1tmp)
+
+            dfunc!(dfys, d, k, y1tmp, s)
 
             dwfunc!(dw, p, z1)
             @. wdf = fw * dw
@@ -821,20 +889,22 @@ function NSclose_Rs(work, d::abstractdomain, k::Int,
             @. wr = fw * dw
 
             I₁ = eval_close_piece_Rs(work, d, k, α₁, α₂,
-               y1, y2, d1, d2, dfy, wdf, wr, n, s)
+               y1, y2, d1, d2, dfy, dfys, wdf, wr, n, s)
 
             # Right part in α₁.
             wfunc!(d1, p, z2; α=-1.0, β=α₁ - 1.0)
             @. y1 = α₁ - d1
             @. y1tmp = 1.0 - y1
 
-            dfunc!(dfy, d, k, y1tmp, s)
+            dfunc!(dfy, d, k, y1tmp)
+
+            dfunc!(dfys, d, k, y1tmp, s)
 
             dwfunc!(dw, p, z2)
             @. wdf = fw * dw
 
             I₂ = eval_close_piece_Rs(work, d, k, α₁, α₂,
-               y1, y2, d1, d2, dfy, wdf, wr, n, s)
+               y1, y2, d1, d2, dfy, dfys, wdf, wr, n, s)
 
             I = B2 * (α₂ + 1.0) *
                    ((α₁ + 1.0) * I₁ + (1.0 - α₁) * I₂) / 4.0
@@ -846,7 +916,9 @@ function NSclose_Rs(work, d::abstractdomain, k::Int,
             @. y1 = α₁ - d1
             @. y1tmp = 1.0 - y1
 
-            dfunc!(dfy, d, k, y1tmp, s)
+            dfunc!(dfy, d, k, y1tmp)
+
+            dfunc!(dfys, d, k, y1tmp, s)
 
             dwfunc!(dw, p, z1)
             @. wdf = fw * dw
@@ -858,20 +930,22 @@ function NSclose_Rs(work, d::abstractdomain, k::Int,
             @. wr = fw * dw
 
             I₁ = eval_close_piece_Rs(work, d, k, α₁, α₂,
-               y1, y2, d1, d2, dfy, wdf, wr, n, s)
+               y1, y2, d1, d2, dfy, dfys, wdf, wr, n, s)
 
             # Right part in α₁.
             wfunc!(d1, p, z2; α=-1.0, β=α₁ - 1.0)
             @. y1 = α₁ - d1
             @. y1tmp = 1.0 - y1
 
-            dfunc!(dfy, d, k, y1tmp, s)
+            dfunc!(dfy, d, k, y1tmp)
+
+            dfunc!(dfys, d, k, y1tmp, s)
 
             dwfunc!(dw, p, z2)
             @. wdf = fw * dw
 
             I₂ = eval_close_piece_Rs(work, d, k, α₁, α₂,
-               y1, y2, d1, d2, dfy, wdf, wr, n, s)
+               y1, y2, d1, d2, dfy, dfys, wdf, wr, n, s)
 
             I = A2 * (1.0 - α₂) *
                    ((α₁ + 1.0) * I₁ + (1.0 - α₁) * I₂) / 4.0
@@ -886,7 +960,9 @@ function NSclose_Rs(work, d::abstractdomain, k::Int,
          @. y1 = α₁ - d1
          @. y1tmp = 1.0 - y1
 
-         dfunc!(dfy, d, k, y1tmp, s)
+         dfunc!(dfy, d, k, y1tmp)
+
+         dfunc!(dfys, d, k, y1tmp, s)
 
          dwfunc!(dw, p, z2; α=A1)
          @. wdf = fw * dw
@@ -900,7 +976,7 @@ function NSclose_Rs(work, d::abstractdomain, k::Int,
             @. wr = fw * dw
 
             I = eval_close_piece_Rs(work, d, k, α₁, α₂,
-               y1, y2, d1, d2, dfy, wdf, wr, n, s)
+               y1, y2, d1, d2, dfy, dfys, wdf, wr, n, s)
 
             I *= A1 * B2 * (1.0 - α₁) * (α₂ + 1.0) / 4.0
 
@@ -914,7 +990,7 @@ function NSclose_Rs(work, d::abstractdomain, k::Int,
             @. wr = fw * dw
 
             I₁ = eval_close_piece_Rs(work, d, k, α₁, α₂,
-               y1, y2, d1, d2, dfy, wdf, wr, n, s)
+               y1, y2, d1, d2, dfy, dfys, wdf, wr, n, s)
 
             # Upper part in α₂.
             wfunc!(d2, p, z2; α=-1.0, β=α₂ - 1.0)
@@ -924,7 +1000,7 @@ function NSclose_Rs(work, d::abstractdomain, k::Int,
             @. wr = fw * dw
 
             I₂ = eval_close_piece_Rs(work, d, k, α₁, α₂,
-               y1, y2, d1, d2, dfy, wdf, wr, n, s)
+               y1, y2, d1, d2, dfy, dfys, wdf, wr, n, s)
 
             I = A1 * (1.0 - α₁) *
                    ((α₂ + 1.0) * I₁ + (1.0 - α₂) * I₂) / 4.0
@@ -938,7 +1014,7 @@ function NSclose_Rs(work, d::abstractdomain, k::Int,
             @. wr = fw * dw
 
             I = eval_close_piece_Rs(work, d, k, α₁, α₂,
-               y1, y2, d1, d2, dfy, wdf, wr, n, s)
+               y1, y2, d1, d2, dfy, dfys, wdf, wr, n, s)
 
             I *= A1 * A2 * (1.0 - α₁) * (1.0 - α₂) / 4.0
          end
@@ -953,7 +1029,9 @@ function NSclose_Rs(work, d::abstractdomain, k::Int,
          wfunc!(d1, p, z1; α=-1.0, β=2.0)
          @. y1 = 1.0 - d1
 
-         dfunc!(dfy, d, k, d1, s)
+         dfunc!(dfy, d, k, d1)
+
+         dfunc!(dfys, d, k, d1, s)
 
          dwfunc!(dw, p, z1)
          @. wdf = fw * dw
@@ -967,7 +1045,7 @@ function NSclose_Rs(work, d::abstractdomain, k::Int,
             @. wr = fw * dw
 
             I = eval_close_piece_Rs(work, d, k, 1.0, α₂,
-               y1, y2, d1, d2, dfy, wdf, wr, n, s)
+               y1, y2, d1, d2, dfy, dfys, wdf, wr, n, s)
 
             I *= B2 * (α₂ + 1.0) / 2.0
 
@@ -981,7 +1059,7 @@ function NSclose_Rs(work, d::abstractdomain, k::Int,
             @. wr = fw * dw
 
             I₁ = eval_close_piece_Rs(work, d, k, 1.0, α₂,
-               y1, y2, d1, d2, dfy, wdf, wr, n, s)
+               y1, y2, d1, d2, dfy, dfys, wdf, wr, n, s)
 
             # Upper part in α₂.
             wfunc!(d2, p, z2; α=-1.0, β=α₂ - 1.0)
@@ -991,7 +1069,7 @@ function NSclose_Rs(work, d::abstractdomain, k::Int,
             @. wr = fw * dw
 
             I₂ = eval_close_piece_Rs(work, d, k, 1.0, α₂,
-               y1, y2, d1, d2, dfy, wdf, wr, n, s)
+               y1, y2, d1, d2, dfy, dfys, wdf, wr, n, s)
 
             I = ((α₂ + 1.0) * I₁ + (1.0 - α₂) * I₂) / 2.0
 
@@ -1004,7 +1082,7 @@ function NSclose_Rs(work, d::abstractdomain, k::Int,
             @. wr = fw * dw
 
             I = eval_close_piece_Rs(work, d, k, 1.0, α₂,
-               y1, y2, d1, d2, dfy, wdf, wr, n, s)
+               y1, y2, d1, d2, dfy, dfys, wdf, wr, n, s)
 
             I *= A2 * (1.0 - α₂) / 2.0
          end
@@ -1018,7 +1096,9 @@ function NSclose_Rs(work, d::abstractdomain, k::Int,
             @. y1 = α₁ - d1
             @. y1tmp = 1.0 - y1
 
-            dfunc!(dfy, d, k, y1tmp, s)
+            dfunc!(dfy, d, k, y1tmp)
+
+            dfunc!(dfys, d, k, y1tmp, s)
 
             dwfunc!(dw, p, z1)
             @. wdf = fw * dw
@@ -1030,20 +1110,23 @@ function NSclose_Rs(work, d::abstractdomain, k::Int,
             @. wr = fw * dw
 
             I₁ = eval_close_piece_Rs(work, d, k, α₁, α₂,
-               y1, y2, d1, d2, dfy, wdf, wr, n, s)
+               y1, y2, d1, d2, dfy, dfys, wdf, wr, n, s)
 
             # Right part in α₁: boundary side, still d^s.
             wfunc!(d1, p, z; α=1.0, β=(α₁ - 1.0) / 2.0)
             @. y1 = α₁ - d1
 
             wfunc!(y1tmp, p, z; α=-1.0, β=(1.0 - α₁) / 2.0)
-            dfunc!(dfy, d, k, y1tmp, s)
+
+            dfunc!(dfy, d, k, y1tmp)
+
+            dfunc!(dfys, d, k, y1tmp, s)
 
             dwfunc!(dw, p, z)
             @. wdf = fw * dw
 
             I₂ = eval_close_piece_Rs(work, d, k, α₁, α₂,
-               y1, y2, d1, d2, dfy, wdf, wr, n, s)
+               y1, y2, d1, d2, dfy, dfys, wdf, wr, n, s)
 
             I = B2 * (α₂ + 1.0) * ((α₁ + 1.0) * I₁ + (1.0 - α₁) * I₂) / 4.0
 
@@ -1054,7 +1137,9 @@ function NSclose_Rs(work, d::abstractdomain, k::Int,
             @. y1 = α₁ - d1
             @. y1tmp = 1.0 - y1
 
-            dfunc!(dfy, d, k, y1tmp, s)
+            dfunc!(dfy, d, k, y1tmp)
+
+            dfunc!(dfys, d, k, y1tmp, s)
 
             dwfunc!(dw, p, z1)
             @. wdf = fw * dw
@@ -1066,20 +1151,23 @@ function NSclose_Rs(work, d::abstractdomain, k::Int,
             @. wr = fw * dw
 
             I₁ = eval_close_piece_Rs( work, d, k, α₁, α₂,
-               y1, y2, d1, d2, dfy, wdf, wr, n, s)
+               y1, y2, d1, d2, dfy, dfys, wdf, wr, n, s)
 
             # Right part in α₁: boundary side, still d^s.
             wfunc!(d1, p, z; α=1.0, β=(α₁ - 1.0) / 2.0)
             @. y1 = α₁ - d1
 
             wfunc!(y1tmp, p, z; α=-1.0, β=(1.0 - α₁) / 2.0)
-            dfunc!(dfy, d, k, y1tmp, s)
+
+            dfunc!(dfy, d, k, y1tmp)
+
+            dfunc!(dfys, d, k, y1tmp, s)
 
             dwfunc!(dw, p, z)
             @. wdf = fw * dw
 
             I₂ = eval_close_piece_Rs(work, d, k, α₁, α₂,
-               y1, y2, d1, d2, dfy, wdf, wr, n, s)
+               y1, y2, d1, d2, dfy, dfys, wdf, wr, n, s)
 
             I = A2 * (1.0 - α₂) * ((α₁ + 1.0) * I₁ + (1.0 - α₁) * I₂) / 4.0
 
@@ -1097,7 +1185,9 @@ function NSclose_Rs(work, d::abstractdomain, k::Int,
 
          wfunc!(y1tmp, p, z2; α=A1, β=(1.0 - α₁) / 2.0, γ=-1.0)
 
-         dfunc!(dfy, d, k, y1tmp, s)
+         dfunc!(dfy, d, k, y1tmp)
+
+         dfunc!(dfys, d, k, y1tmp, s)
 
          dwfunc!(dw, p, z2; α=-A1, β=1.0, γ=1.0)
          @. wdf = fw * dw
@@ -1111,7 +1201,7 @@ function NSclose_Rs(work, d::abstractdomain, k::Int,
             @. wr = fw * dw
 
             I = eval_close_piece_Rs( work, d, k, α₁, α₂,
-               y1, y2, d1, d2, dfy, wdf, wr, n, s)
+               y1, y2, d1, d2, dfy, dfys, wdf, wr, n, s)
 
             I *= A1 * B2 * (1.0 - α₁) * (α₂ + 1.0) / 8.0
 
@@ -1125,7 +1215,7 @@ function NSclose_Rs(work, d::abstractdomain, k::Int,
             @. wr = fw * dw
 
             I₁ = eval_close_piece_Rs(work, d, k, α₁, α₂,
-               y1, y2, d1, d2, dfy, wdf, wr, n, s)
+               y1, y2, d1, d2, dfy, dfys, wdf, wr, n, s)
 
             # Upper part in α₂.
             wfunc!(d2, p, z2; α=-1.0, β=α₂ - 1.0)
@@ -1135,7 +1225,7 @@ function NSclose_Rs(work, d::abstractdomain, k::Int,
             @. wr = fw * dw
 
             I₂ = eval_close_piece_Rs(work, d, k, α₁, α₂,
-               y1, y2, d1, d2, dfy, wdf, wr, n, s)
+               y1, y2, d1, d2, dfy, dfys, wdf, wr, n, s)
 
             I = A1 * (1.0 - α₁) * ((α₂ + 1.0) * I₁ + (1.0 - α₂) * I₂) / 8.0
 
@@ -1148,7 +1238,7 @@ function NSclose_Rs(work, d::abstractdomain, k::Int,
             @. wr = fw * dw
 
             I = eval_close_piece_Rs(work, d, k, α₁, α₂,
-               y1, y2, d1, d2, dfy, wdf, wr, n, s)
+               y1, y2, d1, d2, dfy, dfys, wdf, wr, n, s)
 
             I *= A1 * A2 * (1.0 - α₁) * (1.0 - α₂) / 8.0
          end
@@ -1164,6 +1254,7 @@ end
    y1::AbstractVector{Float64},
    y2::AbstractVector{Float64},
    dfy::AbstractVector{Float64},
+   dfys::AbstractVector{Float64},
    wleft::AbstractVector{Float64},
    wright::AbstractVector{Float64},
    n::Int, s::Float64)::Float64
@@ -1174,20 +1265,24 @@ end
 
    work.f!(work.FX, work.Zx, work.Zy)
 
-   @. work.KS = (xt - work.Zx)^2 + (yt - work.Zy)^2
+   @inbounds for j in 1:n
+      @inbounds for i in 1:n
+         r2 = (xt - work.Zx[i, j])^2 + (yt - work.Zy[i, j])^2
 
-   for i in 1:n
-      for j in 1:n
+         dval = dfy[i]       # raw d(y)
+         ds = dfys[i]      # d(y)^s
 
-         βt1 = log(dfy[j] / work.KS[i, j])
-         βt2 = log(dfy[j])
+         logd = log(dval)
+         logr2 = log(r2)
+
+         βt1 = logd - logr2
+         βt2 = logd
+
          βt3 = phi2_slr(βt1; α=s)
          βt4 = phi2_slr(βt2; α=s)
 
-         work.βS[i, j] = (βt1)^2 * βt3 - (βt2)^2 * βt4
-
-         work.HS[i, j] = dfy[j] * expm1(-s * log(work.KS[i, j])) / s
-
+         work.βS[i, j] = βt1^2 * βt3 - βt2^2 * βt4
+         work.HS[i, j] = ds * expm1(-s * logr2) / s
       end
    end
 
@@ -1196,13 +1291,13 @@ end
    return dot(wleft, work.KS ,wright)
 end
 
-function NSnear_Rs(work, d::abstractdomain,
+function NSnear_Rs!(work, d::abstractdomain,
    k::Int, xt::Float64, yt::Float64,
    u0::Float64, v0::Float64, s::Float64,
    pn::Int, n::Int, knbd;
    tolbd::Float64=1e-12)::Float64
 
-   (; z, fw, d1, y1, y2, y1tmp, wdf, dw, dfy, dz, fwm, I₁, I₂) = work
+   (; z, fw, d1, y1, y2, y1tmp, wdf, dw, dfy, dfys, dz, fwm) = work
 
    if k in knbd
       # Non-boundary volume patch.
@@ -1211,32 +1306,41 @@ function NSnear_Rs(work, d::abstractdomain,
 
          @. y1 = 1.0 - 2.0 * dz
          @. y1tmp = 2.0 * dz
-         dfunc!(dfy, d, k, y1tmp, s)
-         @. wdf = fwm * dfy
+
+         dfunc!(dfy, d, k, y1tmp)
+
+         dfunc!(dfys, d, k, y1tmp, s)
+
 
          if abs(v0 - 1.0) < tolbd
 
             @. y2 = 1.0 - 2.0 * dz
 
-            eval_piece_Ls!(I, work, d, k, xt, yt, y1, y2, wdf, fwm, n, s)
+            I = eval_piece_Rs(work, d, k, xt, yt,
+               y1, y2, dfy, dfys, fwm, fwm, n, s)
 
          elseif abs(v0 + 1.0) < tolbd
 
             @. y2 = -1.0 + 2.0 * dz
 
-            eval_piece_Ls!(I, work, d, k, xt, yt, y1, y2, wdf, fwm, n, s)
+            I = eval_piece_Rs(work, d, k, xt, yt,
+               y1, y2, dfy, dfys, fwm, fwm, n, s)
 
          else
 
             # Lower part in v.
             @. y2 = v0 - (v0 + 1.0) * dz
-            eval_piece_Ls!(I₁, work, d, k, xt, yt, y1, y2, wdf, fwm, n, s)
+
+            I₁ = eval_piece_Rs(work, d, k, xt, yt,
+               y1, y2, dfy, dfys, fwm, fwm, n, s)
 
             # Upper part in v.
             @. y2 = v0 - (v0 - 1.0) * dz
-            eval_piece_Ls!(I₂, work, d, k, xt, yt, y1, y2, wdf, fwm, n, s)
 
-            @. I = ((v0 + 1.0) * I₁ + (1.0 - v0) * I₂) / 2.0
+            I₂ = eval_piece_Rs(work, d, k, xt, yt,
+               y1, y2, dfy, dfys, fwm, fwm, n, s)
+
+            I = ((v0 + 1.0) * I₁ + (1.0 - v0) * I₂) / 2.0
          end
 
       elseif abs(u0 + 1.0) < tolbd
@@ -1244,32 +1348,40 @@ function NSnear_Rs(work, d::abstractdomain,
 
          @. y1 = -1.0 + 2.0 * dz
          @. y1tmp = 2.0 * (1.0 - dz)
-         dfunc!(dfy, d, k, y1tmp, s)
-         @. wdf = fwm * dfy
+
+         dfunc!(dfy, d, k, y1tmp)
+
+         dfunc!(dfys, d, k, y1tmp, s)
 
          if abs(v0 - 1.0) < tolbd
 
             @. y2 = 1.0 - 2.0 * dz
 
-            eval_piece_Ls!(I, work, d, k, xt, yt, y1, y2, wdf, fwm, n, s)
+            I = eval_piece_Rs(work, d, k, xt, yt,
+               y1, y2, dfy, dfys, fwm, fwm, n, s)
 
          elseif abs(v0 + 1.0) < tolbd
 
             @. y2 = -1.0 + 2.0 * dz
 
-            eval_piece_Ls!(I, work, d, k, xt, yt, y1, y2, wdf, fwm, n, s)
+            I = eval_piece_Rs(work, d, k, xt, yt,
+               y1, y2, dfy, dfys, fwm, fwm, n, s)
 
          else
 
             # Lower part in v.
             @. y2 = v0 - (v0 + 1.0) * dz
-            eval_piece_Ls!(I₁, work, d, k, xt, yt, y1, y2, wdf, fwm, n, s)
+
+            I₁ = eval_piece_Rs(work, d, k, xt, yt,
+               y1, y2, dfy, dfys, fwm, fwm, n, s)
 
             # Upper part in v.
             @. y2 = v0 - (v0 - 1.0) * dz
-            eval_piece_Ls!(I₂, work, d, k, xt, yt, y1, y2, wdf, fwm, n, s)
 
-            @. I = ((v0 + 1.0) * I₁ + (1.0 - v0) * I₂) / 2.0
+            I₂ = eval_piece_Rs(work, d, k, xt, yt,
+               y1, y2, dfy, dfys, fwm, fwm, n, s)
+
+            I = ((v0 + 1.0) * I₁ + (1.0 - v0) * I₂) / 2.0
          end
 
       elseif abs(v0 - 1.0) < tolbd
@@ -1280,20 +1392,26 @@ function NSnear_Rs(work, d::abstractdomain,
          # Left part in u.
          @. y1 = u0 - (u0 + 1.0) * dz
          @. y1tmp = 1.0 - y1
-         dfunc!(dfy, d, k, y1tmp, s)
-         @. wdf = fwm * dfy
 
-         eval_piece_Ls!(I₁, work, d, k, xt, yt, y1, y2, wdf, fwm, n, s)
+         dfunc!(dfy, d, k, y1tmp)
+
+         dfunc!(dfys, d, k, y1tmp, s)
+
+         I₁ = eval_piece_Rs(work, d, k, xt, yt,
+               y1, y2, dfy, dfys, fwm, fwm, n, s)
 
          # Right part in u.
          @. y1 = u0 - (u0 - 1.0) * dz
          @. y1tmp = 1.0 - y1
-         dfunc!(dfy, d, k, y1tmp, s)
-         @. wdf = fwm * dfy
 
-         eval_piece_Ls!(I₂, work, d, k, xt, yt, y1, y2, wdf, fwm, n, s)
+         dfunc!(dfy, d, k, y1tmp)
 
-         @. I = ((u0 + 1.0) * I₁ + (1.0 - u0) * I₂) / 2.0
+         dfunc!(dfys, d, k, y1tmp, s)
+
+         I₂ = eval_piece_Rs(work, d, k, xt, yt,
+               y1, y2, dfy, dfys, fwm, fwm, n, s)
+
+         I = ((u0 + 1.0) * I₁ + (1.0 - u0) * I₂) / 2.0
 
       elseif abs(v0 + 1.0) < tolbd
          # Projection on bottom wall: (u0, -1).
@@ -1303,20 +1421,26 @@ function NSnear_Rs(work, d::abstractdomain,
          # Left part in u.
          @. y1 = u0 - (u0 + 1.0) * dz
          @. y1tmp = 1.0 - y1
-         dfunc!(dfy, d, k, y1tmp, s)
-         @. wdf = fwm * dfy
 
-         eval_piece_Ls!(I₁, work, d, k, xt, yt, y1, y2, wdf, fwm, n, s)
+         dfunc!(dfy, d, k, y1tmp)
+
+         dfunc!(dfys, d, k, y1tmp, s)
+
+         I₁ = eval_piece_Rs(work, d, k, xt, yt,
+               y1, y2, dfy, dfys, fwm, fwm, n, s)
 
          # Right part in u.
          @. y1 = u0 - (u0 - 1.0) * dz
          @. y1tmp = 1.0 - y1
-         dfunc!(dfy, d, k, y1tmp, s)
-         @. wdf = fwm * dfy
 
-         eval_piece_Ls!(I₂, work, d, k, xt, yt, y1, y2, wdf, fwm, n, s)
+         dfunc!(dfy, d, k, y1tmp)
 
-         @. I = ((u0 + 1.0) * I₁ + (1.0 - u0) * I₂) / 2.0
+         dfunc!(dfys, d, k, y1tmp, s)
+
+         I₂ = eval_piece_Rs(work, d, k, xt, yt,
+               y1, y2, dfy, dfys, fwm, fwm, n, s)
+
+         I = ((u0 + 1.0) * I₁ + (1.0 - u0) * I₂) / 2.0
 
       else
          error("VOL_NEAR projection is not on patch boundary: patch=$k, u0=$u0, v0=$v0")
@@ -1330,32 +1454,40 @@ function NSnear_Rs(work, d::abstractdomain,
 
          @. y1 = 1.0 - 2.0 * dz
          @. y1tmp = 2.0 * dz
-         dfunc!(dfy, d, k, y1tmp, s)
-         @. wdf = fwm * dfy
+
+         dfunc!(dfy, d, k, y1tmp)
+
+         dfunc!(dfys, d, k, y1tmp, s)
 
          if abs(v0 - 1.0) < tolbd
 
             @. y2 = 1.0 - 2.0 * dz
 
-            eval_piece_Ls!(I, work, d, k, xt, yt, y1, y2, wdf, fwm, n, s)
+            I = eval_piece_Rs(work, d, k, xt, yt,
+               y1, y2, dfy, dfys, fwm, fwm, n, s)
 
          elseif abs(v0 + 1.0) < tolbd
 
             @. y2 = -1.0 + 2.0 * dz
 
-            eval_piece_Ls!(I, work, d, k, xt, yt, y1, y2, wdf, fwm, n, s)
+            I = eval_piece_Rs(work, d, k, xt, yt,
+               y1, y2, dfy, dfys, fwm, fwm, n, s)
 
          else
 
             # Lower part in v.
             @. y2 = v0 - (v0 + 1.0) * dz
-            eval_piece_Ls!(I₁, work, d, k, xt, yt, y1, y2, wdf, fwm, n, s)
+
+            I₁ = eval_piece_Rs(work, d, k, xt, yt,
+               y1, y2, dfy, dfys, fwm, fwm, n, s)
 
             # Upper part in v.
             @. y2 = v0 - (v0 - 1.0) * dz
-            eval_piece_Ls!(I₂, work, d, k, xt, yt, y1, y2, wdf, fwm, n, s)
 
-            @. I = ((v0 + 1.0) * I₁ + (1.0 - v0) * I₂) / 2.0
+            I₂ = eval_piece_Rs(work, d, k, xt, yt,
+               y1, y2, dfy, dfys, fwm, fwm, n, s)
+
+            I = ((v0 + 1.0) * I₁ + (1.0 - v0) * I₂) / 2.0
          end
 
       elseif abs(u0 + 1.0) < tolbd
@@ -1366,34 +1498,43 @@ function NSnear_Rs(work, d::abstractdomain,
          @. y1 = y1 - 1.0
 
          wfunc!(y1tmp, pn, z; α=-1.0)   # y1tmp = w(-z) = 1 - y1
-         dfunc!(dfy, d, k, y1tmp, s)
+
+         dfunc!(dfy, d, k, y1tmp)
+
+         dfunc!(dfys, d, k, y1tmp, s)
 
          dwfunc!(dw, pn, z)
-         @. wdf = fw * dw * dfy
+         @. wdf = fw * dw
 
          if abs(v0 - 1.0) < tolbd
 
             @. y2 = 1.0 - 2.0 * dz
 
-            eval_piece_Ls!(I, work, d, k, xt, yt, y1, y2, wdf, fwm, n, s)
+            I = eval_piece_Rs(work, d, k, xt, yt,
+               y1, y2, dfy, dfys, wdf, fwm, n, s)
 
          elseif abs(v0 + 1.0) < tolbd
 
             @. y2 = -1.0 + 2.0 * dz
 
-            eval_piece_Ls!(I, work, d, k, xt, yt, y1, y2, wdf, fwm, n, s)
+            I = eval_piece_Rs(work, d, k, xt, yt,
+               y1, y2, dfy, dfys, wdf, fwm, n, s)
 
          else
 
             # Lower part in v.
             @. y2 = v0 - (v0 + 1.0) * dz
-            eval_piece_Ls!(I₁, work, d, k, xt, yt, y1, y2, wdf, fwm, n, s)
+
+            I₁ = eval_piece_Rs(work, d, k, xt, yt,
+               y1, y2, dfy, dfys, wdf, fwm, n, s)
 
             # Upper part in v.
             @. y2 = v0 - (v0 - 1.0) * dz
-            eval_piece_Ls!(I₂, work, d, k, xt, yt, y1, y2, wdf, fwm, n, s)
 
-            @. I = ((v0 + 1.0) * I₁ + (1.0 - v0) * I₂) / 2.0
+            I₂ = eval_piece_Rs(work, d, k, xt, yt,
+               y1, y2, dfy, dfys, wdf, fwm, n, s)
+
+            I = ((v0 + 1.0) * I₁ + (1.0 - v0) * I₂) / 2.0
          end
 
       elseif abs(v0 - 1.0) < tolbd
@@ -1405,24 +1546,31 @@ function NSnear_Rs(work, d::abstractdomain,
          # Left part in u: regular dfunc.
          @. y1 = u0 - (u0 + 1.0) * dz
          @. y1tmp = 1.0 - y1
-         dfunc!(dfy, d, k, y1tmp, s)
-         @. wdf = fwm * dfy
+         
+         dfunc!(dfy, d, k, y1tmp)
 
-         eval_piece_Ls!(I₁, work, d, k, xt, yt, y1, y2, wdf, fwm, n, s)
+         dfunc!(dfys, d, k, y1tmp, s)
+
+         I₁ = eval_piece_Rs(work, d, k, xt, yt,
+               y1, y2, dfy, dfys, fwm, fwm, n, s)
 
          # Right part in u: boundary compensated rule.
          wfunc!(d1, pn, z)
          @. y1 = (1.0 - u0) * d1 / 2.0 + u0
 
          wfunc!(y1tmp, pn, z; α=-1.0, β=(1.0 - u0) / 2.0)
-         dfunc!(dfy, d, k, y1tmp, s)
+         
+         dfunc!(dfy, d, k, y1tmp)
+
+         dfunc!(dfys, d, k, y1tmp, s)
 
          dwfunc!(dw, pn, z)
-         @. wdf = fw * dw * dfy
+         @. wdf = fw * dw
 
-         eval_piece_Ls!(I₂, work, d, k, xt, yt, y1, y2, wdf, fwm, n, s)
+         I₂ = eval_piece_Rs(work, d, k, xt, yt,
+               y1, y2, dfy, dfys, wdf, fwm, n, s)
 
-         @. I = ((u0 + 1.0) * I₁ + (1.0 - u0) * I₂) / 2.0
+         I = ((u0 + 1.0) * I₁ + (1.0 - u0) * I₂) / 2.0
 
       elseif abs(v0 + 1.0) < tolbd
          # Projection on bottom wall: (u0, -1).
@@ -1433,34 +1581,41 @@ function NSnear_Rs(work, d::abstractdomain,
          # Left part in u: regular dfunc.
          @. y1 = u0 - (u0 + 1.0) * dz
          @. y1tmp = 1.0 - y1
-         dfunc!(dfy, d, k, y1tmp, s)
-         @. wdf = fwm * dfy
 
-         eval_piece_Ls!(I₁, work, d, k, xt, yt, y1, y2, wdf, fwm, n, s)
+         dfunc!(dfy, d, k, y1tmp)
+
+         dfunc!(dfys, d, k, y1tmp, s)
+
+         I₁ = eval_piece_Rs(work, d, k, xt, yt,
+               y1, y2, dfy, dfys, fwm, fwm, n, s)
 
          # Right part in u: boundary compensated rule.
          wfunc!(d1, pn, z)
          @. y1 = (1.0 - u0) * d1 / 2.0 + u0
 
          wfunc!(y1tmp, pn, z; α=-1.0, β=(1.0 - u0) / 2.0)
-         dfunc!(dfy, d, k, y1tmp, s)
+
+         dfunc!(dfy, d, k, y1tmp)
+
+         dfunc!(dfys, d, k, y1tmp, s)
 
          dwfunc!(dw, pn, z)
-         @. wdf = fw * dw * dfy
+         @. wdf = fw * dw
 
-         eval_piece_Ls!(I₂, work, d, k, xt, yt, y1, y2, wdf, fwm, n, s)
+         I₂ = eval_piece_Rs(work, d, k, xt, yt,
+               y1, y2, dfy, dfys, wdf, fwm, n, s)
 
-         @. I = ((u0 + 1.0) * I₁ + (1.0 - u0) * I₂) / 2.0
+         I = ((u0 + 1.0) * I₁ + (1.0 - u0) * I₂) / 2.0
 
       else
          error("VOL_NEAR projection is not on patch boundary: patch=$k, u0=$u0, v0=$v0")
       end
    end
 
-   return nothing
+   return I
 end
 
-function phi2_slr!(z::Float64; α::Float64=1.0)::Float64
+function phi2_slr(z::Float64; α::Float64=1.0)::Float64
 
    z = α * z
    az = abs(z)
@@ -1510,6 +1665,9 @@ function bvec_small(d::abstractdomain, dp::domprop, s::Float64, f!::Function
    end
 
    αₛ = -expm1(Eₛ) / (4 * π * s)
+
+   # The polynomial change-of-variables with parameter p
+   p = 4
 
    # n₂ is defined as the number of nodes for integration of regular integrals
    # fw₂is defined as the Fejer 1st weights for corresponding nodes
@@ -1564,6 +1722,7 @@ function bvec_small(d::abstractdomain, dp::domprop, s::Float64, f!::Function
 
    KS = Matrix{Float64}(undef, nr, nr)
    Df = Vector{Float64}(undef, nr)
+   Dfs= Vector{Float64}(undef, nr)
 
    # ------------ Bd Integration ------------
    # For boundary patches, which have singularity on boundary
@@ -1580,13 +1739,13 @@ function bvec_small(d::abstractdomain, dp::domprop, s::Float64, f!::Function
    zt2 = Vector{Float64}(undef, nbd)
    mfw = Vector{Float64}(undef, nbd)
 
-   dwfunc!(mfw, p, z1)
-
-   @. mfw = fwbd * mfw
-
    @inbounds for i in 1:nbd
       z1[i] = cos(π * (2 * i - 1) / (4 * nbd))^2
    end
+
+   dwfunc!(mfw, p, z1)
+
+   @. mfw = fwbd * mfw
 
    wfunc!(wz1, p, z1; α=-1.0)
 
@@ -1607,11 +1766,14 @@ function bvec_small(d::abstractdomain, dp::domprop, s::Float64, f!::Function
    βS₂ = Matrix{Float64}(undef, nbd, nr)
 
    KS₂ = Matrix{Float64}(undef, nbd, nr)
-   Df₂ = vector{Float64}(undef, nbd)
+   Df₂ = Vector{Float64}(undef, nbd)
+   Df₂s= Vector{Float64}(undef, nbd)
 
-   #Singular integration 
+   #Singular or near singular integration 
    ns= 2*n
 
+   # Near/close work.
+   work = NSRWork(ns, p, αₛ, f!)
 
    # -----------------------------------------------------------------------
    # main loop over target points (interior first, then optional boundary)
@@ -1639,14 +1801,18 @@ function bvec_small(d::abstractdomain, dp::domprop, s::Float64, f!::Function
 
          f!(FX₂, Zx₂, Zy₂)
 
-         dfunc!(Df₂, d, k, zt2, s)
+         dfunc!(Df₂, d, k, zt2)
+
+         dfunc!(Df₂s, d, k, zt2, s)
 
       else
          mapxy_Dmap!(Zx, Zy, DJ, d, zx, zy, k)
 
          f!(FX, Zx, Zy)
 
-         dfunc!(Df, d, k, zt, s)
+         dfunc!(Df, d, k, zt)
+
+         dfunc!(Dfs, d, k, zt, s)
       end
 
       # ----- Weightage of kth patch for ith point -----
@@ -1661,10 +1827,8 @@ function bvec_small(d::abstractdomain, dp::domprop, s::Float64, f!::Function
             # boundary point
             k₀ = cld(i - Ni, N)
             l = d.kd[k₀]
-            j = i - Ni - (k₀ - 1) * N
          else
             l = cld(i, Np)
-            j = i - (l - 1) * Np
          end
 
          l == k && continue
@@ -1684,7 +1848,7 @@ function bvec_small(d::abstractdomain, dp::domprop, s::Float64, f!::Function
 
             end
 
-            b[i] += NSclose_Rs!(NSwork, d, k, α₁, α₂, s, p, ns, knbd)
+            b[i] += NSclose_Rs!(work, d, k, α₁, α₂, s, p, ns, knbd)
 
          elseif dp.volmode[i, k] == VOL_NEAR
 
@@ -1703,7 +1867,7 @@ function bvec_small(d::abstractdomain, dp::domprop, s::Float64, f!::Function
 
             end
 
-            b[i] += NSnear_Rs!(NSwork, d, k, xx, yy, u0, v0, s, p, ns, knbd)
+            b[i] += NSnear_Rs!(work, d, k, xx, yy, u0, v0, s, p, ns, knbd)
 
          else
 
@@ -1714,22 +1878,27 @@ function bvec_small(d::abstractdomain, dp::domprop, s::Float64, f!::Function
 
                @. KS₂ = (xx - Zx₂)^2 + (yy - Zy₂)^2
 
-               for ii in 1:nr
-                  for jj in 1:nbd
+               @inbounds for jj in 1:nr
+                  @inbounds for ii in 1:nbd
+                     r2 = KS₂[ii, jj]
 
-                     βt1 = log(Df₂[jj] / KS[ii, jj])
-                     βt2 = log(Df₂[jj])
+                     dval = Df₂[ii]          # raw distance d(y)
+                     logd = log(dval)
+                     logr2 = log(r2)
+
+                     βt1 = logd - logr2     # log(d(y) / |x-y|^2)
+                     βt2 = logd             # log(d(y))
+
                      βt3 = phi2_slr(βt1; α=s)
                      βt4 = phi2_slr(βt2; α=s)
 
-                     βS₂[ii, jj] = (βt1)^2 * βt3 - (βt2)^2 * βt4
+                     βS₂[ii, jj] = βt1^2 * βt3 - βt2^2 * βt4
 
-                     HS₂[ii, jj] = Df₂[jj] * expm1(-s * log(KS[ii, jj]) ) / s
-
+                     HS₂[ii, jj] = Df₂s[ii] * expm1(-s * logr2) / s
                   end
                end
 
-               @. KS₂ = ( βS₂ / (4 * pi) - αₛ * HS₂ ) * FX₂ * DJ₂
+               @. KS₂ = (βS₂ / (4.0 * pi) - αₛ * HS₂) * FX₂ * DJ₂
 
                b[i] += dot(mfw, KS₂, fwr)
 
@@ -1737,22 +1906,27 @@ function bvec_small(d::abstractdomain, dp::domprop, s::Float64, f!::Function
 
                @. KS = (xx - Zx)^2 + (yy - Zy)^2
 
-               for ii in 1:nr
-                  for jj in 1:nr
+               @inbounds for jj in 1:nr
+                  @inbounds for ii in 1:nr
+                     r2 = KS[ii, jj]
 
-                     βt1 = log(Df[jj] / KS[ii, jj])
-                     βt2 = log(Df[jj])
+                     dval = Df[ii]           # raw distance d(y)
+                     logd = log(dval)
+                     logr2 = log(r2)
+
+                     βt1 = logd - logr2
+                     βt2 = logd
+
                      βt3 = phi2_slr(βt1; α=s)
                      βt4 = phi2_slr(βt2; α=s)
 
-                     βS[ii, jj] = (βt1)^2 * βt3 - (βt2)^2 * βt4
+                     βS[ii, jj] = βt1^2 * βt3 - βt2^2 * βt4
 
-                     HS[ii, jj] = Df[jj] * expm1(-s * log(KS[ii, jj]) ) / s
-
+                     HS[ii, jj] = Dfs[ii] * expm1(-s * logr2) / s
                   end
                end
 
-               @. KS = ( βS / (4 * pi) - αₛ * HS ) * FX * DJ
+               @. KS = (βS / (4.0 * pi) - αₛ * HS) * FX * DJ
 
                b[i] += dot(fwr, KS, fwr)
 
@@ -1831,6 +2005,7 @@ function bvec_small(d::abstractdomain, dp::domprop, s::Float64, f!::Function
 
    A = Matrix{Float64}(undef, n, n)
    dfy = Vector{Float64}(undef, n)
+   dfys = Vector{Float64}(undef, n)
 
    
    #-Singular Integration of Interior patches-
@@ -1854,7 +2029,6 @@ function bvec_small(d::abstractdomain, dp::domprop, s::Float64, f!::Function
       x̃₄ = x1m * x2m / 4.0
 
       #Singular integration is sum of four parts
-      #I1,I2,I3,I4, they are all N*N matrices
       #-----------------1st part-----------------
 
       @. d1 = x1p * wmz₂
@@ -1869,9 +2043,36 @@ function bvec_small(d::abstractdomain, dp::domprop, s::Float64, f!::Function
 
          diff_map!(DIF, Zx, Zy, DJ, d, x1, x2, t1, t2, d1, d2, k)
 
-         dfunc!(dfy, d, k, y1tmp, s)   # dfy = dfac(k, 1-y1)
+         dfunc!(dfy, d, k, y1tmp)
 
-         #b[j + (k-1) * Np] += weight' * kernel * function values * wights 
+         dfunc!(dfys, d, k, y1tmp, s)   # dfys = dfac(k, 1-y1)
+
+         f!(FX, Zx, Zy)
+
+         @inbounds for jj in 1:n
+            @inbounds for ii in 1:n
+               r2 = DIF[ii, jj]^2
+
+               dval = dfy[ii]
+               ds = dfys[ii]
+
+               logd = log(dval)
+               logr2 = log(r2)
+
+               βt1 = logd - logr2
+               βt2 = logd
+
+               βt3 = phi2_slr(βt1; α=s)
+               βt4 = phi2_slr(βt2; α=s)
+
+               βS[ii, jj] = βt1^2 * βt3 - βt2^2 * βt4
+               HS[ii, jj] = ds * expm1(-s * logr2) / s
+            end
+         end
+
+         @. KS = (βS / (4.0 * pi) - αₛ * HS) * FX * DJ
+
+         b[j+(k-1)*Np] += x̃₁ * dot(fwm, KS, fwm)
 
       end
 
@@ -1886,7 +2087,36 @@ function bvec_small(d::abstractdomain, dp::domprop, s::Float64, f!::Function
 
          diff_map!(DIF, Zx, Zy, DJ, d, x1, x2, t1, t2, d1, d2, k)
 
-         dfunc!(dfy, d, k, y1tmp, s)   # dfy = dfac(k, 1-y1)
+         dfunc!(dfy, d, k, y1tmp)
+
+         dfunc!(dfys, d, k, y1tmp, s)   # dfys = dfac(k, 1-y1)
+
+         f!(FX, Zx, Zy)
+
+         @inbounds for jj in 1:n
+            @inbounds for ii in 1:n
+               r2 = DIF[ii, jj]^2
+
+               dval = dfy[ii]
+               ds = dfys[ii]
+
+               logd = log(dval)
+               logr2 = log(r2)
+
+               βt1 = logd - logr2
+               βt2 = logd
+
+               βt3 = phi2_slr(βt1; α=s)
+               βt4 = phi2_slr(βt2; α=s)
+
+               βS[ii, jj] = βt1^2 * βt3 - βt2^2 * βt4
+               HS[ii, jj] = ds * expm1(-s * logr2) / s
+            end
+         end
+
+         @. KS = (βS / (4.0 * pi) - αₛ * HS) * FX * DJ
+
+         b[j+(k-1)*Np] += x̃₂ * dot(fwm, KS, fwm)
 
       end
 
@@ -1904,7 +2134,36 @@ function bvec_small(d::abstractdomain, dp::domprop, s::Float64, f!::Function
 
          diff_map!(DIF, Zx, Zy, DJ, d, x1, x2, t1, t2, d1, d2, k)
 
-         dfunc!(dfy, d, k, y1tmp, s)   # dfy = dfac(k, 1-y1)
+         dfunc!(dfy, d, k, y1tmp)
+
+         dfunc!(dfys, d, k, y1tmp, s)   # dfys = dfac(k, 1-y1)
+
+         f!(FX, Zx, Zy)
+
+         @inbounds for jj in 1:n
+            @inbounds for ii in 1:n
+               r2 = DIF[ii, jj]^2
+
+               dval = dfy[ii]
+               ds = dfys[ii]
+
+               logd = log(dval)
+               logr2 = log(r2)
+
+               βt1 = logd - logr2
+               βt2 = logd
+
+               βt3 = phi2_slr(βt1; α=s)
+               βt4 = phi2_slr(βt2; α=s)
+
+               βS[ii, jj] = βt1^2 * βt3 - βt2^2 * βt4
+               HS[ii, jj] = ds * expm1(-s * logr2) / s
+            end
+         end
+
+         @. KS = (βS / (4.0 * pi) - αₛ * HS) * FX * DJ
+
+         b[j+(k-1)*Np] += x̃₃ * dot(fwm, KS, fwm)
 
       end
 
@@ -1919,7 +2178,36 @@ function bvec_small(d::abstractdomain, dp::domprop, s::Float64, f!::Function
 
          diff_map!(DIF, Zx, Zy, DJ, d, x1, x2, t1, t2, d1, d2, k)
 
-         dfunc!(dfy, d, k, y1tmp, s)   # dfy = dfac(k, 1-y1)
+         dfunc!(dfy, d, k, y1tmp)
+
+         dfunc!(dfys, d, k, y1tmp, s)   # dfys = dfac(k, 1-y1)
+
+         f!(FX, Zx, Zy)
+
+         @inbounds for jj in 1:n
+            @inbounds for ii in 1:n
+               r2 = DIF[ii, jj]^2
+
+               dval = dfy[ii]
+               ds = dfys[ii]
+
+               logd = log(dval)
+               logr2 = log(r2)
+
+               βt1 = logd - logr2
+               βt2 = logd
+
+               βt3 = phi2_slr(βt1; α=s)
+               βt4 = phi2_slr(βt2; α=s)
+
+               βS[ii, jj] = βt1^2 * βt3 - βt2^2 * βt4
+               HS[ii, jj] = ds * expm1(-s * logr2) / s
+            end
+         end
+
+         @. KS = (βS / (4.0 * pi) - αₛ * HS) * FX * DJ
+
+         b[j+(k-1)*Np] += x̃₄ * dot(fwm, KS, fwm)
 
       end
 
@@ -1957,7 +2245,36 @@ function bvec_small(d::abstractdomain, dp::domprop, s::Float64, f!::Function
 
          diff_map!(DIF, Zx, Zy, DJ, d, x1, x2, t1, t2, d1, d2, k)
 
-         dfunc!(dfy, d, k, y1tmp, s)   # dfy = dfac(k, 1-y1)
+         dfunc!(dfy, d, k, y1tmp)
+
+         dfunc!(dfys, d, k, y1tmp, s)   # dfys = dfac(k, 1-y1)
+
+         f!(FX, Zx, Zy)
+
+         @inbounds for jj in 1:n
+            @inbounds for ii in 1:n
+               r2 = DIF[ii, jj]^2
+
+               dval = dfy[ii]
+               ds = dfys[ii]
+
+               logd = log(dval)
+               logr2 = log(r2)
+
+               βt1 = logd - logr2
+               βt2 = logd
+
+               βt3 = phi2_slr(βt1; α=s)
+               βt4 = phi2_slr(βt2; α=s)
+
+               βS[ii, jj] = βt1^2 * βt3 - βt2^2 * βt4
+               HS[ii, jj] = ds * expm1(-s * logr2) / s
+            end
+         end
+
+         @. KS = (βS / (4.0 * pi) - αₛ * HS) * FX * DJ
+
+         b[j+(k-1)*Np] += x̃₃ * dot(fwl, KS, fwm)
  
       end
 
@@ -1968,20 +2285,45 @@ function bvec_small(d::abstractdomain, dp::domprop, s::Float64, f!::Function
 
       fill_meshgrid!(t1, t2, y1, y2)
 
-      ChebyTN!(TN_y2, N, y2)
-
       @inbounds for k in d.kd
 
          diff_map!(DIF, Zx, Zy, DJ, d, x1, x2, t1, t2, d1, d2, k)
 
-         dfunc!(dfy, d, k, y1tmp, s)   # dfy = dfac(k, 1-y1)
+         dfunc!(dfy, d, k, y1tmp)
 
+         dfunc!(dfys, d, k, y1tmp, s)   # dfys = dfac(k, 1-y1)
+
+         f!(FX, Zx, Zy)
+
+         @inbounds for jj in 1:n
+            @inbounds for ii in 1:n
+               r2 = DIF[ii, jj]^2
+
+               dval = dfy[ii]
+               ds = dfys[ii]
+
+               logd = log(dval)
+               logr2 = log(r2)
+
+               βt1 = logd - logr2
+               βt2 = logd
+
+               βt3 = phi2_slr(βt1; α=s)
+               βt4 = phi2_slr(βt2; α=s)
+
+               βS[ii, jj] = βt1^2 * βt3 - βt2^2 * βt4
+               HS[ii, jj] = ds * expm1(-s * logr2) / s
+            end
+         end
+
+         @. KS = (βS / (4.0 * pi) - αₛ * HS) * FX * DJ
+
+         b[j+(k-1)*Np] += x̃₄ * dot(fwl, KS, fwm)
 
       end
 
    end
 
-   Lₚₛ = dp.pthgo[M+1] - 1
    #-Singular Integration For pts on bonudary-
    #These points are ofcourse always on bd patches
    @inbounds for j in 1:N
@@ -1996,8 +2338,7 @@ function bvec_small(d::abstractdomain, dp::domprop, s::Float64, f!::Function
       x̃₁ = x2p / 2.0
       x̃₂ = -x2m / 2.0
 
-      #Singular integration is sum of four parts
-      #I1,I2,I3,I4, they are all N*N matrices
+      #Singular integration is sum of two parts here
       #-----------------1st part-----------------
 
       @. d1 = 2.0 * wmz₂
@@ -2013,7 +2354,36 @@ function bvec_small(d::abstractdomain, dp::domprop, s::Float64, f!::Function
 
          diff_map!(DIF, Zx, Zy, DJ, d, 1.0, x2, t1, t2, d1, d2, k)
 
-         dfunc!(dfy, d, k, d1, s)   # dfy = dfac(k, 1-y1=d1)
+         dfunc!(dfy, d, k, d1)
+
+         dfunc!(dfys, d, k, d1, s)   # dfy = dfac(k, 1-y1=d1)
+
+         f!(FX, Zx, Zy)
+
+         @inbounds for jj in 1:n
+            @inbounds for ii in 1:n
+               r2 = DIF[ii, jj]^2
+
+               dval = dfy[ii]
+               ds = dfys[ii]
+
+               logd = log(dval)
+               logr2 = log(r2)
+
+               βt1 = logd - logr2
+               βt2 = logd
+
+               βt3 = phi2_slr(βt1; α=s)
+               βt4 = phi2_slr(βt2; α=s)
+
+               βS[ii, jj] = βt1^2 * βt3 - βt2^2 * βt4
+               HS[ii, jj] = ds * expm1(-s * logr2) / s
+            end
+         end
+
+         @. KS = (βS / (4.0 * pi) - αₛ * HS) * FX * DJ
+
+         b[Ni+j+(ℓ-1)*N] += x̃₁ * dot(fwm, KS, fwm)
 
       end
 
@@ -2030,7 +2400,36 @@ function bvec_small(d::abstractdomain, dp::domprop, s::Float64, f!::Function
 
          diff_map!(DIF, Zx, Zy, DJ, d, 1.0, x2, t1, t2, d1, d2, k)
 
-         dfunc!(dfy, d, k, d1, s)   # dfy = dfac(k, 1-y1)
+         dfunc!(dfy, d, k, d1) 
+
+         dfunc!(dfys, d, k, d1, s)   # dfy = dfac(k, 1-y1)
+
+         f!(FX, Zx, Zy)
+
+         @inbounds for jj in 1:n
+            @inbounds for ii in 1:n
+               r2 = DIF[ii, jj]^2
+
+               dval = dfy[ii]
+               ds = dfys[ii]
+
+               logd = log(dval)
+               logr2 = log(r2)
+
+               βt1 = logd - logr2
+               βt2 = logd
+
+               βt3 = phi2_slr(βt1; α=s)
+               βt4 = phi2_slr(βt2; α=s)
+
+               βS[ii, jj] = βt1^2 * βt3 - βt2^2 * βt4
+               HS[ii, jj] = ds * expm1(-s * logr2) / s
+            end
+         end
+
+         @. KS = (βS / (4.0 * pi) - αₛ * HS) * FX * DJ
+
+         b[Ni+j+(ℓ-1)*N] += x̃₂ * dot(fwm, KS, fwm)
 
       end
 

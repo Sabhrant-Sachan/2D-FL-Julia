@@ -222,7 +222,7 @@ function solveFL_core(prob::Problem; opts::Options=Options())
    if opts.s_small
 
       #b vec computed first and then precomps
-      b = bvec(d, dp, prob.s, prob.f!)
+      b = bvec_small(d, dp, prob.s, prob.f!)
 
       IntS = precompsLs(d, dp, prob.s, prob.p; n=n)
 
@@ -387,22 +387,22 @@ function solveFL_core(prob::Problem; opts::Options=Options())
       GC.gc()
    end
 
-   # if opts.s_small
-   #    #ϕ = f + s * ̃ϕ
-   #    (; N, Np, M, Ni) = IV.IV1
-   #    FV = Vector{Float64}(undef, Ni)
-   #    X = Vector{Float64}(undef, Ni)
-   #    Y = Vector{Float64}(undef, Ni)
-   #    @inbounds for j in 1:Ni
-   #       X[j] = dp.tgtpts[1,j]
-   #       Y[j] = dp.tgtpts[2,j]
-   #    end
-   #    prob.f!(FV, X, Y)
-   #    @inbounds for j in 1:Ni
-   #       Uapp[j] = FV[j] + prob.s * Uapp[j]
-   #    end
+   if opts.s_small
+      #ϕ = f + s * ̃ϕ
+      (; N, Np, M, Ni) = IV.IV1
+      FV = Vector{Float64}(undef, Ni)
+      X = Vector{Float64}(undef, Ni)
+      Y = Vector{Float64}(undef, Ni)
+      @inbounds for j in 1:Ni
+         X[j] = dp.tgtpts[1,j]
+         Y[j] = dp.tgtpts[2,j]
+      end
+      prob.f!(FV, X, Y)
+      @inbounds for j in 1:Ni
+         Uapp[j] = FV[j] + prob.s * Uapp[j]
+      end
       
-   # end
+   end
 
    return CoreResult(dp=dp, d=d, IntS=IntS, A=A, b=b, Uapp=Uapp, info=info)
 

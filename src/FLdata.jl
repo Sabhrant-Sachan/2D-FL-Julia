@@ -2,7 +2,7 @@ module FLdata
 
 import ..disc, ..ellipse, ..kite, ..annulus, ..squircle
 
-import ..peanut, ..bean, ..star, ..abstractdomain, ..refine!
+import ..peanut, ..bean, ..star, ..ellipseNh, ..abstractdomain, ..refine!
 
 #This file supplies the function f for which the FL problem will be solved
 #and a exact solution of the problem, if one exists.
@@ -16,609 +16,235 @@ export makesquirclefuex
 export makepeanutfuex
 export makebeanfuex
 export makestarfuex
+export makeellipseNhfuex
 
 using SpecialFunctions: gamma
-using HypergeometricFunctions: pFq 
+using HypergeometricFunctions: pFq
+
+function jacobi(x::Float64, n::Int, a::Float64, b::Float64)
+
+   if n == 0
+      return 1.0
+   elseif n == 1
+      return 0.5 * (a - b + (a + b + 2) * x)
+   end
+
+   p0 = 1.0
+   p1 = 0.5 * (a - b + (a + b + 2) * x)
+   p2 = 0.0
+
+   for i = 1:(n-1)
+      a1 = 2 * (i + 1) * (i + a + b + 1) * (2 * i + a + b)
+      a2 = (2 * i + a + b + 1) * (a * a - b * b)
+      a3 = (2 * i + a + b) * (2 * i + a + b + 1) * (2 * i + a + b + 2)
+      a4 = 2 * (i + a) * (i + b) * (2 * i + a + b + 2)
+      p2 = 1.0 / a1 * ((a2 + a3 * x) * p1 - a4 * p0)
+
+      p0 = p1
+      p1 = p2
+   end
+
+   return p2
+end
+
+@inline function jacobiC(n::Int, s::Float64)
+   return (2.0^(2s) * gamma(1.0 + s + n)^2) / gamma(n + 1)^2
+end
 
 function makediscfuex(n::Int, s::Float64)
-    nsgn = isodd(n) ? -1.0 : 1.0
 
-    C = (2.0^(2s) * nsgn * gamma(1 + s + n)^2) / gamma(n+1)^2
+   C = jacobiC(n, s)
 
-    # Precompute coeffs for P_n^(s,0)(ξ) as [a0, a1, ..., an]
-    coeffs = if n == 0
-        (1.0,)
+   @inline function f!(F, x, y)
+      @inbounds for i in eachindex(F, x, y)
+         r2 = x[i] * x[i] + y[i] * y[i]
+         F[i] = C * jacobi(1.0 - 2.0 * r2, n, 0.0, s)
+      end
+      return nothing
+   end
 
-    elseif n == 1
-        (0.5 * s, 0.5 * (s + 2.0))
+   @inline function uex(x::Float64, y::Float64)::Float64
+      r2 = x * x + y * y
+      return (1.0 - r2)^s * jacobi(1.0 - 2.0 * r2, n, 0.0, s)
+   end
 
-    elseif n == 2
-        a2 = (s + 3.0) * (s + 4.0) * 0.125
-        a1 = (2.0 * s * (s + 3.0)) * 0.125
-        a0 = (s * s - s - 4.0) * 0.125
-        (a0, a1, a2)
-
-    elseif n == 3
-        a3 = (s^3 + 15.0 * s^2 + 74.0 * s + 120.0) / 48.0
-        a2 = (s^3 + 9.0 * s^2 + 20.0 * s) / 16.0
-        a1 = (s^3 + 3.0 * s^2 - 10.0 * s - 24.0) / 16.0
-        a0 = (s^3 - 3.0 * s^2 - 16.0 * s) / 48.0
-        (a0, a1, a2, a3)
-
-    elseif n == 4
-        a4 = (s^4 + 26.0 * s^3 + 251.0 * s^2 + 1066.0 * s + 1680.0) / 384.0
-        a3 = s * (s^3 + 18.0 * s^2 + 107.0 * s + 210.0) / 96.0
-        a2 = (s^4 + 10.0 * s^3 + 11.0 * s^2 - 118.0 * s - 240.0) / 64.0
-        a1 = s * (s^3 + 2.0 * s^2 - 37.0 * s - 110.0) / 96.0
-        a0 = (s^4 - 6.0 * s^3 - 37.0 * s^2 + 42.0 * s + 144.0) / 384.0
-        (a0, a1, a2, a3, a4)
-
-    elseif n == 5
-        a5 = (s^5 + 40.0 * s^4 + 635.0 * s^3 + 5000.0 * s^2 + 19524.0 * s + 30240.0) / 3840.0
-        a4 = s * (s^4 + 30.0 * s^3 + 335.0 * s^2 + 1650.0 * s + 3024.0) / 768.0
-        a3 = (s^5 + 20.0 * s^4 + 115.0 * s^3 - 20.0 * s^2 - 1796.0 * s - 3360.0) / 384.0
-        a2 = s * (s^4 + 10.0 * s^3 - 25.0 * s^2 - 490.0 * s - 1176.0) / 384.0
-        a1 = (s^5 - 85.0 * s^3 - 240.0 * s^2 + 564.0 * s + 1440.0) / 768.0
-        a0 = s * (s^4 - 10.0 * s^3 - 65.0 * s^2 + 250.0 * s + 1024.0) / 3840.0
-        (a0, a1, a2, a3, a4, a5)
-
-    else
-        error("implemented n = 0..5")
-    end
-
-    @inline function polJac(ξ::Float64)
-        # Horner: coeffs are (a0, a1, ..., an)
-        p = coeffs[n+1]
-        @inbounds for k in n:-1:1
-            p = muladd(p, ξ, coeffs[k])   # p = p*ξ + a_{k-1}
-        end
-        return p
-    end
-
-    @inline function f!(F, x, y)
-        @inbounds for i in eachindex(F, x, y)
-            r2 = x[i] * x[i] + y[i] * y[i]
-            F[i] = C * polJac(2.0 * r2 - 1.0)
-        end
-        return nothing
-    end
-
-    @inline function fv(x::Float64, y::Float64)::Float64
-        r2 = x * x + y * y
-        return C * polJac(2 * r2 - 1)
-    end
-
-    @inline function uex(x::Float64, y::Float64)::Float64
-        r2 = x*x + y*y
-        return (1.0 - r2)^s * nsgn * polJac(2.0*r2 - 1.0)
-    end
-
-    return f!, uex, fv
+   return f!, uex
 end
 
 function makeellipsefuex(n::Int, s::Float64)
 
-    #1st example
-    # a, b = 1.5, 1.0
+   a, b = 1.0, 2.0
 
-    # C₁ = a^(-(2 * s + 1)) * b * pFq((s + 1, 1 / 2), (1,), 1 - (b / a)^2)
+   jo = 4 * pi * pFq((s + 1, 1 / 2), (1,), -3)
 
-    # C₂ = 2.0^(2s) * gamma(1 + s)^2 * C₁
+   j1 = 2 * pi * pFq((s + 1, 1 / 2), (2,), -3)
 
-    # @inline function f!(F, x, y)
-    #     fill!(F, C₂)
-    #     return nothing
-    # end
+   j2 = (3 * pi / 2) * pFq((s + 1, 1 / 2), (3,), -3)
 
-    # @inline function fv(x::Float64, y::Float64)::Float64
-    #     return C₂
-    # end
+   c1 = s * (jo - j1 + 2 * (s - 1) * (j1 - j2))
 
-    # @inline function uex(x::Float64, y::Float64)::Float64
-    #     r2 = (x / a) * (x / a) + (y / b) * (y / b)
-    #     return (1 - r2)^s
-    # end
+   c2 = (2 * s + 1) * (s + 1) * jo - s * (4 * s + 1) * j1 + 2 * s * (s - 1) * j2
 
-    # return f!, uex, fv
+   C = 2^(2 * s - 1) * gamma(1 + s)^2 / π
 
-    #2nd example
-    a, b = 1.0, 2.0
+   @inline function f!(F, x, y)
+      @inbounds for i in eachindex(F, x, y)
+         F[i] = C * (c1 * x[i]^2 - s * (jo - j1) + c2 * y[i]^2 / 4)
+      end
+      return nothing
+   end
 
-    jo = 4 * pi * pFq((s + 1, 1 / 2), (1,), -3)
+   @inline function uex(x::Float64, y::Float64)::Float64
+      r2 = (x / a) * (x / a) + (y / b) * (y / b)
+      return y * y * (1 - r2)^s / 4
+   end
 
-    j1 = 2 * pi * pFq((s + 1, 1 / 2), (2,), -3)
-
-    j2 = (3*pi/2) * pFq((s + 1, 1/2), (3,), -3)
-
-    c1 = s * (jo - j1 + 2 * (s - 1) * (j1 - j2))
-
-    c2 = (2 * s + 1) * (s + 1) * jo - s * (4 * s + 1) * j1 + 2 * s * (s - 1) * j2
-
-    C = 2^(2 * s - 1) * gamma(1 + s)^2 / π
-
-    @inline function f!(F, x, y)
-        @inbounds for i in eachindex(F, x, y)
-            F[i] = C * (c1 * x[i]^2 - s * (jo - j1) + c2 * y[i]^2 / 4)
-        end
-        return nothing
-    end
-
-    @inline function fv(x::Float64, y::Float64)::Float64
-        return C * (c1 * x^2 - s * (jo - j1) + c2 * y^2 / 4)
-    end
-
-    @inline function uex(x::Float64, y::Float64)::Float64
-        r2 = (x / a) * (x / a) + (y / b) * (y / b)
-        return y * y * (1 - r2)^s / 4
-    end
-
-    return f!, uex, fv  
+   return f!, uex
 
 end
 
 function makekitefuex(n::Int, s::Float64)
 
-   nsgn = isodd(n) ? -1.0 : 1.0
-
-    C = (2.0^(2s) * nsgn * gamma(1 + s + n)^2) / gamma(n+1)^2
-
-    # Precompute coeffs for P_n^(s,0)(ξ) as [a0, a1, ..., an]
-    coeffs = if n == 0
-        (1.0,)
-
-    elseif n == 1
-        (0.5 * s, 0.5 * (s + 2.0))
-
-    elseif n == 2
-        a2 = (s + 3.0) * (s + 4.0) * 0.125
-        a1 = (2.0 * s * (s + 3.0)) * 0.125
-        a0 = (s * s - s - 4.0) * 0.125
-        (a0, a1, a2)
-
-    elseif n == 3
-        a3 = (s^3 + 15.0 * s^2 + 74.0 * s + 120.0) / 48.0
-        a2 = (s^3 + 9.0 * s^2 + 20.0 * s) / 16.0
-        a1 = (s^3 + 3.0 * s^2 - 10.0 * s - 24.0) / 16.0
-        a0 = (s^3 - 3.0 * s^2 - 16.0 * s) / 48.0
-        (a0, a1, a2, a3)
-
-    elseif n == 4
-        a4 = (s^4 + 26.0 * s^3 + 251.0 * s^2 + 1066.0 * s + 1680.0) / 384.0
-        a3 = s * (s^3 + 18.0 * s^2 + 107.0 * s + 210.0) / 96.0
-        a2 = (s^4 + 10.0 * s^3 + 11.0 * s^2 - 118.0 * s - 240.0) / 64.0
-        a1 = s * (s^3 + 2.0 * s^2 - 37.0 * s - 110.0) / 96.0
-        a0 = (s^4 - 6.0 * s^3 - 37.0 * s^2 + 42.0 * s + 144.0) / 384.0
-        (a0, a1, a2, a3, a4)
-
-    elseif n == 5
-        a5 = (s^5 + 40.0 * s^4 + 635.0 * s^3 + 5000.0 * s^2 + 19524.0 * s + 30240.0) / 3840.0
-        a4 = s * (s^4 + 30.0 * s^3 + 335.0 * s^2 + 1650.0 * s + 3024.0) / 768.0
-        a3 = (s^5 + 20.0 * s^4 + 115.0 * s^3 - 20.0 * s^2 - 1796.0 * s - 3360.0) / 384.0
-        a2 = s * (s^4 + 10.0 * s^3 - 25.0 * s^2 - 490.0 * s - 1176.0) / 384.0
-        a1 = (s^5 - 85.0 * s^3 - 240.0 * s^2 + 564.0 * s + 1440.0) / 768.0
-        a0 = s * (s^4 - 10.0 * s^3 - 65.0 * s^2 + 250.0 * s + 1024.0) / 3840.0
-        (a0, a1, a2, a3, a4, a5)
-
-    else
-        error("implemented n = 0..5")
-    end
-
-    @inline function polJac(ξ::Float64)
-        # Horner: coeffs are (a0, a1, ..., an)
-        p = coeffs[n+1]
-        @inbounds for k in n:-1:1
-            p = muladd(p, ξ, coeffs[k])   # p = p*ξ + a_{k-1}
-        end
-        return p
-    end
-
-    @inline function f!(F, x, y)
-        @inbounds for i in eachindex(F, x, y)
-            yy = (y[i] / 1.5)^2
-            r2 = (x[i] + 1.3 * yy)^2 + yy
-            F[i] = C * polJac(2.0 * r2 - 1.0)
-        end
-        return nothing
-    end
-
-    @inline function fv(x::Float64, y::Float64)::Float64
-        yy = (y / 1.5)^2
-        r2 = (x + 1.3 * yy)^2 + yy
-        return C * polJac(2 * r2 - 1)
-    end
-
-    uex = nothing
-
-    return f!, uex, fv
-
-end
-
-function makeannulusfuex(n::Int, s::Float64)
-
-    nsgn = isodd(n) ? -1.0 : 1.0
-
-    C = (2.0^(2s) * nsgn * gamma(1 + s + n)^2) / gamma(n + 1)^2
-
-    # Coefficients for P_n^(s,0)(ξ), stored as (a0, a1, ..., an).
-    coeffs = if n == 0
-        (1.0,)
-
-    elseif n == 1
-        (0.5 * s, 0.5 * (s + 2.0))
-
-    elseif n == 2
-        a2 = (s + 3.0) * (s + 4.0) * 0.125
-        a1 = (2.0 * s * (s + 3.0)) * 0.125
-        a0 = (s * s - s - 4.0) * 0.125
-        (a0, a1, a2)
-
-    elseif n == 3
-        a3 = (s^3 + 15.0 * s^2 + 74.0 * s + 120.0) / 48.0
-        a2 = (s^3 + 9.0 * s^2 + 20.0 * s) / 16.0
-        a1 = (s^3 + 3.0 * s^2 - 10.0 * s - 24.0) / 16.0
-        a0 = (s^3 - 3.0 * s^2 - 16.0 * s) / 48.0
-        (a0, a1, a2, a3)
-
-    elseif n == 4
-        a4 = (s^4 + 26.0 * s^3 + 251.0 * s^2 + 1066.0 * s + 1680.0) / 384.0
-        a3 = s * (s^3 + 18.0 * s^2 + 107.0 * s + 210.0) / 96.0
-        a2 = (s^4 + 10.0 * s^3 + 11.0 * s^2 - 118.0 * s - 240.0) / 64.0
-        a1 = s * (s^3 + 2.0 * s^2 - 37.0 * s - 110.0) / 96.0
-        a0 = (s^4 - 6.0 * s^3 - 37.0 * s^2 + 42.0 * s + 144.0) / 384.0
-        (a0, a1, a2, a3, a4)
-
-    elseif n == 5
-        a5 = (s^5 + 40.0 * s^4 + 635.0 * s^3 + 5000.0 * s^2 + 19524.0 * s + 30240.0) / 3840.0
-        a4 = s * (s^4 + 30.0 * s^3 + 335.0 * s^2 + 1650.0 * s + 3024.0) / 768.0
-        a3 = (s^5 + 20.0 * s^4 + 115.0 * s^3 - 20.0 * s^2 - 1796.0 * s - 3360.0) / 384.0
-        a2 = s * (s^4 + 10.0 * s^3 - 25.0 * s^2 - 490.0 * s - 1176.0) / 384.0
-        a1 = (s^5 - 85.0 * s^3 - 240.0 * s^2 + 564.0 * s + 1440.0) / 768.0
-        a0 = s * (s^4 - 10.0 * s^3 - 65.0 * s^2 + 250.0 * s + 1024.0) / 3840.0
-        (a0, a1, a2, a3, a4, a5)
-
-    else
-        error("implemented n = 0..5")
-    end
-
-    @inline function polJac(ξ::Float64)
-        p = coeffs[n + 1]
-        @inbounds for k in n:-1:1
-            p = muladd(p, ξ, coeffs[k])
-        end
-        return p
-    end
-
-    @inline function annulus_ξ(x::Float64, y::Float64)::Float64
-        r2 = x * x + y * y
-        return (8.0 * r2 - 5.0) / 3.0
-    end
-
-    @inline function f!(F, x, y)
-        @inbounds for i in eachindex(F, x, y)
-            ξ = annulus_ξ(x[i], y[i])
-            F[i] = C * polJac(ξ)
-        end
-        return nothing
-    end
-
-    @inline function fv(x::Float64, y::Float64)::Float64
-        ξ = annulus_ξ(x, y)
-        return C * polJac(ξ)
-    end
-
-    uex = nothing
-
-    return f!, uex, fv
-end
-
-function makesquirclefuex(n::Int, s::Float64, P::Int)
-
-    nsgn = isodd(n) ? -1.0 : 1.0
-
-    C = (2.0^(2s) * nsgn * gamma(1 + s + n)^2) / gamma(n + 1)^2
-
-    # Coefficients for P_n^(s,0)(ξ), stored as (a0, a1, ..., an).
-    coeffs = if n == 0
-        (1.0,)
-
-    elseif n == 1
-        (0.5 * s, 0.5 * (s + 2.0))
-
-    elseif n == 2
-        a2 = (s + 3.0) * (s + 4.0) * 0.125
-        a1 = (2.0 * s * (s + 3.0)) * 0.125
-        a0 = (s * s - s - 4.0) * 0.125
-        (a0, a1, a2)
-
-    elseif n == 3
-        a3 = (s^3 + 15.0 * s^2 + 74.0 * s + 120.0) / 48.0
-        a2 = (s^3 + 9.0 * s^2 + 20.0 * s) / 16.0
-        a1 = (s^3 + 3.0 * s^2 - 10.0 * s - 24.0) / 16.0
-        a0 = (s^3 - 3.0 * s^2 - 16.0 * s) / 48.0
-        (a0, a1, a2, a3)
-
-    elseif n == 4
-        a4 = (s^4 + 26.0 * s^3 + 251.0 * s^2 + 1066.0 * s + 1680.0) / 384.0
-        a3 = s * (s^3 + 18.0 * s^2 + 107.0 * s + 210.0) / 96.0
-        a2 = (s^4 + 10.0 * s^3 + 11.0 * s^2 - 118.0 * s - 240.0) / 64.0
-        a1 = s * (s^3 + 2.0 * s^2 - 37.0 * s - 110.0) / 96.0
-        a0 = (s^4 - 6.0 * s^3 - 37.0 * s^2 + 42.0 * s + 144.0) / 384.0
-        (a0, a1, a2, a3, a4)
-
-    elseif n == 5
-        a5 = (s^5 + 40.0 * s^4 + 635.0 * s^3 + 5000.0 * s^2 + 19524.0 * s + 30240.0) / 3840.0
-        a4 = s * (s^4 + 30.0 * s^3 + 335.0 * s^2 + 1650.0 * s + 3024.0) / 768.0
-        a3 = (s^5 + 20.0 * s^4 + 115.0 * s^3 - 20.0 * s^2 - 1796.0 * s - 3360.0) / 384.0
-        a2 = s * (s^4 + 10.0 * s^3 - 25.0 * s^2 - 490.0 * s - 1176.0) / 384.0
-        a1 = (s^5 - 85.0 * s^3 - 240.0 * s^2 + 564.0 * s + 1440.0) / 768.0
-        a0 = s * (s^4 - 10.0 * s^3 - 65.0 * s^2 + 250.0 * s + 1024.0) / 3840.0
-        (a0, a1, a2, a3, a4, a5)
-
-    else
-        error("implemented n = 0..5")
-    end
-
-    @inline function polJac(ξ::Float64)
-        p = coeffs[n + 1]
-        @inbounds for k in n:-1:1
-            p = muladd(p, ξ, coeffs[k])
-        end
-        return p
-    end
-
-    @inline function f!(F, x, y)
-        @inbounds for i in eachindex(F, x, y)
-            r2 = x[i]^P + y[i]^P
-            F[i] = C * polJac(2.0 * r2 - 1.0)
-        end
-        return nothing
-    end
-
-    @inline function fv(x::Float64, y::Float64)::Float64
-        r2 = x^P + y^P
-        return C * polJac(2 * r2 - 1)
-    end
-
-    uex = nothing
-
-    return f!, uex, fv
-end
-
-function makepeanutfuex(n::Int, s::Float64)
-
-   nsgn = isodd(n) ? -1.0 : 1.0
-
-   C = (2.0^(2s) * nsgn * gamma(1 + s + n)^2) / gamma(n + 1)^2
-
-   # Coefficients for P_n^(s,0)(ξ), stored as (a0, a1, ..., an).
-   coeffs = if n == 0
-      (1.0,)
-
-   elseif n == 1
-      (0.5 * s, 0.5 * (s + 2.0))
-
-   elseif n == 2
-      a2 = (s + 3.0) * (s + 4.0) * 0.125
-      a1 = (2.0 * s * (s + 3.0)) * 0.125
-      a0 = (s * s - s - 4.0) * 0.125
-      (a0, a1, a2)
-
-   elseif n == 3
-      a3 = (s^3 + 15.0 * s^2 + 74.0 * s + 120.0) / 48.0
-      a2 = (s^3 + 9.0 * s^2 + 20.0 * s) / 16.0
-      a1 = (s^3 + 3.0 * s^2 - 10.0 * s - 24.0) / 16.0
-      a0 = (s^3 - 3.0 * s^2 - 16.0 * s) / 48.0
-      (a0, a1, a2, a3)
-
-   elseif n == 4
-      a4 = (s^4 + 26.0 * s^3 + 251.0 * s^2 + 1066.0 * s + 1680.0) / 384.0
-      a3 = s * (s^3 + 18.0 * s^2 + 107.0 * s + 210.0) / 96.0
-      a2 = (s^4 + 10.0 * s^3 + 11.0 * s^2 - 118.0 * s - 240.0) / 64.0
-      a1 = s * (s^3 + 2.0 * s^2 - 37.0 * s - 110.0) / 96.0
-      a0 = (s^4 - 6.0 * s^3 - 37.0 * s^2 + 42.0 * s + 144.0) / 384.0
-      (a0, a1, a2, a3, a4)
-
-   elseif n == 5
-      a5 = (s^5 + 40.0 * s^4 + 635.0 * s^3 + 5000.0 * s^2 + 19524.0 * s + 30240.0) / 3840.0
-      a4 = s * (s^4 + 30.0 * s^3 + 335.0 * s^2 + 1650.0 * s + 3024.0) / 768.0
-      a3 = (s^5 + 20.0 * s^4 + 115.0 * s^3 - 20.0 * s^2 - 1796.0 * s - 3360.0) / 384.0
-      a2 = s * (s^4 + 10.0 * s^3 - 25.0 * s^2 - 490.0 * s - 1176.0) / 384.0
-      a1 = (s^5 - 85.0 * s^3 - 240.0 * s^2 + 564.0 * s + 1440.0) / 768.0
-      a0 = s * (s^4 - 10.0 * s^3 - 65.0 * s^2 + 250.0 * s + 1024.0) / 3840.0
-      (a0, a1, a2, a3, a4, a5)
-
-   else
-      error("implemented n = 0..5")
-   end
-
-   @inline function polJac(ξ::Float64)
-      p = coeffs[n+1]
-      @inbounds for k in n:-1:1
-         p = muladd(p, ξ, coeffs[k])
-      end
-      return p
-   end
+   C = jacobiC(n, s)
 
    @inline function f!(F, x, y)
       @inbounds for i in eachindex(F, x, y)
-         y2 = y[i]^2
-         r2 = ((x[i] - 1)^2 + y2) * ((x[i] + 1)^2 + y2) - 0.5
-         F[i] = C * polJac(r2 - 0.5)
+         yy = (y[i] / 1.5)^2
+         r2 = (x[i] + 1.3 * yy)^2 + yy
+         F[i] = C * jacobi(1.0 - 2.0 * r2, n, 0.0, s)
       end
       return nothing
    end
 
-   @inline function fv(x::Float64, y::Float64)::Float64
-      y2 = y^2
-      r2 = ((x - 1)^2 + y2) * ((x + 1)^2 + y2) - 0.5
-      return C * polJac(r2 - 0.5)
+   uex = nothing
+
+   return f!, uex
+end
+
+function makeannulusfuex(n::Int, s::Float64)
+
+   C = jacobiC(n, s)
+
+   @inline function annulus_ξ(x::Float64, y::Float64)::Float64
+      r2 = x * x + y * y
+      return (8.0 * r2 - 5.0) / 3.0
+   end
+
+   @inline function f!(F, x, y)
+      @inbounds for i in eachindex(F, x, y)
+         ξ = annulus_ξ(x[i], y[i])
+         F[i] = C * jacobi(-ξ, n, 0.0, s)
+      end
+      return nothing
    end
 
    uex = nothing
 
-   return f!, uex, fv
+   return f!, uex
+end
+
+function makesquirclefuex(n::Int, s::Float64, P::Int)
+
+   C = jacobiC(n, s)
+
+   @inline function f!(F, x, y)
+      @inbounds for i in eachindex(F, x, y)
+         r2 = x[i]^P + y[i]^P
+         F[i] = C * jacobi(1.0 - 2.0 * r2, n, 0.0, s)
+      end
+      return nothing
+   end
+
+   uex = nothing
+
+   return f!, uex
+end
+
+function makepeanutfuex(n::Int, s::Float64)
+
+   C = jacobiC(n, s)
+
+   @inline function f!(F, x, y)
+      @inbounds for i in eachindex(F, x, y)
+         y2 = y[i]^2
+         ξ = ((x[i] - 1.0)^2 + y2) * ((x[i] + 1.0)^2 + y2)
+         F[i] = C * jacobi(1.0 - ξ, n, 0.0, s)
+      end
+      return nothing
+   end
+
+   uex = nothing
+
+   return f!, uex
 end
 
 function makebeanfuex(n::Int, s::Float64)
 
-   nsgn = isodd(n) ? -1.0 : 1.0
-
-   C = (2.0^(2s) * nsgn * gamma(1 + s + n)^2) / gamma(n + 1)^2
-
-   # Coefficients for P_n^(s,0)(ξ), stored as (a0, a1, ..., an).
-   coeffs = if n == 0
-      (1.0,)
-
-   elseif n == 1
-      (0.5 * s, 0.5 * (s + 2.0))
-
-   elseif n == 2
-      a2 = (s + 3.0) * (s + 4.0) * 0.125
-      a1 = (2.0 * s * (s + 3.0)) * 0.125
-      a0 = (s * s - s - 4.0) * 0.125
-      (a0, a1, a2)
-
-   elseif n == 3
-      a3 = (s^3 + 15.0 * s^2 + 74.0 * s + 120.0) / 48.0
-      a2 = (s^3 + 9.0 * s^2 + 20.0 * s) / 16.0
-      a1 = (s^3 + 3.0 * s^2 - 10.0 * s - 24.0) / 16.0
-      a0 = (s^3 - 3.0 * s^2 - 16.0 * s) / 48.0
-      (a0, a1, a2, a3)
-
-   elseif n == 4
-      a4 = (s^4 + 26.0 * s^3 + 251.0 * s^2 + 1066.0 * s + 1680.0) / 384.0
-      a3 = s * (s^3 + 18.0 * s^2 + 107.0 * s + 210.0) / 96.0
-      a2 = (s^4 + 10.0 * s^3 + 11.0 * s^2 - 118.0 * s - 240.0) / 64.0
-      a1 = s * (s^3 + 2.0 * s^2 - 37.0 * s - 110.0) / 96.0
-      a0 = (s^4 - 6.0 * s^3 - 37.0 * s^2 + 42.0 * s + 144.0) / 384.0
-      (a0, a1, a2, a3, a4)
-
-   elseif n == 5
-      a5 = (s^5 + 40.0 * s^4 + 635.0 * s^3 + 5000.0 * s^2 + 19524.0 * s + 30240.0) / 3840.0
-      a4 = s * (s^4 + 30.0 * s^3 + 335.0 * s^2 + 1650.0 * s + 3024.0) / 768.0
-      a3 = (s^5 + 20.0 * s^4 + 115.0 * s^3 - 20.0 * s^2 - 1796.0 * s - 3360.0) / 384.0
-      a2 = s * (s^4 + 10.0 * s^3 - 25.0 * s^2 - 490.0 * s - 1176.0) / 384.0
-      a1 = (s^5 - 85.0 * s^3 - 240.0 * s^2 + 564.0 * s + 1440.0) / 768.0
-      a0 = s * (s^4 - 10.0 * s^3 - 65.0 * s^2 + 250.0 * s + 1024.0) / 3840.0
-      (a0, a1, a2, a3, a4, a5)
-
-   else
-      error("implemented n = 0..5")
-   end
-
-   @inline function polJac(ξ::Float64)
-      p = coeffs[n+1]
-      @inbounds for k in n:-1:1
-         p = muladd(p, ξ, coeffs[k])
-      end
-      return p
-   end
+   C = jacobiC(n, s)
 
    @inline function beaneta(x::Float64, y::Float64)::Float64
       r2 = x * x + y * y
       return x^3 + y^3 - r2 * r2
    end
 
-   @inline function f!(F, x, y)
+   function f!(F, x, y)
       @inbounds for i in eachindex(F, x, y)
          η = beaneta(x[i], y[i])
-         F[i] = C * polJac(10.0 * η - 1.0)
+         F[i] = C * jacobi(1.0 - 10.0 * η, n, 0.0, s)
       end
       return nothing
    end
 
-   @inline function fv(x::Float64, y::Float64)::Float64
-      η = beaneta(x, y)
-      return C * polJac(10.0 * η - 1.0)
-   end
-
    uex = nothing
 
-   return f!, uex, fv
-
+   return f!, uex
 end
 
 function makestarfuex(n::Int, s::Float64)
+
    R = 1.0
    Ps = 1.0
 
-   nsgn = isodd(n) ? -1.0 : 1.0
-
-   C = (2.0^(2s) * nsgn * gamma(1 + s + n)^2) / gamma(n + 1)^2
-
-   # Coefficients for P_n^(s,0)(ξ), stored as (a0, a1, ..., an).
-   coeffs = if n == 0
-      (1.0,)
-
-   elseif n == 1
-      (0.5 * s, 0.5 * (s + 2.0))
-
-   elseif n == 2
-      a2 = (s + 3.0) * (s + 4.0) * 0.125
-      a1 = (2.0 * s * (s + 3.0)) * 0.125
-      a0 = (s * s - s - 4.0) * 0.125
-      (a0, a1, a2)
-
-   elseif n == 3
-      a3 = (s^3 + 15.0 * s^2 + 74.0 * s + 120.0) / 48.0
-      a2 = (s^3 + 9.0 * s^2 + 20.0 * s) / 16.0
-      a1 = (s^3 + 3.0 * s^2 - 10.0 * s - 24.0) / 16.0
-      a0 = (s^3 - 3.0 * s^2 - 16.0 * s) / 48.0
-      (a0, a1, a2, a3)
-
-   elseif n == 4
-      a4 = (s^4 + 26.0 * s^3 + 251.0 * s^2 + 1066.0 * s + 1680.0) / 384.0
-      a3 = s * (s^3 + 18.0 * s^2 + 107.0 * s + 210.0) / 96.0
-      a2 = (s^4 + 10.0 * s^3 + 11.0 * s^2 - 118.0 * s - 240.0) / 64.0
-      a1 = s * (s^3 + 2.0 * s^2 - 37.0 * s - 110.0) / 96.0
-      a0 = (s^4 - 6.0 * s^3 - 37.0 * s^2 + 42.0 * s + 144.0) / 384.0
-      (a0, a1, a2, a3, a4)
-
-   elseif n == 5
-      a5 = (s^5 + 40.0 * s^4 + 635.0 * s^3 + 5000.0 * s^2 + 19524.0 * s + 30240.0) / 3840.0
-      a4 = s * (s^4 + 30.0 * s^3 + 335.0 * s^2 + 1650.0 * s + 3024.0) / 768.0
-      a3 = (s^5 + 20.0 * s^4 + 115.0 * s^3 - 20.0 * s^2 - 1796.0 * s - 3360.0) / 384.0
-      a2 = s * (s^4 + 10.0 * s^3 - 25.0 * s^2 - 490.0 * s - 1176.0) / 384.0
-      a1 = (s^5 - 85.0 * s^3 - 240.0 * s^2 + 564.0 * s + 1440.0) / 768.0
-      a0 = s * (s^4 - 10.0 * s^3 - 65.0 * s^2 + 250.0 * s + 1024.0) / 3840.0
-      (a0, a1, a2, a3, a4, a5)
-
-   else
-      error("implemented n = 0..5")
-   end
-
-   @inline function polJac(ξ::Float64)
-      p = coeffs[n+1]
-      @inbounds for k in n:-1:1
-         p = muladd(p, ξ, coeffs[k])
-      end
-      return p
-   end
+   C = jacobiC(n, s)
 
    # Smooth radial test coordinate.
-   # For default star:
    # h(θ) = 1 + Ps/2 + Ps*cos(Pθ)/2,
    # so hmax = 1 + Ps and Rmax = R*(1 + Ps).
    Rmax = R * (1.0 + Ps)
-   invRmax2 = 1.0 / (Rmax * Rmax)
+   invR = 1.0 / (Rmax * Rmax)
 
    @inline function f!(F, x, y)
       @inbounds for i in eachindex(F, x, y)
-         ξ = 2.0 * ((x[i] * x[i] + y[i] * y[i]) * invRmax2) - 1.0
-         F[i] = C * polJac(ξ)
+         r2 = (x[i] * x[i] + y[i] * y[i]) * invR
+         F[i] = C * jacobi(1.0 - 2.0 * r2, n, 0.0, s)
       end
       return nothing
    end
 
-   @inline function fv(x::Float64, y::Float64)::Float64
-      ξ = 2.0 * ((x * x + y * y) * invRmax2) - 1.0
-      return C * polJac(ξ)
+   uex = nothing
+
+   return f!, uex
+end
+
+function makeellipseNhfuex(n::Int, s::Float64)
+
+   C = jacobiC(n, s)
+
+   # Default ellipseNh outer ellipse:
+   # center = (0,0), R1 = 1, R2 = 1, tht = 0.
+   @inline function f!(F, x, y)
+      @inbounds for i in eachindex(F, x, y)
+         r2 = x[i] * x[i] + y[i] * y[i]
+         F[i] = C * jacobi(1.0 - 2.0 * r2, n, 0.0, s)
+      end
+      return nothing
    end
 
    uex = nothing
 
-   return f!, uex, fv
-end 
+   return f!, uex
+
+end
 
 end
 

@@ -5,9 +5,9 @@ function getfield_default(x, name::Symbol, default)
    return name in propertynames(x) ? getproperty(x, name) : default
 end
 
-function run_one_disc!(io, case; s::Float64, p::Int, nJac::Int=5)
+function run_one_disc!(io, case; s::Float64, p::Int, nJac::Int=2)
 
-   f!, uex, _ = makediscfuex(nJac, s)
+   f!, uex = makediscfuex(nJac, s)
 
    # New domprop controls
    δv_near = getfield_default(case, :δv_near, 0.15)
@@ -62,7 +62,7 @@ end
 
 open("test_temp.txt", "w") do io
 
-   s, p = 0.25, 4
+   s, p = 0.75, 4
 
    println(io, "s = ", s)
    println(io, "p = ", p)
@@ -70,7 +70,7 @@ open("test_temp.txt", "w") do io
 
    #dom=FL2D.disc(b=[5, 5, 5, 5, 5], a=[3, 3, 3, 3, 4]
 
-   case = (dom=FL2D.disc(b=[2, 2, 2, 2, 2], L1=0.8, L2=0.8),
+   case = (dom=FL2D.disc(b=[5, 5, 5, 5, 5], a=[3, 3, 3, 3, 4], L1=0.8, L2=0.8),
       N=12, nₚᵣ=128,
       δv_near=0.15, δv_close=8e-3,
       δ_near=0.15, δ_intp=5e-3,
@@ -80,7 +80,7 @@ open("test_temp.txt", "w") do io
       cond_num=false,
       plot=false)
 
-   run_one_disc!(io, case; s=s, p=p, nJac=5)
+   run_one_disc!(io, case; s=s, p=p, nJac=2)
 
    flush(io)
 end
@@ -126,7 +126,7 @@ for (s, p, tag) in [
       flush(io)
 
       for case in direct_cases
-         run_one_disc!(io, case; s=s, p=p, nJac=5)
+         run_one_disc!(io, case; s=s, p=p, nJac=2)
       end
 
       println(io, "\n==End of Disc: direct matrix==")
@@ -141,7 +141,7 @@ for (s, p, tag) in [
       flush(io)
 
       for case in matrixfree_cases
-         run_one_disc!(io, case; s=s, p=p, nJac=5)
+         run_one_disc!(io, case; s=s, p=p, nJac=2)
       end
 
       println(io, "\n==End of Disc: matrix free==")
@@ -169,7 +169,7 @@ for (s, p, tag) in [
       flush(io)
 
       for case in small_false_cases
-         run_one_disc!(io, case; s=s, p=p, nJac=5)
+         run_one_disc!(io, case; s=s, p=p, nJac=2)
       end
 
       println(io, "\n==End of Disc: s_small=false==")
@@ -184,7 +184,7 @@ for (s, p, tag) in [
       flush(io)
 
       for case in small_true_cases
-         run_one_disc!(io, case; s=s, p=p, nJac=5)
+         run_one_disc!(io, case; s=s, p=p, nJac=2)
       end
 
       println(io, "\n==End of Disc: s_small=true==")
@@ -217,7 +217,7 @@ open("solve_outputs9999_direct.txt", "w") do io
    ]
 
    for case in cases
-      run_one_disc!(io, case; s=s, p=p, nJac=5)
+      run_one_disc!(io, case; s=s, p=p, nJac=2)
    end
 
    println(io, "\n==End of Disc==")
@@ -244,7 +244,7 @@ open("solve_outputs0999_direct.txt", "w") do io
    ]
 
    for case in cases
-      run_one_disc!(io, case; s=s, p=p, nJac=5)
+      run_one_disc!(io, case; s=s, p=p, nJac=2)
    end
 
    println(io, "\n==End of Disc==")
@@ -269,13 +269,13 @@ open("solve_outputs0990_direct.txt", "w") do io
       (dom=d5, N=12, nₚᵣ=128),
       (dom=d5, N=12, nₚᵣ=256),
       (dom=d5, N=12, nₚᵣ=512), 
-      (dom=d6, N=12, nₚᵣ=128),
-      (dom=d6, N=12, nₚᵣ=256),
-      (dom=d6, N=12, nₚᵣ=512),
+      #(dom=d6, N=12, nₚᵣ=128),
+      #(dom=d6, N=12, nₚᵣ=256),
+      #(dom=d6, N=12, nₚᵣ=512),
    ]
 
    for case in cases
-      run_one_disc!(io, case; s=s, p=p, nJac=5)
+      run_one_disc!(io, case; s=s, p=p, nJac=2)
    end
 
    println(io, "\n==End of Disc==")
@@ -300,12 +300,12 @@ open("solve_outputs0900_direct.txt", "w") do io
       (dom=d5, N=12, nₚᵣ=128),
       (dom=d5, N=12, nₚᵣ=256),
       (dom=d5, N=12, nₚᵣ=512), 
-      (dom=d6, N=12, nₚᵣ=256),
-      (dom=d6, N=12, nₚᵣ=512),
+      #(dom=d6, N=12, nₚᵣ=256),
+      #(dom=d6, N=12, nₚᵣ=512),
    ]
 
    for case in cases
-      run_one_disc!(io, case; s=s, p=p, nJac=5)
+      run_one_disc!(io, case; s=s, p=p, nJac=2)
    end
 
    println(io, "\n==End of Disc==")
@@ -332,7 +332,7 @@ open("solve_outputs0750_direct.txt", "w") do io
    ]
 
    for case in cases
-      run_one_disc!(io, case; s=s, p=p, nJac=5)
+      run_one_disc!(io, case; s=s, p=p, nJac=2)
    end
 
    println(io, "\n==End of Disc==")
@@ -357,12 +357,11 @@ open("solve_outputs0500_direct.txt", "w") do io
       (dom=d5, N=12, nₚᵣ=128),
       (dom=d5, N=12, nₚᵣ=256), 
       (dom=d6, N=12, nₚᵣ=128),
-      (dom=d6, N=12, nₚᵣ=256),
-      (dom=d6, N=12, nₚᵣ=512),
+      (dom=d6, N=12, nₚᵣ=256)
    ]
 
    for case in cases
-      run_one_disc!(io, case; s=s, p=p, nJac=5)
+      run_one_disc!(io, case; s=s, p=p, nJac=2)
    end
 
    println(io, "\n==End of Disc==")
@@ -388,11 +387,10 @@ open("solve_outputs0250_direct.txt", "w") do io
       (dom=d5, N=12, nₚᵣ=256), 
       (dom=d6, N=12, nₚᵣ=128),
       (dom=d6, N=12, nₚᵣ=256),
-      (dom=d6, N=12, nₚᵣ=512),
    ]
 
    for case in cases
-      run_one_disc!(io, case; s=s, p=p, nJac=5)
+      run_one_disc!(io, case; s=s, p=p, nJac=2)
    end
 
    println(io, "\n==End of Disc==")
@@ -411,14 +409,17 @@ open("solve_outputs0100_direct.txt", "w") do io
 
    cases = [
       (dom=d1, N=10, nₚᵣ=128),
-      (dom=d1, N=12, nₚᵣ=128), (dom=d2, N=12, nₚᵣ=128), (dom=d3, N=12, nₚᵣ=128), (dom=d5, N=12, nₚᵣ=128),
-      (dom=d5, N=12, nₚᵣ=256), (dom=d6, N=12, nₚᵣ=128),
+      (dom=d1, N=12, nₚᵣ=128), 
+      (dom=d2, N=12, nₚᵣ=128), 
+      (dom=d3, N=12, nₚᵣ=128), 
+      (dom=d5, N=12, nₚᵣ=128),
+      (dom=d5, N=12, nₚᵣ=256), 
+      (dom=d6, N=12, nₚᵣ=128),
       (dom=d6, N=12, nₚᵣ=256),
-      (dom=d6, N=12, nₚᵣ=512),
    ]
 
    for case in cases
-      run_one_disc!(io, case; s=s, p=p, nJac=5)
+      run_one_disc!(io, case; s=s, p=p, nJac=2)
    end
 
    println(io, "\n==End of Disc==")
@@ -428,11 +429,17 @@ end
 
 #From this point on, s_small is true
 case_specs = [
-   (dom=d1, N=3, nₚᵣ=32), (dom=d1, N=4, nₚᵣ=32), (dom=d1, N=5, nₚᵣ=32),
-   (dom=d1, N=6, nₚᵣ=64), (dom=d1, N=7, nₚᵣ=64), (dom=d1, N=8, nₚᵣ=64), (dom=d1, N=9, nₚᵣ=128), (dom=d1, N=10, nₚᵣ=128), (dom=d1, N=12, nₚᵣ=128),
-   (dom=d2, N=10, nₚᵣ=128), (dom=d2, N=12, nₚᵣ=128), (dom=d2, N=12, nₚᵣ=256),
-   (dom=d3, N=10, nₚᵣ=128), (dom=d3, N=12, nₚᵣ=128), (dom=d3, N=12, nₚᵣ=256),
-   (dom=d5, N=12, nₚᵣ=128), (dom=d5, N=12, nₚᵣ=256),
+   (dom=d1, N=8, nₚᵣ=64),
+   (dom=d1, N=9, nₚᵣ=128), 
+   (dom=d1, N=10, nₚᵣ=128), 
+   (dom=d1, N=12, nₚᵣ=128),
+   (dom=d2, N=10, nₚᵣ=128), 
+   (dom=d2, N=12, nₚᵣ=128),
+   (dom=d3, N=10, nₚᵣ=128), 
+   (dom=d3, N=12, nₚᵣ=128), 
+   (dom=d3, N=12, nₚᵣ=256),
+   (dom=d5, N=12, nₚᵣ=128), 
+   (dom=d5, N=12, nₚᵣ=256),
 ];
 
 
@@ -441,13 +448,12 @@ small_true_opts = (solver=:direct, matrixfree=false, benchmark=false, cond_num=t
 small_true_cases = [(; c..., small_true_opts...) for c in case_specs];
 
 for (s, p, tag) in [
-   (0.50, 4, "0500"),
    (0.25, 4, "0250"),
    (0.10, 4, "0100"),
    (0.01, 4, "0010"),
    (1e-3, 4, "1e-3"),
    (1e-4, 4, "1e-4"),
-   (1e-7, 4, "1e-7"),
+   (1e-8, 4, "1e-8"),
    (1e-16, 4, "1e-16"),]
 
    open("solve_outputs$(tag)_s_small_true.txt", "w") do io
@@ -457,7 +463,7 @@ for (s, p, tag) in [
       flush(io)
 
       for case in small_true_cases
-         run_one_disc!(io, case; s=s, p=p, nJac=5)
+         run_one_disc!(io, case; s=s, p=p, nJac=2)
       end
 
       println(io, "\n==End of Disc: s_small=true==")

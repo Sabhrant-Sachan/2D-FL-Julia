@@ -67,7 +67,7 @@ ftable_regions(::peanut) = 1:10
 ftable_regions(::squircle) = 1:4
 
 ftable_regions(::annulus) = 1:8
-#ftable_regions(d::ellipseNh) = 1:(8*d.nh)
+ftable_regions(d::ellipseNh) = 1:(8*d.nh)
 #-----------------------------------------
 
 """

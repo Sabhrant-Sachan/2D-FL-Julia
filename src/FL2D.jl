@@ -12,7 +12,7 @@ using Subroutines
 using ApproxFun
 
 # --- Special functions used internally ---
-using SpecialFunctions: gamma, ellipe
+using SpecialFunctions: gamma, ellipe, loggamma
 using HypergeometricFunctions: pFq
 
 # --- Plotting (keep if you want plot flags in-package) ---

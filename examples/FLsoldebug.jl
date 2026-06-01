@@ -77,7 +77,7 @@ FL2D.testDLP(d, dp; nr=64)
 
 f!, uex, fv = FLdata.makesquirclefuex(5, 0.1, 4);
 
-f!, uex, fv = FLdata.makediscfuex(5, 0.75);
+f!, uex, fv = FLdata.makediscfuex(2, 0.99);
 
 f!, uex, fv = FLdata.makepeanutfuex(0, 0.75);
 
@@ -87,14 +87,36 @@ f!, uex, fv = FLdata.makestarfuex(0, 0.75);
 
 FL2D.plotfunc(dp, d, f!)
 
-bex = FL2D.bvec(d, dp, 0.75, f!);
+f!, uex, fv = FLdata.makediscfuex(5, 0.99);
+
+bex = FL2D.bvec(d, dp, 0.99, f!; n=256);
 
 FL2D.plotfunc(dp,d,bex)
 
-for n in [16,32]
-   b = FL2D.bvec(d, dp, 0.75, f!; n=n);
+for n in [16, 32, 64, 128]
+   b = FL2D.bvec(d, dp, 0.99, f!; n=n);
    display(maximum(abs.(b.-bex)))
 end  
+
+f!, uex, fv = FLdata.makediscfuex(3, 0.99);
+
+bex = FL2D.bvec(d, dp, 0.99, f!; n=256);
+
+for n in [16, 32, 64, 128]
+   b = FL2D.bvec(d, dp, 0.99, f!; n=n);
+   display(maximum(abs.(b.-bex)))
+end  
+
+f!, uex, fv = FLdata.makediscfuex(10, 0.99);
+
+bex = FL2D.bvec(d, dp, 0.99, f!; n=256);
+
+for n in [16, 32, 64, 128]
+   b = FL2D.bvec(d, dp, 0.99, f!; n=n);
+   display(maximum(abs.(b.-bex)))
+end  
+
+
 
 s=0.25
 p=4 

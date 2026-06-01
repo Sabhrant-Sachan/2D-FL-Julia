@@ -482,4 +482,536 @@ mutable struct ellipseNh <: abstractdomain
 
 end
 
+function mapx(d::ellipseNh, u::Float64, v::Float64, k::Int)::Float64
+
+   Zx, _ = mapxy(d, u, v, k)
+
+   return Zx
+
+end
+
+function mapy(d::ellipseNh, u::Float64, v::Float64, k::Int)::Float64
+
+   _, Zy = mapxy(d, u, v, k)
+
+   return Zy
+
+end
+
+function mapxy(d::ellipseNh, u::Float64, v::Float64, k::Int)::Tuple{Float64,Float64}
+
+   p = d.pths[k]
+
+   hc = p.ck1 - p.ck0
+   ht = p.tk1 - p.tk0
+
+   ξ1 = muladd(0.5 * hc, u, 0.5 * (p.ck0 + p.ck1))
+   ξ2 = muladd(0.5 * ht, v, 0.5 * (p.tk0 + p.tk1))
+
+   reg = p.reg
+
+   H = cld(reg, 8)
+   r = reg - 8 * (H - 1)
+
+   Hj = H + 1
+
+   Tj = @view d.T[:, H]
+
+   s1, c1 = sincos(d.tht[1])
+   sj, cj = sincos(d.tht[Hj])
+
+   A1 = d.A[1]
+   B1 = d.B[1]
+   R11 = d.R1[1]
+   R12 = d.R2[1]
+
+   Aj = d.A[Hj]
+   Bj = d.B[Hj]
+   Rj1 = d.R1[Hj]
+   Rj2 = d.R2[Hj]
+
+   if r == 1
+
+      st5, ct5 = sincos(Tj[5])
+      st2, ct2 = sincos(Tj[2])
+
+      gjx5 = Aj + Rj1 * ct5 * cj - Rj2 * st5 * sj
+      gjy5 = Bj + Rj1 * ct5 * sj + Rj2 * st5 * cj
+
+      g1x2 = A1 + R11 * ct2 * c1 - R12 * st2 * s1
+      g1y2 = B1 + R11 * ct2 * s1 + R12 * st2 * c1
+
+      Xx = (1.0 - ξ2) * Tj[12] + ξ2 * (gjx5 + g1x2) / 2.0
+      Xy = (1.0 - ξ2) * Tj[13] + ξ2 * (gjy5 + g1y2) / 2.0
+
+      θ = muladd(ξ2, Tj[2] - Tj[1], Tj[1])
+      st, ct = sincos(θ)
+
+      Yx = A1 + R11 * ct * c1 - R12 * st * s1
+      Yy = B1 + R11 * ct * s1 + R12 * st * c1
+
+   elseif r == 2
+
+      θ = muladd(ξ2, Tj[3] - Tj[2], Tj[2])
+      st, ct = sincos(θ)
+
+      Yx = A1 + R11 * ct * c1 - R12 * st * s1
+      Yy = B1 + R11 * ct * s1 + R12 * st * c1
+
+      θj = muladd(ξ2, Tj[6] - Tj[5], Tj[5])
+      stj, ctj = sincos(θj)
+
+      Yjx = Aj + Rj1 * ctj * cj - Rj2 * stj * sj
+      Yjy = Bj + Rj1 * ctj * sj + Rj2 * stj * cj
+
+      Xx = (Yx + Yjx) / 2.0
+      Xy = (Yy + Yjy) / 2.0
+
+   elseif r == 3
+
+      st6, ct6 = sincos(Tj[6])
+      st3, ct3 = sincos(Tj[3])
+
+      gjx6 = Aj + Rj1 * ct6 * cj - Rj2 * st6 * sj
+      gjy6 = Bj + Rj1 * ct6 * sj + Rj2 * st6 * cj
+
+      g1x3 = A1 + R11 * ct3 * c1 - R12 * st3 * s1
+      g1y3 = B1 + R11 * ct3 * s1 + R12 * st3 * c1
+
+      Xx = (1.0 - ξ2) * (gjx6 + g1x3) / 2.0 + ξ2 * Tj[10]
+      Xy = (1.0 - ξ2) * (gjy6 + g1y3) / 2.0 + ξ2 * Tj[11]
+
+      θ = muladd(ξ2, Tj[4] - Tj[3], Tj[3])
+      st, ct = sincos(θ)
+
+      Yx = A1 + R11 * ct * c1 - R12 * st * s1
+      Yy = B1 + R11 * ct * s1 + R12 * st * c1
+
+   elseif r == 4
+
+      θj = muladd(ξ2, Tj[6] - Tj[5], Tj[5])
+      stj, ctj = sincos(θj)
+
+      Yx = Aj + Rj1 * ctj * cj - Rj2 * stj * sj
+      Yy = Bj + Rj1 * ctj * sj + Rj2 * stj * cj
+
+      θ = muladd(ξ2, Tj[3] - Tj[2], Tj[2])
+      st, ct = sincos(θ)
+
+      Yjx = A1 + R11 * ct * c1 - R12 * st * s1
+      Yjy = B1 + R11 * ct * s1 + R12 * st * c1
+
+      Xx = (Yjx + Yx) / 2.0
+      Xy = (Yjy + Yy) / 2.0
+
+   elseif r == 5
+
+      st6, ct6 = sincos(Tj[6])
+      st3, ct3 = sincos(Tj[3])
+
+      gjx6 = Aj + Rj1 * ct6 * cj - Rj2 * st6 * sj
+      gjy6 = Bj + Rj1 * ct6 * sj + Rj2 * st6 * cj
+
+      g1x3 = A1 + R11 * ct3 * c1 - R12 * st3 * s1
+      g1y3 = B1 + R11 * ct3 * s1 + R12 * st3 * c1
+
+      Xx = (1.0 - ξ2) * (gjx6 + g1x3) / 2.0 + ξ2 * Tj[10]
+      Xy = (1.0 - ξ2) * (gjy6 + g1y3) / 2.0 + ξ2 * Tj[11]
+
+      θ = muladd(ξ2, Tj[7] - Tj[6], Tj[6])
+      stj, ctj = sincos(θ)
+
+      Yx = Aj + Rj1 * ctj * cj - Rj2 * stj * sj
+      Yy = Bj + Rj1 * ctj * sj + Rj2 * stj * cj
+
+   elseif r == 6
+
+      Xx = (1.0 - ξ2) * Tj[10] + ξ2 * A1
+      Xy = (1.0 - ξ2) * Tj[11] + ξ2 * B1
+
+      θ = muladd(ξ2, Tj[8] - Tj[7], Tj[7])
+      stj, ctj = sincos(θ)
+
+      Yx = Aj + Rj1 * ctj * cj - Rj2 * stj * sj
+      Yy = Bj + Rj1 * ctj * sj + Rj2 * stj * cj
+
+   elseif r == 7
+
+      Xx = (1.0 - ξ2) * A1 + ξ2 * Tj[12]
+      Xy = (1.0 - ξ2) * B1 + ξ2 * Tj[13]
+
+      θ = muladd(ξ2, Tj[9] - Tj[8], Tj[8])
+      stj, ctj = sincos(θ)
+
+      Yx = Aj + Rj1 * ctj * cj - Rj2 * stj * sj
+      Yy = Bj + Rj1 * ctj * sj + Rj2 * stj * cj
+
+   elseif r == 8
+
+      st5, ct5 = sincos(Tj[5])
+      st2, ct2 = sincos(Tj[2])
+
+      gjx5 = Aj + Rj1 * ct5 * cj - Rj2 * st5 * sj
+      gjy5 = Bj + Rj1 * ct5 * sj + Rj2 * st5 * cj
+
+      g1x2 = A1 + R11 * ct2 * c1 - R12 * st2 * s1
+      g1y2 = B1 + R11 * ct2 * s1 + R12 * st2 * c1
+
+      Xx = (1.0 - ξ2) * Tj[12] + ξ2 * (gjx5 + g1x2) / 2.0
+      Xy = (1.0 - ξ2) * Tj[13] + ξ2 * (gjy5 + g1y2) / 2.0
+
+      θ = muladd(ξ2, Tj[5] - Tj[9] + 2.0π, Tj[9])
+      stj, ctj = sincos(θ)
+
+      Yx = Aj + Rj1 * ctj * cj - Rj2 * stj * sj
+      Yy = Bj + Rj1 * ctj * sj + Rj2 * stj * cj
+
+   else
+
+      throw(ArgumentError("mapxy local region must be 1:8; got r=$r, reg=$reg"))
+
+   end
+
+   Zx = (1.0 - ξ1) * Xx + ξ1 * Yx
+   Zy = (1.0 - ξ1) * Xy + ξ1 * Yy
+
+   return Zx, Zy
+
+end
+
+function mapxy!(Zx::StridedArray{Float64}, Zy::StridedArray{Float64},
+   d::ellipseNh, u::StridedArray{Float64}, v::StridedArray{Float64}, k::Int)
+
+   p = d.pths[k]
+
+   αc = 0.5 * (p.ck1 - p.ck0)
+   βc = 0.5 * (p.ck0 + p.ck1)
+
+   αt = 0.5 * (p.tk1 - p.tk0)
+   βt = 0.5 * (p.tk0 + p.tk1)
+
+   reg = p.reg
+
+   H = cld(reg, 8)
+   r = reg - 8 * (H - 1)
+
+   Hj = H + 1
+
+   # T values for this hole block.
+   T1  = d.T[1, H]
+   T2  = d.T[2, H]
+   T3  = d.T[3, H]
+   T4  = d.T[4, H]
+   T5  = d.T[5, H]
+   T6  = d.T[6, H]
+   T7  = d.T[7, H]
+   T8  = d.T[8, H]
+   T9  = d.T[9, H]
+   T10 = d.T[10, H]
+   T11 = d.T[11, H]
+   T12 = d.T[12, H]
+   T13 = d.T[13, H]
+
+   # Outer ellipse constants.
+   s1, c1 = sincos(d.tht[1])
+   A1 = d.A[1]
+   B1 = d.B[1]
+   R11 = d.R1[1]
+   R12 = d.R2[1]
+
+   # Hole ellipse constants.
+   sj, cj = sincos(d.tht[Hj])
+   Aj = d.A[Hj]
+   Bj = d.B[Hj]
+   Rj1 = d.R1[Hj]
+   Rj2 = d.R2[Hj]
+
+   if r == 1
+
+      st5, ct5 = sincos(T5)
+      st2, ct2 = sincos(T2)
+
+      gjx5 = Aj + Rj1 * ct5 * cj - Rj2 * st5 * sj
+      gjy5 = Bj + Rj1 * ct5 * sj + Rj2 * st5 * cj
+
+      g1x2 = A1 + R11 * ct2 * c1 - R12 * st2 * s1
+      g1y2 = B1 + R11 * ct2 * s1 + R12 * st2 * c1
+
+      XxR = 0.5 * (gjx5 + g1x2)
+      XyR = 0.5 * (gjy5 + g1y2)
+
+      dθ = T2 - T1
+
+      @inbounds for i in eachindex(Zx, Zy, u, v)
+
+         ξ1 = muladd(αc, u[i], βc)
+         ξ2 = muladd(αt, v[i], βt)
+
+         Xx = muladd(ξ2, XxR - T12, T12)
+         Xy = muladd(ξ2, XyR - T13, T13)
+
+         θ = muladd(ξ2, dθ, T1)
+         st, ct = sincos(θ)
+
+         Yx = A1 + R11 * ct * c1 - R12 * st * s1
+         Yy = B1 + R11 * ct * s1 + R12 * st * c1
+
+         Zx[i] = muladd(ξ1, Yx - Xx, Xx)
+         Zy[i] = muladd(ξ1, Yy - Xy, Xy)
+
+      end
+
+   elseif r == 2
+
+      dθo = T3 - T2
+      dθh = T6 - T5
+
+      @inbounds for i in eachindex(Zx, Zy, u, v)
+
+         ξ1 = muladd(αc, u[i], βc)
+         ξ2 = muladd(αt, v[i], βt)
+
+         θ = muladd(ξ2, dθo, T2)
+         st, ct = sincos(θ)
+
+         Yx = A1 + R11 * ct * c1 - R12 * st * s1
+         Yy = B1 + R11 * ct * s1 + R12 * st * c1
+
+         θj = muladd(ξ2, dθh, T5)
+         stj, ctj = sincos(θj)
+
+         Yjx = Aj + Rj1 * ctj * cj - Rj2 * stj * sj
+         Yjy = Bj + Rj1 * ctj * sj + Rj2 * stj * cj
+
+         Xx = 0.5 * (Yx + Yjx)
+         Xy = 0.5 * (Yy + Yjy)
+
+         Zx[i] = muladd(ξ1, Yx - Xx, Xx)
+         Zy[i] = muladd(ξ1, Yy - Xy, Xy)
+
+      end
+
+   elseif r == 3
+
+      st6, ct6 = sincos(T6)
+      st3, ct3 = sincos(T3)
+
+      gjx6 = Aj + Rj1 * ct6 * cj - Rj2 * st6 * sj
+      gjy6 = Bj + Rj1 * ct6 * sj + Rj2 * st6 * cj
+
+      g1x3 = A1 + R11 * ct3 * c1 - R12 * st3 * s1
+      g1y3 = B1 + R11 * ct3 * s1 + R12 * st3 * c1
+
+      XxL = 0.5 * (gjx6 + g1x3)
+      XyL = 0.5 * (gjy6 + g1y3)
+
+      dθ = T4 - T3
+
+      @inbounds for i in eachindex(Zx, Zy, u, v)
+
+         ξ1 = muladd(αc, u[i], βc)
+         ξ2 = muladd(αt, v[i], βt)
+
+         Xx = muladd(ξ2, T10 - XxL, XxL)
+         Xy = muladd(ξ2, T11 - XyL, XyL)
+
+         θ = muladd(ξ2, dθ, T3)
+         st, ct = sincos(θ)
+
+         Yx = A1 + R11 * ct * c1 - R12 * st * s1
+         Yy = B1 + R11 * ct * s1 + R12 * st * c1
+
+         Zx[i] = muladd(ξ1, Yx - Xx, Xx)
+         Zy[i] = muladd(ξ1, Yy - Xy, Xy)
+
+      end
+
+   elseif r == 4
+
+      dθh = T6 - T5
+      dθo = T3 - T2
+
+      @inbounds for i in eachindex(Zx, Zy, u, v)
+
+         ξ1 = muladd(αc, u[i], βc)
+         ξ2 = muladd(αt, v[i], βt)
+
+         θj = muladd(ξ2, dθh, T5)
+         stj, ctj = sincos(θj)
+
+         Yx = Aj + Rj1 * ctj * cj - Rj2 * stj * sj
+         Yy = Bj + Rj1 * ctj * sj + Rj2 * stj * cj
+
+         θ = muladd(ξ2, dθo, T2)
+         st, ct = sincos(θ)
+
+         Yjx = A1 + R11 * ct * c1 - R12 * st * s1
+         Yjy = B1 + R11 * ct * s1 + R12 * st * c1
+
+         Xx = 0.5 * (Yjx + Yx)
+         Xy = 0.5 * (Yjy + Yy)
+
+         Zx[i] = muladd(ξ1, Yx - Xx, Xx)
+         Zy[i] = muladd(ξ1, Yy - Xy, Xy)
+
+      end
+
+   elseif r == 5
+
+      st6, ct6 = sincos(T6)
+      st3, ct3 = sincos(T3)
+
+      gjx6 = Aj + Rj1 * ct6 * cj - Rj2 * st6 * sj
+      gjy6 = Bj + Rj1 * ct6 * sj + Rj2 * st6 * cj
+
+      g1x3 = A1 + R11 * ct3 * c1 - R12 * st3 * s1
+      g1y3 = B1 + R11 * ct3 * s1 + R12 * st3 * c1
+
+      XxL = 0.5 * (gjx6 + g1x3)
+      XyL = 0.5 * (gjy6 + g1y3)
+
+      dθ = T7 - T6
+
+      @inbounds for i in eachindex(Zx, Zy, u, v)
+
+         ξ1 = muladd(αc, u[i], βc)
+         ξ2 = muladd(αt, v[i], βt)
+
+         Xx = muladd(ξ2, T10 - XxL, XxL)
+         Xy = muladd(ξ2, T11 - XyL, XyL)
+
+         θ = muladd(ξ2, dθ, T6)
+         stj, ctj = sincos(θ)
+
+         Yx = Aj + Rj1 * ctj * cj - Rj2 * stj * sj
+         Yy = Bj + Rj1 * ctj * sj + Rj2 * stj * cj
+
+         Zx[i] = muladd(ξ1, Yx - Xx, Xx)
+         Zy[i] = muladd(ξ1, Yy - Xy, Xy)
+
+      end
+
+   elseif r == 6
+
+      dθ = T8 - T7
+
+      @inbounds for i in eachindex(Zx, Zy, u, v)
+
+         ξ1 = muladd(αc, u[i], βc)
+         ξ2 = muladd(αt, v[i], βt)
+
+         Xx = muladd(ξ2, A1 - T10, T10)
+         Xy = muladd(ξ2, B1 - T11, T11)
+
+         θ = muladd(ξ2, dθ, T7)
+         stj, ctj = sincos(θ)
+
+         Yx = Aj + Rj1 * ctj * cj - Rj2 * stj * sj
+         Yy = Bj + Rj1 * ctj * sj + Rj2 * stj * cj
+
+         Zx[i] = muladd(ξ1, Yx - Xx, Xx)
+         Zy[i] = muladd(ξ1, Yy - Xy, Xy)
+
+      end
+
+   elseif r == 7
+
+      dθ = T9 - T8
+
+      @inbounds for i in eachindex(Zx, Zy, u, v)
+
+         ξ1 = muladd(αc, u[i], βc)
+         ξ2 = muladd(αt, v[i], βt)
+
+         Xx = muladd(ξ2, T12 - A1, A1)
+         Xy = muladd(ξ2, T13 - B1, B1)
+
+         θ = muladd(ξ2, dθ, T8)
+         stj, ctj = sincos(θ)
+
+         Yx = Aj + Rj1 * ctj * cj - Rj2 * stj * sj
+         Yy = Bj + Rj1 * ctj * sj + Rj2 * stj * cj
+
+         Zx[i] = muladd(ξ1, Yx - Xx, Xx)
+         Zy[i] = muladd(ξ1, Yy - Xy, Xy)
+
+      end
+
+   elseif r == 8
+
+      st5, ct5 = sincos(T5)
+      st2, ct2 = sincos(T2)
+
+      gjx5 = Aj + Rj1 * ct5 * cj - Rj2 * st5 * sj
+      gjy5 = Bj + Rj1 * ct5 * sj + Rj2 * st5 * cj
+
+      g1x2 = A1 + R11 * ct2 * c1 - R12 * st2 * s1
+      g1y2 = B1 + R11 * ct2 * s1 + R12 * st2 * c1
+
+      XxR = 0.5 * (gjx5 + g1x2)
+      XyR = 0.5 * (gjy5 + g1y2)
+
+      dθ = T5 - T9 + 2.0π
+
+      @inbounds for i in eachindex(Zx, Zy, u, v)
+
+         ξ1 = muladd(αc, u[i], βc)
+         ξ2 = muladd(αt, v[i], βt)
+
+         Xx = muladd(ξ2, XxR - T12, T12)
+         Xy = muladd(ξ2, XyR - T13, T13)
+
+         θ = muladd(ξ2, dθ, T9)
+         stj, ctj = sincos(θ)
+
+         Yx = Aj + Rj1 * ctj * cj - Rj2 * stj * sj
+         Yy = Bj + Rj1 * ctj * sj + Rj2 * stj * cj
+
+         Zx[i] = muladd(ξ1, Yx - Xx, Xx)
+         Zy[i] = muladd(ξ1, Yy - Xy, Xy)
+
+      end
+
+   else
+
+      throw(ArgumentError("mapxy! local region must be 1:8; got r=$r, reg=$reg"))
+
+   end
+
+   return nothing
+
+end
+
+function draw(d::ellipseNh, flag=nothing; L::Int=33, show::Bool=true)
+
+   clrs = (
+      RGBf(0.8500, 0.3250, 0.0980),  # dark orange
+      RGBf(0.4940, 0.1840, 0.5560),  # deep purple
+      RGBf(0.4660, 0.6740, 0.1880),  # sea green
+      RGBf(0.9290, 0.6270, 0.8900),  # light pink
+      RGBf(0.3010, 0.7450, 0.9330),  # sky blue
+      RGBf(1.0000, 0.7320, 0.4000),  # coral
+      RGBf(0.6350, 0.0780, 0.1840),  # maroon
+      RGBf(0.9880, 0.4350, 0.7880),  # light purple
+   )
+
+   colors = Vector{RGBf}(undef, 8 * d.nh)
+
+   @inbounds for jh in 1:d.nh
+      jj = 8 * (jh - 1)
+
+      colors[jj+1] = clrs[1]
+      colors[jj+2] = clrs[2]
+      colors[jj+3] = clrs[3]
+      colors[jj+4] = clrs[4]
+      colors[jj+5] = clrs[5]
+      colors[jj+6] = clrs[6]
+      colors[jj+7] = clrs[7]
+      colors[jj+8] = clrs[8]
+   end
+
+   return draw_geom(d, colors; flag=flag, L=L, show=show)
+
+end
+
 #TODO
