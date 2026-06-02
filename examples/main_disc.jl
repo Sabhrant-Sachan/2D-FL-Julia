@@ -62,7 +62,7 @@ end
 
 open("test_temp.txt", "w") do io
 
-   s, p = 0.75, 4
+   s, p = 0.99, 50
 
    println(io, "s = ", s)
    println(io, "p = ", p)
@@ -70,15 +70,16 @@ open("test_temp.txt", "w") do io
 
    #dom=FL2D.disc(b=[5, 5, 5, 5, 5], a=[3, 3, 3, 3, 4]
 
-   case = (dom=FL2D.disc(b=[5, 5, 5, 5, 5], a=[3, 3, 3, 3, 4], L1=0.8, L2=0.8),
-      N=12, nₚᵣ=128,
-      δv_near=0.15, δv_close=8e-3,
-      δ_near=0.15, δ_intp=5e-3,
-      nr=32,
-      s_small=false,
-      benchmark=false,
-      cond_num=false,
-      plot=false)
+   case = (dom=FL2D.disc(b=[3, 3, 3, 3, 4],
+         a=[2, 2, 2, 2, 3], L1=0.8, L2=0.8),
+         N=12, nₚᵣ=512,
+         δv_near=0.15, δv_close=8e-3,
+         δ_near=0.15, δ_intp=5e-3,
+         nr=32,
+         s_small=false,
+         benchmark=false,
+         cond_num=false,
+         plot=false)
 
    run_one_disc!(io, case; s=s, p=p, nJac=2)
 
@@ -91,6 +92,7 @@ end
 d1 = FL2D.disc(b=[1, 1, 1, 1, 1], L1=0.8, L2=0.8);
 d2 = FL2D.disc(b=[2, 2, 2, 2, 2], L1=0.8, L2=0.8);
 d3 = FL2D.disc(b=[3, 3, 3, 3, 3], L1=0.8, L2=0.8);
+d4 = FL2D.disc(b=[3, 3, 3, 3, 4], a=[2, 2, 2, 2, 3], L1=0.8, L2=0.8);
 d5 = FL2D.disc(b=[5, 5, 5, 5, 5], a=[3, 3, 3, 3, 4], L1=0.8, L2=0.8);
 d6 = FL2D.disc(b=[6, 6, 6, 6, 6], a=[3, 3, 3, 3, 5], L1=0.8, L2=0.8);
 
@@ -195,36 +197,6 @@ end
 
 # =============================================
 #Direct solver for many value of s
-
-open("solve_outputs9999_direct.txt", "w") do io
-
-   s, p = 0.9999, 5000
-
-   println(io, "Run started: ", Dates.now())
-   println(io, "s = ", s)
-   println(io, "p = ", p)
-   flush(io)
-
-   cases = [
-      (dom=d1, N=10, nₚᵣ=128),
-      (dom=d1, N=12, nₚᵣ=128), 
-      (dom=d2, N=12, nₚᵣ=128),
-      (dom=d2, N=12, nₚᵣ=256), 
-      (dom=d3, N=12, nₚᵣ=256), 
-      (dom=d5, N=12, nₚᵣ=256),
-      (dom=d5, N=12, nₚᵣ=512),
-      (dom=d5, N=12, nₚᵣ=1024)
-   ]
-
-   for case in cases
-      run_one_disc!(io, case; s=s, p=p, nJac=2)
-   end
-
-   println(io, "\n==End of Disc==")
-   println(io, "Run finished: ", Dates.now())
-   flush(io)
-end
-
 open("solve_outputs0999_direct.txt", "w") do io
 
    s, p = 0.999, 500
@@ -235,12 +207,16 @@ open("solve_outputs0999_direct.txt", "w") do io
    flush(io)
 
    cases = [
-      (dom=d1, N=10, nₚᵣ=128),
-      (dom=d1, N=12, nₚᵣ=128), 
-      (dom=d2, N=12, nₚᵣ=256), 
-      (dom=d3, N=12, nₚᵣ=256), 
-      (dom=d5, N=12, nₚᵣ=256),
-      (dom=d5, N=12, nₚᵣ=512),
+      #(dom=d1, N=10, nₚᵣ=128),
+      #(dom=d1, N=12, nₚᵣ=128), 
+      #(dom=d2, N=12, nₚᵣ=256), 
+      #(dom=d3, N=12, nₚᵣ=256),
+      (dom=d4, N=12, nₚᵣ=256),
+      (dom=d4, N=12, nₚᵣ=512),
+      (dom=d4, N=12, nₚᵣ=1024), 
+      #(dom=d5, N=12, nₚᵣ=256),
+      #(dom=d5, N=12, nₚᵣ=512),
+      #(dom=d5, N=12, nₚᵣ=1024),
    ]
 
    for case in cases
@@ -266,12 +242,10 @@ open("solve_outputs0990_direct.txt", "w") do io
       (dom=d1, N=12, nₚᵣ=128), 
       (dom=d2, N=12, nₚᵣ=256), 
       (dom=d3, N=12, nₚᵣ=256), 
+      (dom=d4, N=12, nₚᵣ=512),
       (dom=d5, N=12, nₚᵣ=128),
       (dom=d5, N=12, nₚᵣ=256),
-      (dom=d5, N=12, nₚᵣ=512), 
-      #(dom=d6, N=12, nₚᵣ=128),
-      #(dom=d6, N=12, nₚᵣ=256),
-      #(dom=d6, N=12, nₚᵣ=512),
+      (dom=d5, N=12, nₚᵣ=512)
    ]
 
    for case in cases
@@ -297,11 +271,10 @@ open("solve_outputs0900_direct.txt", "w") do io
       (dom=d1, N=12, nₚᵣ=128), 
       (dom=d2, N=12, nₚᵣ=128), 
       (dom=d3, N=12, nₚᵣ=128), 
+      (dom=d4, N=12, nₚᵣ=128), 
+      (dom=d4, N=12, nₚᵣ=256), 
       (dom=d5, N=12, nₚᵣ=128),
-      (dom=d5, N=12, nₚᵣ=256),
-      (dom=d5, N=12, nₚᵣ=512), 
-      #(dom=d6, N=12, nₚᵣ=256),
-      #(dom=d6, N=12, nₚᵣ=512),
+      (dom=d5, N=12, nₚᵣ=256)
    ]
 
    for case in cases
@@ -327,8 +300,10 @@ open("solve_outputs0750_direct.txt", "w") do io
       (dom=d1, N=12, nₚᵣ=128), 
       (dom=d2, N=12, nₚᵣ=128), 
       (dom=d3, N=12, nₚᵣ=128), 
-      (dom=d5, N=12, nₚᵣ=256), 
-      (dom=d6, N=12, nₚᵣ=256),
+      (dom=d4, N=12, nₚᵣ=128), 
+      (dom=d4, N=12, nₚᵣ=256), 
+      (dom=d5, N=12, nₚᵣ=128),
+      (dom=d5, N=12, nₚᵣ=256)
    ]
 
    for case in cases
@@ -354,10 +329,10 @@ open("solve_outputs0500_direct.txt", "w") do io
       (dom=d1, N=12, nₚᵣ=128), 
       (dom=d2, N=12, nₚᵣ=128), 
       (dom=d3, N=12, nₚᵣ=128), 
+      (dom=d4, N=12, nₚᵣ=128), 
+      (dom=d4, N=12, nₚᵣ=256), 
       (dom=d5, N=12, nₚᵣ=128),
-      (dom=d5, N=12, nₚᵣ=256), 
-      (dom=d6, N=12, nₚᵣ=128),
-      (dom=d6, N=12, nₚᵣ=256)
+      (dom=d5, N=12, nₚᵣ=256)
    ]
 
    for case in cases
@@ -383,10 +358,10 @@ open("solve_outputs0250_direct.txt", "w") do io
       (dom=d1, N=12, nₚᵣ=128), 
       (dom=d2, N=12, nₚᵣ=128), 
       (dom=d3, N=12, nₚᵣ=128), 
+      (dom=d4, N=12, nₚᵣ=128), 
+      (dom=d4, N=12, nₚᵣ=256), 
       (dom=d5, N=12, nₚᵣ=128),
-      (dom=d5, N=12, nₚᵣ=256), 
-      (dom=d6, N=12, nₚᵣ=128),
-      (dom=d6, N=12, nₚᵣ=256),
+      (dom=d5, N=12, nₚᵣ=256)
    ]
 
    for case in cases
@@ -412,10 +387,10 @@ open("solve_outputs0100_direct.txt", "w") do io
       (dom=d1, N=12, nₚᵣ=128), 
       (dom=d2, N=12, nₚᵣ=128), 
       (dom=d3, N=12, nₚᵣ=128), 
+      (dom=d4, N=12, nₚᵣ=128), 
+      (dom=d4, N=12, nₚᵣ=256), 
       (dom=d5, N=12, nₚᵣ=128),
-      (dom=d5, N=12, nₚᵣ=256), 
-      (dom=d6, N=12, nₚᵣ=128),
-      (dom=d6, N=12, nₚᵣ=256),
+      (dom=d5, N=12, nₚᵣ=256) 
    ]
 
    for case in cases
@@ -427,19 +402,39 @@ open("solve_outputs0100_direct.txt", "w") do io
    flush(io)
 end
 
+#High frequency data:
+open("solve_outputs0500_freq.txt", "w") do io
+
+   s, p = 0.5, 4
+
+   println(io, "Run started: ", Dates.now())
+   println(io, "s = ", s)
+   println(io, "p = ", p)
+   flush(io)
+
+   case = (dom=d4, N=12, nₚᵣ=128)
+
+   for nJac in [3, 4, 5, 6, 7, 8, 9, 10]
+      println(io, "nJac = ", nJac)
+      run_one_disc!(io, case; s=s, p=p, nJac=nJac)
+   end
+
+   println(io, "\n==End of Disc==")
+   println(io, "Run finished: ", Dates.now())
+   flush(io)
+end
+
 #From this point on, s_small is true
 case_specs = [
    (dom=d1, N=8, nₚᵣ=64),
-   (dom=d1, N=9, nₚᵣ=128), 
    (dom=d1, N=10, nₚᵣ=128), 
    (dom=d1, N=12, nₚᵣ=128),
    (dom=d2, N=10, nₚᵣ=128), 
    (dom=d2, N=12, nₚᵣ=128),
    (dom=d3, N=10, nₚᵣ=128), 
    (dom=d3, N=12, nₚᵣ=128), 
-   (dom=d3, N=12, nₚᵣ=256),
+   (dom=d4, N=12, nₚᵣ=128),
    (dom=d5, N=12, nₚᵣ=128), 
-   (dom=d5, N=12, nₚᵣ=256),
 ];
 
 

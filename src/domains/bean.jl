@@ -4201,26 +4201,18 @@ end
 """
    gamderhigher(d::bean, th::Float64)
 
-Return centered bean boundary values and derivatives through fourth order.
+Return centered bean boundary values and derivatives through sixth order.
 
-That is, it Returns gx, gy, dgx, dgy, d2gx, d2gy, d3gx, d3gy, d4gx, d4gy
+Returns gx, gy, dgx, dgy, d2gx, d2gy, d3gx, d3gy, d4gx, d4gy, d5gx, d5gy, d6gx, d6gy
 
-where gx(th) = R*h(th)*cos(th), gy(th) = R*h(th)*sin(th)
+where gx(th) = R*h(th)*cos(th), gy(th) = R*h(th)*sin(th),
 and h(th) = sin(th)^3 + cos(th)^3.
 """
 function gamderhigher(d::bean, th::Float64)
 
    s, c = sincos(th)
 
-   spc = s + c
-   smc = s - c
-   sc = s * c
-
-   h = spc * (1.0 - sc)
-   h1 = 3.0 * sc * smc
-   h2 = -3.0 * spc * (1.0 - 3.0 * sc)
-   h3 = -3.0 * smc * (2.0 + 9.0 * sc)
-   h4 = 3.0 * spc * (7.0 - 27.0 * sc)
+   h, h1, h2, h3, h4, h5, h6 = hderhigher(d, th)
 
    gx = d.R * h * c
    gy = d.R * h * s
@@ -4240,7 +4232,27 @@ function gamderhigher(d::bean, th::Float64)
    d4gy = d.R * (h4 * s + 4.0 * h3 * c - 6.0 * h2 * s -
                  4.0 * h1 * c + h * s)
 
-   return gx, gy, dgx, dgy, d2gx, d2gy, d3gx, d3gy, d4gx, d4gy
+   d5gx = d.R * (h5 * c - 5.0 * h4 * s - 10.0 * h3 * c +
+                 10.0 * h2 * s + 5.0 * h1 * c - h * s)
+
+   d5gy = d.R * (h5 * s + 5.0 * h4 * c - 10.0 * h3 * s -
+                 10.0 * h2 * c + 5.0 * h1 * s + h * c)
+
+   d6gx = d.R * (h6 * c - 6.0 * h5 * s - 15.0 * h4 * c +
+                 20.0 * h3 * s + 15.0 * h2 * c -
+                 6.0 * h1 * s - h * c)
+
+   d6gy = d.R * (h6 * s + 6.0 * h5 * c - 15.0 * h4 * s -
+                 20.0 * h3 * c + 15.0 * h2 * s +
+                 6.0 * h1 * c - h * s)
+
+   return gx, gy,
+   dgx, dgy,
+   d2gx, d2gy,
+   d3gx, d3gy,
+   d4gx, d4gy,
+   d5gx, d5gy,
+   d6gx, d6gy
 
 end
 
@@ -4250,7 +4262,7 @@ end
             u::Float64, v::Float64,
             u2::Matrix{Float64}, v2::Matrix{Float64},
             du::AbstractVector, dv::AbstractVector, k::Int;
-            tol = 1e-4)
+            tol = 1e-3)
 
 Fill `out` with ‖τ(u,v) - τ(u₂,v₂)‖ on patch `k`.
 
@@ -4261,7 +4273,7 @@ function diff_map!(out::Matrix{Float64},
    d::bean, u::Float64, v::Float64,
    u2::Matrix{Float64}, v2::Matrix{Float64},
    du::AbstractVector, dv::AbstractVector, k::Int;
-   tol::Float64=1e-4)
+   tol::Float64=1e-3)
 
    nd_u = size(out, 1)
    nd_v = size(out, 2)
@@ -4477,12 +4489,17 @@ function diff_map!(out::Matrix{Float64},
    dgx, dgy,
    d2gx, d2gy,
    d3gx, d3gy,
-   d4gx, d4gy = gamderhigher(d, th)
+   d4gx, d4gy,
+   d5gx, d5gy,
+   d6gx, d6gy = gamderhigher(d, th)
 
    q = αt * ak
+
    q2 = q * q
    q3 = q2 * q
    q4 = q2 * q2
+   q5 = q4 * q
+   q6 = q3 * q3
 
    dux = αc * (gx - Xx)
    duy = αc * (gy - Xy)
@@ -4508,6 +4525,18 @@ function diff_map!(out::Matrix{Float64},
    dv4x = uhat * q4 * d4gx
    dv4y = uhat * q4 * d4gy
 
+   duv4x = αc * q4 * d4gx
+   duv4y = αc * q4 * d4gy
+
+   dv5x = uhat * q5 * d5gx
+   dv5y = uhat * q5 * d5gy
+
+   duv5x = αc * q5 * d5gx
+   duv5y = αc * q5 * d5gy
+
+   dv6x = uhat * q6 * d6gx
+   dv6y = uhat * q6 * d6gy
+
    tux, tvy = mapxy(d, u, v, k)
 
    @inbounds for j in 1:nd_v
@@ -4516,6 +4545,8 @@ function diff_map!(out::Matrix{Float64},
       dvj2 = dvj * dvj
       dvj3 = dvj2 * dvj
       dvj4 = dvj2 * dvj2
+      dvj5 = dvj4 * dvj
+      dvj6 = dvj3 * dvj3
 
       @inbounds for i in 1:nd_u
 
@@ -4529,12 +4560,16 @@ function diff_map!(out::Matrix{Float64},
             Dx = (dui * dux + dvj * dvx) -
                  (dui * dvj * duvx + dvj2 * dv2x / 2.0) +
                  (dui * dvj2 * duv2x / 2.0 + dvj3 * dv3x / 6.0) -
-                 (dui * dvj3 * duv3x / 6.0 + dvj4 * dv4x / 24.0)
+                 (dui * dvj3 * duv3x / 6.0 + dvj4 * dv4x / 24.0) +
+                 (dui * dvj4 * duv4x / 24.0 + dvj5 * dv5x / 120.0) -
+                 (dui * dvj5 * duv5x / 120.0 + dvj6 * dv6x / 720.0)
 
             Dy = (dui * duy + dvj * dvy) -
                  (dui * dvj * duvy + dvj2 * dv2y / 2.0) +
                  (dui * dvj2 * duv2y / 2.0 + dvj3 * dv3y / 6.0) -
-                 (dui * dvj3 * duv3y / 6.0 + dvj4 * dv4y / 24.0)
+                 (dui * dvj3 * duv3y / 6.0 + dvj4 * dv4y / 24.0) +
+                 (dui * dvj4 * duv4y / 24.0 + dvj5 * dv5y / 120.0) -
+                 (dui * dvj5 * duv5y / 120.0 + dvj6 * dv6y / 720.0)
 
             out[i, j] = hypot(Dx, Dy)
 
@@ -4545,67 +4580,10 @@ function diff_map!(out::Matrix{Float64},
          end
 
       end
+
    end
 
    return nothing
-
-end
-
-"""
-    gamderhigher6(d::bean, th::Float64)
-
-Return centered bean boundary values and derivatives through sixth order.
-
-Returns gx, gy, dgx, dgy, d2gx, d2gy, d3gx, d3gy, d4gx, d4gy, d5gx, d5gy, d6gx, d6gy
-
-where gx(th) = R*h(th)*cos(th), gy(th) = R*h(th)*sin(th),
-and h(th) = sin(th)^3 + cos(th)^3.
-"""
-function gamderhigher6(d::bean, th::Float64)
-
-   s, c = sincos(th)
-
-   h, h1, h2, h3, h4, h5, h6 = hderhigher(d, th)
-
-   gx = d.R * h * c
-   gy = d.R * h * s
-
-   dgx = d.R * (h1 * c - h * s)
-   dgy = d.R * (h1 * s + h * c)
-
-   d2gx = d.R * (h2 * c - 2.0 * h1 * s - h * c)
-   d2gy = d.R * (h2 * s + 2.0 * h1 * c - h * s)
-
-   d3gx = d.R * (h3 * c - 3.0 * h2 * s - 3.0 * h1 * c + h * s)
-   d3gy = d.R * (h3 * s + 3.0 * h2 * c - 3.0 * h1 * s - h * c)
-
-   d4gx = d.R * (h4 * c - 4.0 * h3 * s - 6.0 * h2 * c +
-                  4.0 * h1 * s + h * c)
-
-   d4gy = d.R * (h4 * s + 4.0 * h3 * c - 6.0 * h2 * s -
-                  4.0 * h1 * c + h * s)
-
-   d5gx = d.R * (h5 * c - 5.0 * h4 * s - 10.0 * h3 * c +
-                  10.0 * h2 * s + 5.0 * h1 * c - h * s)
-
-   d5gy = d.R * (h5 * s + 5.0 * h4 * c - 10.0 * h3 * s -
-                  10.0 * h2 * c + 5.0 * h1 * s + h * c)
-
-   d6gx = d.R * (h6 * c - 6.0 * h5 * s - 15.0 * h4 * c +
-                  20.0 * h3 * s + 15.0 * h2 * c -
-                  6.0 * h1 * s - h * c)
-
-   d6gy = d.R * (h6 * s + 6.0 * h5 * c - 15.0 * h4 * s -
-                  20.0 * h3 * c + 15.0 * h2 * s +
-                  6.0 * h1 * c - h * s)
-
-   return gx, gy,
-          dgx, dgy,
-          d2gx, d2gy,
-          d3gx, d3gy,
-          d4gx, d4gy,
-          d5gx, d5gy,
-          d6gx, d6gy
 
 end
 
@@ -4614,15 +4592,11 @@ end
              DJ::StridedArray{Float64}, d::bean,
              u::Float64, v::Float64,
              u2::Matrix{Float64}, v2::Matrix{Float64},
-             r::Matrix{Float64} du::AbstractVector,
+             r::Matrix{Float64}, du::AbstractVector,
              dv::AbstractVector, k::Int;
              tol = 1e-3)
 
-Fill `out` with
-
-    ‖τ(u,v) - τ(u₂,v₂)‖ / r
-
-on patch `k`.
+Fill `out` with ‖τ(u,v) - τ(u₂,v₂)‖ / r on patch `k`.
 
 No allocations. Uses `mapxy_Dmap!` and Taylor correction near `(u,v)`.
 """
@@ -4841,7 +4815,7 @@ function diff_rmap!(out::Matrix{Float64},
    th = muladd(ak, vhat, bk)
 
    gx, gy, dgx, dgy, d2gx, d2gy, d3gx, d3gy,
-   d4gx, d4gy, d5gx, d5gy, d6gx, d6gy = gamderhigher6(d, th)
+   d4gx, d4gy, d5gx, d5gy, d6gx, d6gy = gamderhigher(d, th)
 
    q = αt * ak
 

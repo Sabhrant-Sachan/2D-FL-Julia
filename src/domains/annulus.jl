@@ -5219,7 +5219,7 @@ end
   diff_map!(out::Matrix{Float64}, Zx::Matrix{Float64}, Zy::Matrix{Float64}, 
   DJ::Matrix{Float64}, d::annulus, u::Float64, v::Float64,
   u2::Matrix{Float64}, v2::Matrix{Float64}, du::Vector{Float64}, 
-  dv::Vector{Float64}, k::Int; tol = 1e-4)
+  dv::Vector{Float64}, k::Int; tol = 1e-3)
 
 Fill `out` with ‖τ(u,v) - τ(u₂,v₂)‖ on patch `k`, where `(u,v)` are scalars and
 `u2,v2` are matrices (meshgrid-like) with size `(length(du), length(dv))`.
@@ -5234,7 +5234,7 @@ function diff_map!(out::Matrix{Float64},
   d::annulus, u::Float64, v::Float64,
   u2::Matrix{Float64}, v2::Matrix{Float64},
   du::Vector{Float64}, dv::Vector{Float64}, k::Int;
-  tol::Float64=1e-5)
+  tol::Float64=1e-3)
 
   #nd_u, nd_v = length(du), length(dv)
   nd_u = size(out, 1)
@@ -5274,7 +5274,6 @@ function diff_map!(out::Matrix{Float64},
 
   # τ(u,v) scalar
   tux, tvy = mapxy(d, u, v, k)
-
   
   xi1 = muladd(αu, u, βu)
   xi2 = muladd(αv, v, βv)
@@ -5297,124 +5296,169 @@ function diff_map!(out::Matrix{Float64},
     throw(ArgumentError("diff_map! Taylor fixup expects reg in 1–8; got reg=$reg"))
   end
 
-  # angles at xi2
-  tha = muladd(Δtha, xi2, th0a)
-  thb = muladd(Δthb, xi2, th0b)
-  sta, cta = sincos(tha)
-  stb, ctb = sincos(thb)
+   # angles at xi2
+   tha = muladd(Δtha, xi2, th0a)
+   thb = muladd(Δthb, xi2, th0b)
+   sta, cta = sincos(tha)
+   stb, ctb = sincos(thb)
 
-  # curve a: uses (R11,R12,θ₁), curve b: uses (R21,R22,θ₂)
-  # x components
-  yax = muladd(-sta, R12s1, muladd(cta, R11c1, d.A))
-  ybx = muladd(-stb, R22s2, muladd(ctb, R21c2, d.A))
-  # y components
-  yay = muladd(sta, R12c1, muladd(cta, R11s1, d.B))
-  yby = muladd(stb, R22c2, muladd(ctb, R21s2, d.B))
+   # curve a: uses (R11,R12,θ₁), curve b: uses (R21,R22,θ₂)
+   # x components
+   yax = muladd(-sta, R12s1, muladd(cta, R11c1, d.A))
+   ybx = muladd(-stb, R22s2, muladd(ctb, R21c2, d.A))
+   # y components
+   yay = muladd(sta, R12c1, muladd(cta, R11s1, d.B))
+   yby = muladd(stb, R22c2, muladd(ctb, R21s2, d.B))
 
-  # first derivatives w.r.t. xi2 (v-mapped)
-  dyax = Δtha * (-R11c1 * sta - R12s1 * cta)
-  dyay = Δtha * (-R11s1 * sta + R12c1 * cta)
+   # first derivatives w.r.t. xi2 (v-mapped)
+   dyax = Δtha * (-R11c1 * sta - R12s1 * cta)
+   dyay = Δtha * (-R11s1 * sta + R12c1 * cta)
 
-  dybx = Δthb * (-R21c2 * stb - R22s2 * ctb)
-  dyby = Δthb * (-R21s2 * stb + R22c2 * ctb)
+   dybx = Δthb * (-R21c2 * stb - R22s2 * ctb)
+   dyby = Δthb * (-R21s2 * stb + R22c2 * ctb)
 
-  # d2 = -(Δth)^2 * (y - center), 
-  # d3 = -(Δth)^2 * d1,
-  # d4 = -(Δth)^2 * d2
-  d2yax = -Δtha^2 * (yax - d.A)
-  d2yay = -Δtha^2 * (yay - d.B)
-  d3yax = -Δtha^2 * dyax
-  d3yay = -Δtha^2 * dyay
-  d4yax = -Δtha^2 * d2yax
-  d4yay = -Δtha^2 * d2yay
+   # d2 = -(Δth)^2 * (y - center)
+   # d3 = -(Δth)^2 * d1
+   # d4 = -(Δth)^2 * d2
+   # d5 = -(Δth)^2 * d3
+   # d6 = -(Δth)^2 * d4
+   Δtha2 = Δtha * Δtha
+   Δthb2 = Δthb * Δthb
 
-  d2ybx = -Δthb^2 * (ybx - d.A)
-  d2yby = -Δthb^2 * (yby - d.B)
-  d3ybx = -Δthb^2 * dybx
-  d3yby = -Δthb^2 * dyby
-  d4ybx = -Δthb^2 * d2ybx
-  d4yby = -Δthb^2 * d2yby
+   d2yax = -Δtha2 * (yax - d.A)
+   d2yay = -Δtha2 * (yay - d.B)
+   d3yax = -Δtha2 * dyax
+   d3yay = -Δtha2 * dyay
+   d4yax = -Δtha2 * d2yax
+   d4yay = -Δtha2 * d2yay
+   d5yax = -Δtha2 * d3yax
+   d5yay = -Δtha2 * d3yay
+   d6yax = -Δtha2 * d4yax
+   d6yay = -Δtha2 * d4yay
 
-  if reg <= 4
-    dux = αu * (yax - ybx) / 2
-    duvx = αuv * (dyax - dybx) / 2
-    duv2x = αv * αuv * (d2yax - d2ybx) / 2
-    duv3x = αv^2 * αuv * (d3yax - d3ybx) / 2
+   d2ybx = -Δthb2 * (ybx - d.A)
+   d2yby = -Δthb2 * (yby - d.B)
+   d3ybx = -Δthb2 * dybx
+   d3yby = -Δthb2 * dyby
+   d4ybx = -Δthb2 * d2ybx
+   d4yby = -Δthb2 * d2yby
+   d5ybx = -Δthb2 * d3ybx
+   d5yby = -Δthb2 * d3yby
+   d6ybx = -Δthb2 * d4ybx
+   d6yby = -Δthb2 * d4yby
 
-    dvx = αv * ((1 + xi1) * dyax + (1 - xi1) * dybx) / 2
-    dv2x = αv^2 * ((1 + xi1) * d2yax + (1 - xi1) * d2ybx) / 2
-    dv3x = αv^3 * ((1 + xi1) * d3yax + (1 - xi1) * d3ybx) / 2
-    dv4x = αv^4 * ((1 + xi1) * d4yax + (1 - xi1) * d4ybx) / 2
+   if reg <= 4
 
-    duy = αu * (yay - yby) / 2
-    duvy = αuv * (dyay - dyby) / 2
-    duv2y = αv * αuv * (d2yay - d2yby) / 2
-    duv3y = αv^2 * αuv * (d3yay - d3yby) / 2
+      dux = αu * (yax - ybx) / 2
+      duvx = αuv * (dyax - dybx) / 2
+      duv2x = αv * αuv * (d2yax - d2ybx) / 2
+      duv3x = αv^2 * αuv * (d3yax - d3ybx) / 2
+      duv4x = αv^3 * αuv * (d4yax - d4ybx) / 2
+      duv5x = αv^4 * αuv * (d5yax - d5ybx) / 2
 
-    dvy = αv * ((1 + xi1) * dyay + (1 - xi1) * dyby) / 2
-    dv2y = αv^2 * ((1 + xi1) * d2yay + (1 - xi1) * d2yby) / 2
-    dv3y = αv^3 * ((1 + xi1) * d3yay + (1 - xi1) * d3yby) / 2
-    dv4y = αv^4 * ((1 + xi1) * d4yay + (1 - xi1) * d4yby) / 2
+      dvx = αv * ((1 + xi1) * dyax + (1 - xi1) * dybx) / 2
+      dv2x = αv^2 * ((1 + xi1) * d2yax + (1 - xi1) * d2ybx) / 2
+      dv3x = αv^3 * ((1 + xi1) * d3yax + (1 - xi1) * d3ybx) / 2
+      dv4x = αv^4 * ((1 + xi1) * d4yax + (1 - xi1) * d4ybx) / 2
+      dv5x = αv^5 * ((1 + xi1) * d5yax + (1 - xi1) * d5ybx) / 2
+      dv6x = αv^6 * ((1 + xi1) * d6yax + (1 - xi1) * d6ybx) / 2
 
-  else
-    dux = αu * (ybx - yax) / 2
-    duvx = αuv * (dybx - dyax) / 2
-    duv2x = αv * αuv * (d2ybx - d2yax) / 2
-    duv3x = αv^2 * αuv * (d3ybx - d3yax) / 2
+      duy = αu * (yay - yby) / 2
+      duvy = αuv * (dyay - dyby) / 2
+      duv2y = αv * αuv * (d2yay - d2yby) / 2
+      duv3y = αv^2 * αuv * (d3yay - d3yby) / 2
+      duv4y = αv^3 * αuv * (d4yay - d4yby) / 2
+      duv5y = αv^4 * αuv * (d5yay - d5yby) / 2
 
-    dvx = αv * ((1 + xi1) * dybx + (1 - xi1) * dyax) / 2
-    dv2x = αv^2 * ((1 + xi1) * d2ybx + (1 - xi1) * d2yax) / 2
-    dv3x = αv^3 * ((1 + xi1) * d3ybx + (1 - xi1) * d3yax) / 2
-    dv4x = αv^4 * ((1 + xi1) * d4ybx + (1 - xi1) * d4yax) / 2
+      dvy = αv * ((1 + xi1) * dyay + (1 - xi1) * dyby) / 2
+      dv2y = αv^2 * ((1 + xi1) * d2yay + (1 - xi1) * d2yby) / 2
+      dv3y = αv^3 * ((1 + xi1) * d3yay + (1 - xi1) * d3yby) / 2
+      dv4y = αv^4 * ((1 + xi1) * d4yay + (1 - xi1) * d4yby) / 2
+      dv5y = αv^5 * ((1 + xi1) * d5yay + (1 - xi1) * d5yby) / 2
+      dv6y = αv^6 * ((1 + xi1) * d6yay + (1 - xi1) * d6yby) / 2
 
-    duy = αu * (yby - yay) / 2
-    duvy = αuv * (dyby - dyay) / 2
-    duv2y = αv * αuv * (d2yby - d2yay) / 2
-    duv3y = αv^2 * αuv * (d3yby - d3yay) / 2
+   else
 
-    dvy = αv * ((1 + xi1) * dyby + (1 - xi1) * dyay) / 2
-    dv2y = αv^2 * ((1 + xi1) * d2yby + (1 - xi1) * d2yay) / 2
-    dv3y = αv^3 * ((1 + xi1) * d3yby + (1 - xi1) * d3yay) / 2
-    dv4y = αv^4 * ((1 + xi1) * d4yby + (1 - xi1) * d4yay) / 2
-  end
+      dux = αu * (ybx - yax) / 2
+      duvx = αuv * (dybx - dyax) / 2
+      duv2x = αv * αuv * (d2ybx - d2yax) / 2
+      duv3x = αv^2 * αuv * (d3ybx - d3yax) / 2
+      duv4x = αv^3 * αuv * (d4ybx - d4yax) / 2
+      duv5x = αv^4 * αuv * (d5ybx - d5yax) / 2
 
+      dvx = αv * ((1 + xi1) * dybx + (1 - xi1) * dyax) / 2
+      dv2x = αv^2 * ((1 + xi1) * d2ybx + (1 - xi1) * d2yax) / 2
+      dv3x = αv^3 * ((1 + xi1) * d3ybx + (1 - xi1) * d3yax) / 2
+      dv4x = αv^4 * ((1 + xi1) * d4ybx + (1 - xi1) * d4yax) / 2
+      dv5x = αv^5 * ((1 + xi1) * d5ybx + (1 - xi1) * d5yax) / 2
+      dv6x = αv^6 * ((1 + xi1) * d6ybx + (1 - xi1) * d6yax) / 2
 
-  @inbounds for j in 1:nd_v
-    dvj = dv[j]
-    dvj2 = dvj * dvj
-    dvj3 = dvj2 * dvj
-    dvj4 = dvj2 * dvj2
-    @inbounds for i in 1:nd_u
-      uu = u2[i, j]
-      vv = v2[i, j]
-      if (abs(u - uu) < tol) && (abs(v - vv) < tol)
-        dui = du[i]
-        # near the evaluation point: Taylor fixup
-        #Below computes the x and y coordinate of:
-        #τ(u,v) - τ(u-du,v-dv) = dτᵤ(u,v) * du + dτᵥ(u,v) * dv - (...)
-        Dx = (dui * dux + dvj * dvx) -
-             (dui * dvj * duvx + dvj2 * (dv2x/2)) +
-             (dui * dvj2 * (duv2x/2) + dvj3 * (dv3x/6)) -
-             (dui * dvj3 * (duv3x/6) + dvj4 * (dv4x/24))
+      duy = αu * (yby - yay) / 2
+      duvy = αuv * (dyby - dyay) / 2
+      duv2y = αv * αuv * (d2yby - d2yay) / 2
+      duv3y = αv^2 * αuv * (d3yby - d3yay) / 2
+      duv4y = αv^3 * αuv * (d4yby - d4yay) / 2
+      duv5y = αv^4 * αuv * (d5yby - d5yay) / 2
 
-        Dy = (dui * duy + dvj * dvy) -
-             (dui * dvj * duvy + dvj2 * (dv2y/2)) +
-             (dui * dvj2 * (duv2y/2) + dvj3 * (dv3y/6)) -
-             (dui * dvj3 * (duv3y/6) + dvj4 * (dv4y/24))
+      dvy = αv * ((1 + xi1) * dyby + (1 - xi1) * dyay) / 2
+      dv2y = αv^2 * ((1 + xi1) * d2yby + (1 - xi1) * d2yay) / 2
+      dv3y = αv^3 * ((1 + xi1) * d3yby + (1 - xi1) * d3yay) / 2
+      dv4y = αv^4 * ((1 + xi1) * d4yby + (1 - xi1) * d4yay) / 2
+      dv5y = αv^5 * ((1 + xi1) * d5yby + (1 - xi1) * d5yay) / 2
+      dv6y = αv^6 * ((1 + xi1) * d6yby + (1 - xi1) * d6yay) / 2
 
-        out[i, j] = hypot(Dx, Dy)
-      else
-        # far: direct geometric difference
-        out[i, j] = hypot(tux - Zx[i, j], tvy - Zy[i, j])
+   end
+
+   @inbounds for j in 1:nd_v
+      dvj = dv[j]
+      dvj2 = dvj * dvj
+      dvj3 = dvj2 * dvj
+      dvj4 = dvj2 * dvj2
+      dvj5 = dvj4 * dvj
+      dvj6 = dvj3 * dvj3
+
+      @inbounds for i in 1:nd_u
+         uu = u2[i, j]
+         vv = v2[i, j]
+
+         if (abs(u - uu) < tol) && (abs(v - vv) < tol)
+
+            # near the evaluation point: Taylor fixup
+            #Below computes the x and y coordinate of:
+            #τ(u,v) - τ(u-du,v-dv) = dτᵤ(u,v) * du + dτᵥ(u,v) * dv - (...)
+            dui = du[i]
+
+            Dx = (dui * dux + dvj * dvx) -
+                 (dui * dvj * duvx + dvj2 * dv2x / 2.0) +
+                 (dui * dvj2 * duv2x / 2.0 + dvj3 * dv3x / 6.0) -
+                 (dui * dvj3 * duv3x / 6.0 + dvj4 * dv4x / 24.0) +
+                 (dui * dvj4 * duv4x / 24.0 + dvj5 * dv5x / 120.0) -
+                 (dui * dvj5 * duv5x / 120.0 + dvj6 * dv6x / 720.0)
+
+            Dy = (dui * duy + dvj * dvy) -
+                 (dui * dvj * duvy + dvj2 * dv2y / 2.0) +
+                 (dui * dvj2 * duv2y / 2.0 + dvj3 * dv3y / 6.0) -
+                 (dui * dvj3 * duv3y / 6.0 + dvj4 * dv4y / 24.0) +
+                 (dui * dvj4 * duv4y / 24.0 + dvj5 * dv5y / 120.0) -
+                 (dui * dvj5 * duv5y / 120.0 + dvj6 * dv6y / 720.0)
+
+            out[i, j] = hypot(Dx, Dy)
+
+         else
+            # far: direct geometric difference
+            out[i, j] = hypot(tux - Zx[i, j], tvy - Zy[i, j])
+
+         end
       end
-    end
-  end
+   end
+
+   return nothing
 
 end
 
 
 """
-    diff_map!(out, Zx, Zy, DJℓ, d, u, v, u2, v2, du, dv, k; tol=1e-5)
+    diff_map!(out, Zx, Zy, DJℓ, d, u, v, u2, v2, du, dv, k; tol=1e-3)
 
 Vector version of `diff_map!` which Computes
 
@@ -5436,7 +5480,7 @@ function diff_map!(out::Vector{Float64},
   d::annulus, u::Float64, v::Float64,
   u2::Float64, v2::Vector{Float64},
   du::Float64, dv::Vector{Float64}, k::Int;
-  tol::Float64=1e-4)
+  tol::Float64=1e-3)
 
   nd_v = length(out)
 
@@ -5554,109 +5598,158 @@ function diff_map!(out::Vector{Float64},
   # ============================================================
   # 2. Taylor data at the evaluation point (u,v).
   # ============================================================
-  tha = muladd(Δtha, xi2, th0a)
-  thb = muladd(Δthb, xi2, th0b)
+   tha = muladd(Δtha, xi2, th0a)
+   thb = muladd(Δthb, xi2, th0b)
 
-  sta, cta = sincos(tha)
-  stb, ctb = sincos(thb)
+   sta, cta = sincos(tha)
+   stb, ctb = sincos(thb)
 
-  yax = muladd(-sta, R12s1, muladd(cta, R11c1, d.A))
-  ybx = muladd(-stb, R22s2, muladd(ctb, R21c2, d.A))
+   yax = muladd(-sta, R12s1, muladd(cta, R11c1, d.A))
+   ybx = muladd(-stb, R22s2, muladd(ctb, R21c2, d.A))
 
-  yay = muladd(sta, R12c1, muladd(cta, R11s1, d.B))
-  yby = muladd(stb, R22c2, muladd(ctb, R21s2, d.B))
+   yay = muladd(sta, R12c1, muladd(cta, R11s1, d.B))
+   yby = muladd(stb, R22c2, muladd(ctb, R21s2, d.B))
 
-  dyax = Δtha * (-R11c1 * sta - R12s1 * cta)
-  dyay = Δtha * (-R11s1 * sta + R12c1 * cta)
+   dyax = Δtha * (-R11c1 * sta - R12s1 * cta)
+   dyay = Δtha * (-R11s1 * sta + R12c1 * cta)
 
-  dybx = Δthb * (-R21c2 * stb - R22s2 * ctb)
-  dyby = Δthb * (-R21s2 * stb + R22c2 * ctb)
+   dybx = Δthb * (-R21c2 * stb - R22s2 * ctb)
+   dyby = Δthb * (-R21s2 * stb + R22c2 * ctb)
 
-  d2yax = -Δtha^2 * (yax - d.A)
-  d2yay = -Δtha^2 * (yay - d.B)
-  d3yax = -Δtha^2 * dyax
-  d3yay = -Δtha^2 * dyay
-  d4yax = -Δtha^2 * d2yax
-  d4yay = -Δtha^2 * d2yay
+   # d2 = -(Δth)^2 * (y - center)
+   # d3 = -(Δth)^2 * d1
+   # d4 = -(Δth)^2 * d2
+   # d5 = -(Δth)^2 * d3
+   # d6 = -(Δth)^2 * d4
+   Δtha2 = Δtha * Δtha
+   Δthb2 = Δthb * Δthb
 
-  d2ybx = -Δthb^2 * (ybx - d.A)
-  d2yby = -Δthb^2 * (yby - d.B)
-  d3ybx = -Δthb^2 * dybx
-  d3yby = -Δthb^2 * dyby
-  d4ybx = -Δthb^2 * d2ybx
-  d4yby = -Δthb^2 * d2yby
+   d2yax = -Δtha2 * (yax - d.A)
+   d2yay = -Δtha2 * (yay - d.B)
+   d3yax = -Δtha2 * dyax
+   d3yay = -Δtha2 * dyay
+   d4yax = -Δtha2 * d2yax
+   d4yay = -Δtha2 * d2yay
+   d5yax = -Δtha2 * d3yax
+   d5yay = -Δtha2 * d3yay
+   d6yax = -Δtha2 * d4yax
+   d6yay = -Δtha2 * d4yay
 
-  if reg <= 4
-    dux = αu * (yax - ybx) / 2
-    duvx = αuv * (dyax - dybx) / 2
-    duv2x = αv * αuv * (d2yax - d2ybx) / 2
-    duv3x = αv^2 * αuv * (d3yax - d3ybx) / 2
+   d2ybx = -Δthb2 * (ybx - d.A)
+   d2yby = -Δthb2 * (yby - d.B)
+   d3ybx = -Δthb2 * dybx
+   d3yby = -Δthb2 * dyby
+   d4ybx = -Δthb2 * d2ybx
+   d4yby = -Δthb2 * d2yby
+   d5ybx = -Δthb2 * d3ybx
+   d5yby = -Δthb2 * d3yby
+   d6ybx = -Δthb2 * d4ybx
+   d6yby = -Δthb2 * d4yby
 
-    dvx = αv * ((1 + xi1) * dyax + (1 - xi1) * dybx) / 2
-    dv2x = αv^2 * ((1 + xi1) * d2yax + (1 - xi1) * d2ybx) / 2
-    dv3x = αv^3 * ((1 + xi1) * d3yax + (1 - xi1) * d3ybx) / 2
-    dv4x = αv^4 * ((1 + xi1) * d4yax + (1 - xi1) * d4ybx) / 2
+   if reg <= 4
 
-    duy = αu * (yay - yby) / 2
-    duvy = αuv * (dyay - dyby) / 2
-    duv2y = αv * αuv * (d2yay - d2yby) / 2
-    duv3y = αv^2 * αuv * (d3yay - d3yby) / 2
+      dux = αu * (yax - ybx) / 2
+      duvx = αuv * (dyax - dybx) / 2
+      duv2x = αv * αuv * (d2yax - d2ybx) / 2
+      duv3x = αv^2 * αuv * (d3yax - d3ybx) / 2
+      duv4x = αv^3 * αuv * (d4yax - d4ybx) / 2
+      duv5x = αv^4 * αuv * (d5yax - d5ybx) / 2
 
-    dvy = αv * ((1 + xi1) * dyay + (1 - xi1) * dyby) / 2
-    dv2y = αv^2 * ((1 + xi1) * d2yay + (1 - xi1) * d2yby) / 2
-    dv3y = αv^3 * ((1 + xi1) * d3yay + (1 - xi1) * d3yby) / 2
-    dv4y = αv^4 * ((1 + xi1) * d4yay + (1 - xi1) * d4yby) / 2
-  else
-    dux = αu * (ybx - yax) / 2
-    duvx = αuv * (dybx - dyax) / 2
-    duv2x = αv * αuv * (d2ybx - d2yax) / 2
-    duv3x = αv^2 * αuv * (d3ybx - d3yax) / 2
+      dvx = αv * ((1 + xi1) * dyax + (1 - xi1) * dybx) / 2
+      dv2x = αv^2 * ((1 + xi1) * d2yax + (1 - xi1) * d2ybx) / 2
+      dv3x = αv^3 * ((1 + xi1) * d3yax + (1 - xi1) * d3ybx) / 2
+      dv4x = αv^4 * ((1 + xi1) * d4yax + (1 - xi1) * d4ybx) / 2
+      dv5x = αv^5 * ((1 + xi1) * d5yax + (1 - xi1) * d5ybx) / 2
+      dv6x = αv^6 * ((1 + xi1) * d6yax + (1 - xi1) * d6ybx) / 2
 
-    dvx = αv * ((1 + xi1) * dybx + (1 - xi1) * dyax) / 2
-    dv2x = αv^2 * ((1 + xi1) * d2ybx + (1 - xi1) * d2yax) / 2
-    dv3x = αv^3 * ((1 + xi1) * d3ybx + (1 - xi1) * d3yax) / 2
-    dv4x = αv^4 * ((1 + xi1) * d4ybx + (1 - xi1) * d4yax) / 2
+      duy = αu * (yay - yby) / 2
+      duvy = αuv * (dyay - dyby) / 2
+      duv2y = αv * αuv * (d2yay - d2yby) / 2
+      duv3y = αv^2 * αuv * (d3yay - d3yby) / 2
+      duv4y = αv^3 * αuv * (d4yay - d4yby) / 2
+      duv5y = αv^4 * αuv * (d5yay - d5yby) / 2
 
-    duy = αu * (yby - yay) / 2
-    duvy = αuv * (dyby - dyay) / 2
-    duv2y = αv * αuv * (d2yby - d2yay) / 2
-    duv3y = αv^2 * αuv * (d3yby - d3yay) / 2
+      dvy = αv * ((1 + xi1) * dyay + (1 - xi1) * dyby) / 2
+      dv2y = αv^2 * ((1 + xi1) * d2yay + (1 - xi1) * d2yby) / 2
+      dv3y = αv^3 * ((1 + xi1) * d3yay + (1 - xi1) * d3yby) / 2
+      dv4y = αv^4 * ((1 + xi1) * d4yay + (1 - xi1) * d4yby) / 2
+      dv5y = αv^5 * ((1 + xi1) * d5yay + (1 - xi1) * d5yby) / 2
+      dv6y = αv^6 * ((1 + xi1) * d6yay + (1 - xi1) * d6yby) / 2
 
-    dvy = αv * ((1 + xi1) * dyby + (1 - xi1) * dyay) / 2
-    dv2y = αv^2 * ((1 + xi1) * d2yby + (1 - xi1) * d2yay) / 2
-    dv3y = αv^3 * ((1 + xi1) * d3yby + (1 - xi1) * d3yay) / 2
-    dv4y = αv^4 * ((1 + xi1) * d4yby + (1 - xi1) * d4yay) / 2
-  end
+   else
+
+      dux = αu * (ybx - yax) / 2
+      duvx = αuv * (dybx - dyax) / 2
+      duv2x = αv * αuv * (d2ybx - d2yax) / 2
+      duv3x = αv^2 * αuv * (d3ybx - d3yax) / 2
+      duv4x = αv^3 * αuv * (d4ybx - d4yax) / 2
+      duv5x = αv^4 * αuv * (d5ybx - d5yax) / 2
+
+      dvx = αv * ((1 + xi1) * dybx + (1 - xi1) * dyax) / 2
+      dv2x = αv^2 * ((1 + xi1) * d2ybx + (1 - xi1) * d2yax) / 2
+      dv3x = αv^3 * ((1 + xi1) * d3ybx + (1 - xi1) * d3yax) / 2
+      dv4x = αv^4 * ((1 + xi1) * d4ybx + (1 - xi1) * d4yax) / 2
+      dv5x = αv^5 * ((1 + xi1) * d5ybx + (1 - xi1) * d5yax) / 2
+      dv6x = αv^6 * ((1 + xi1) * d6ybx + (1 - xi1) * d6yax) / 2
+
+      duy = αu * (yby - yay) / 2
+      duvy = αuv * (dyby - dyay) / 2
+      duv2y = αv * αuv * (d2yby - d2yay) / 2
+      duv3y = αv^2 * αuv * (d3yby - d3yay) / 2
+      duv4y = αv^3 * αuv * (d4yby - d4yay) / 2
+      duv5y = αv^4 * αuv * (d5yby - d5yay) / 2
+
+      dvy = αv * ((1 + xi1) * dyby + (1 - xi1) * dyay) / 2
+      dv2y = αv^2 * ((1 + xi1) * d2yby + (1 - xi1) * d2yay) / 2
+      dv3y = αv^3 * ((1 + xi1) * d3yby + (1 - xi1) * d3yay) / 2
+      dv4y = αv^4 * ((1 + xi1) * d4yby + (1 - xi1) * d4yay) / 2
+      dv5y = αv^5 * ((1 + xi1) * d5yby + (1 - xi1) * d5yay) / 2
+      dv6y = αv^6 * ((1 + xi1) * d6yby + (1 - xi1) * d6yay) / 2
+
+   end
 
   # ============================================================
   # 3. Final distance with Taylor fixup near the evaluation point.
   # ============================================================
-  @inbounds for j in 1:nd_v
-    vv = v2[j]
+   @inbounds for j in 1:nd_v
 
-    if (abs(u - u2) < tol) && (abs(v - vv) < tol)
-      dvj = dv[j]
-      dvj2 = dvj * dvj
-      dvj3 = dvj2 * dvj
-      dvj4 = dvj2 * dvj2
+      vv = v2[j]
 
-      Dx = (du * dux + dvj * dvx) -
-           (du * dvj * duvx + dvj2 * (dv2x / 2)) +
-           (du * dvj2 * (duv2x / 2) + dvj3 * (dv3x / 6)) -
-           (du * dvj3 * (duv3x / 6) + dvj4 * (dv4x / 24))
+      if abs(u - u2) < tol && abs(v - vv) < tol
 
-      Dy = (du * duy + dvj * dvy) -
-           (du * dvj * duvy + dvj2 * (dv2y / 2)) +
-           (du * dvj2 * (duv2y / 2) + dvj3 * (dv3y / 6)) -
-           (du * dvj3 * (duv3y / 6) + dvj4 * (dv4y / 24))
+         dvj = dv[j]
+         dvj2 = dvj * dvj
+         dvj3 = dvj2 * dvj
+         dvj4 = dvj2 * dvj2
+         dvj5 = dvj4 * dvj
+         dvj6 = dvj3 * dvj3
 
-      out[j] = hypot(Dx, Dy)
-    else
-      out[j] = hypot(tux - Zx[j], tvy - Zy[j])
-    end
-  end
+         Dx = (du * dux + dvj * dvx) -
+              (du * dvj * duvx + dvj2 * dv2x / 2.0) +
+              (du * dvj2 * duv2x / 2.0 + dvj3 * dv3x / 6.0) -
+              (du * dvj3 * duv3x / 6.0 + dvj4 * dv4x / 24.0) +
+              (du * dvj4 * duv4x / 24.0 + dvj5 * dv5x / 120.0) -
+              (du * dvj5 * duv5x / 120.0 + dvj6 * dv6x / 720.0)
 
-  return nothing
+         Dy = (du * duy + dvj * dvy) -
+              (du * dvj * duvy + dvj2 * dv2y / 2.0) +
+              (du * dvj2 * duv2y / 2.0 + dvj3 * dv3y / 6.0) -
+              (du * dvj3 * duv3y / 6.0 + dvj4 * dv4y / 24.0) +
+              (du * dvj4 * duv4y / 24.0 + dvj5 * dv5y / 120.0) -
+              (du * dvj5 * duv5y / 120.0 + dvj6 * dv6y / 720.0)
+
+         out[j] = hypot(Dx, Dy)
+
+      else
+
+         out[j] = hypot(tux - Zx[j], tvy - Zy[j])
+
+      end
+
+   end
+
+   return nothing
+
 end
 
 """

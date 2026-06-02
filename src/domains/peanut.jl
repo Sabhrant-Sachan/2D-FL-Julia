@@ -4040,62 +4040,17 @@ function dfunc!(out::StridedArray{Float64}, d::peanut, k::Int,
 end
 
 """
-    gamderhigher(d::peanut, th::Float64)
+   gamderhigher(d::peanut, th::Float64)
 
-Return centered peanut boundary coordinates and derivatives up to 4th order.
+Return centered peanut boundary coordinates and derivatives up to 6th order.
 
-Returns
-    gx, gy, dgx, dgy, d2gx, d2gy,
-    d3gx, d3gy, d4gx, d4gy
-
-where gx(th) = R*h(th)*cos(th), gy(th) = R*h(th)*sin(th)
-and h(th) = sqrt(cos(2th) + sqrt(P + cos(2th)^2)).
+Returns gx, gy, dgx, dgy, d2gx, d2gy, d3gx, d3gy, d4gx, d4gy, d5gx, d5gy, d6gx, d6gy.
 """
 function gamderhigher(d::peanut, th::Float64)
 
    st, ct = sincos(th)
 
-   # f = cos(2th)
-   f = cos(2 * th)
-   f1 = -2.0 * sin(2 * th)
-   f2 = -4.0 * f
-   f3 = -4.0 * f1
-   f4 = 16.0 * f
-
-   # l = P + f^2
-   l = d.P + f^2
-   l1 = 2.0 * f * f1
-   l2 = 2.0 * f1^2 + 2.0 * f * f2
-   l3 = 6.0 * f1 * f2 + 2.0 * f * f3
-   l4 = 6.0 * f2^2 + 8.0 * f1 * f3 + 2.0 * f * f4
-
-   # q = sqrt(l)
-   q = sqrt(l)
-
-   q1 = l1 / (2.0 * q)
-
-   q2 = (l2 - 2.0 * q1^2) / (2.0 * q)
-
-   q3 = (l3 - 6.0 * q1 * q2) / (2.0 * q)
-
-   q4 = (l4 - 6.0 * q2^2 - 8.0 * q1 * q3) / (2.0 * q)
-
-   # h = sqrt(f + q)
-   m = f + q
-   m1 = f1 + q1
-   m2 = f2 + q2
-   m3 = f3 + q3
-   m4 = f4 + q4
-
-   h = sqrt(m)
-
-   h1 = m1 / (2.0 * h)
-
-   h2 = (m2 - 2.0 * h1^2) / (2.0 * h)
-
-   h3 = (m3 - 6.0 * h1 * h2) / (2.0 * h)
-
-   h4 = (m4 - 6.0 * h2^2 - 8.0 * h1 * h3) / (2.0 * h)
+   h, h1, h2, h3, h4, h5, h6 = hderhigher(d, th)
 
    gx = d.R * h * ct
    gy = d.R * h * st
@@ -4109,15 +4064,33 @@ function gamderhigher(d::peanut, th::Float64)
    d3gx = d.R * (h3 * ct - 3.0 * h2 * st - 3.0 * h1 * ct + h * st)
    d3gy = d.R * (h3 * st + 3.0 * h2 * ct - 3.0 * h1 * st - h * ct)
 
-   d4gx = d.R * (h4 * ct - 4.0 * h3 * st - 6.0 * h2 * ct + 4.0 * h1 * st + h * ct)
-   d4gy = d.R * (h4 * st + 4.0 * h3 * ct - 6.0 * h2 * st - 4.0 * h1 * ct + h * st)
+   d4gx = d.R * (h4 * ct - 4.0 * h3 * st - 6.0 * h2 * ct +
+                 4.0 * h1 * st + h * ct)
 
-   return gx, gy, dgx, dgy, d2gx, d2gy, d3gx, d3gy, d4gx, d4gy
+   d4gy = d.R * (h4 * st + 4.0 * h3 * ct - 6.0 * h2 * st -
+                 4.0 * h1 * ct + h * st)
+
+   d5gx = d.R * (h5 * ct - 5.0 * h4 * st - 10.0 * h3 * ct +
+                 10.0 * h2 * st + 5.0 * h1 * ct - h * st)
+
+   d5gy = d.R * (h5 * st + 5.0 * h4 * ct - 10.0 * h3 * st -
+                 10.0 * h2 * ct + 5.0 * h1 * st + h * ct)
+
+   d6gx = d.R * (h6 * ct - 6.0 * h5 * st - 15.0 * h4 * ct +
+                 20.0 * h3 * st + 15.0 * h2 * ct -
+                 6.0 * h1 * st - h * ct)
+
+   d6gy = d.R * (h6 * st + 6.0 * h5 * ct - 15.0 * h4 * st -
+                 20.0 * h3 * ct + 15.0 * h2 * st +
+                 6.0 * h1 * ct - h * st)
+
+   return gx, gy, dgx, dgy, d2gx, d2gy, d3gx, d3gy,
+   d4gx, d4gy, d5gx, d5gy, d6gx, d6gy
 
 end
 
 """
-    diff_map!(out, Zx, Zy, DJ, d::peanut, u, v, u2, v2, du, dv, k; tol=1e-4)
+   diff_map!(out, Zx, Zy, DJ, d::peanut, u, v, u2, v2, du, dv, k; tol=1e-3)
 
 Fill `out` with `||τ(u,v) - τ(u₂,v₂)||` on patch `k`.
 
@@ -4129,7 +4102,7 @@ function diff_map!(out::Matrix{Float64},
    d::peanut, u::Float64, v::Float64,
    u2::Matrix{Float64}, v2::Matrix{Float64},
    du::AbstractVector, dv::AbstractVector, k::Int;
-   tol::Float64=1e-4)
+   tol::Float64=1e-3)
 
    nd_u = size(out, 1)
    nd_v = size(out, 2)
@@ -4288,13 +4261,16 @@ function diff_map!(out::Matrix{Float64},
 
    th = muladd(ak, vhat, bk)
 
-   gx, gy, dgx, dgy, d2gx, d2gy, d3gx, d3gy, d4gx, d4gy =
-      gamderhigher(d, th)
+   gx, gy, dgx, dgy, d2gx, d2gy, d3gx, d3gy, 
+   d4gx, d4gy, d5gx, d5gy, d6gx, d6gy = gamderhigher(d, th)
 
    q = αt * ak
+
    q2 = q * q
    q3 = q2 * q
    q4 = q2 * q2
+   q5 = q4 * q
+   q6 = q3 * q3
 
    dux = αc * (gx - Xx)
    duy = αc * (gy - Xy)
@@ -4320,6 +4296,18 @@ function diff_map!(out::Matrix{Float64},
    dv4x = uhat * q4 * d4gx
    dv4y = uhat * q4 * d4gy
 
+   duv4x = αc * q4 * d4gx
+   duv4y = αc * q4 * d4gy
+
+   dv5x = uhat * q5 * d5gx
+   dv5y = uhat * q5 * d5gy
+
+   duv5x = αc * q5 * d5gx
+   duv5y = αc * q5 * d5gy
+
+   dv6x = uhat * q6 * d6gx
+   dv6y = uhat * q6 * d6gy
+
    tux, tvy = mapxy(d, u, v, k)
 
    @inbounds for j in 1:nd_v
@@ -4328,6 +4316,8 @@ function diff_map!(out::Matrix{Float64},
       dvj2 = dvj * dvj
       dvj3 = dvj2 * dvj
       dvj4 = dvj2 * dvj2
+      dvj5 = dvj4 * dvj
+      dvj6 = dvj3 * dvj3
 
       @inbounds for i in 1:nd_u
 
@@ -4339,14 +4329,18 @@ function diff_map!(out::Matrix{Float64},
             dui = du[i]
 
             Dx = (dui * dux + dvj * dvx) -
-                 (dui * dvj * duvx + dvj2 * dv2x / 2) +
-                 (dui * dvj2 * duv2x / 2 + dvj3 * dv3x / 6) -
-                 (dui * dvj3 * duv3x / 6 + dvj4 * dv4x / 24)
+                 (dui * dvj * duvx + dvj2 * dv2x / 2.0) +
+                 (dui * dvj2 * duv2x / 2.0 + dvj3 * dv3x / 6.0) -
+                 (dui * dvj3 * duv3x / 6.0 + dvj4 * dv4x / 24.0) +
+                 (dui * dvj4 * duv4x / 24.0 + dvj5 * dv5x / 120.0) -
+                 (dui * dvj5 * duv5x / 120.0 + dvj6 * dv6x / 720.0)
 
             Dy = (dui * duy + dvj * dvy) -
-                 (dui * dvj * duvy + dvj2 * dv2y / 2) +
-                 (dui * dvj2 * duv2y / 2 + dvj3 * dv3y / 6) -
-                 (dui * dvj3 * duv3y / 6 + dvj4 * dv4y / 24)
+                 (dui * dvj * duvy + dvj2 * dv2y / 2.0) +
+                 (dui * dvj2 * duv2y / 2.0 + dvj3 * dv3y / 6.0) -
+                 (dui * dvj3 * duv3y / 6.0 + dvj4 * dv4y / 24.0) +
+                 (dui * dvj4 * duv4y / 24.0 + dvj5 * dv5y / 120.0) -
+                 (dui * dvj5 * duv5y / 120.0 + dvj6 * dv6y / 720.0)
 
             out[i, j] = hypot(Dx, Dy)
 
@@ -4365,76 +4359,16 @@ function diff_map!(out::Matrix{Float64},
 end
 
 """
-    gamderhigher6(d::peanut, th::Float64)
-
-Return centered peanut boundary coordinates and derivatives up to 6th order.
-
-Returns gx, gy, dgx, dgy, d2gx, d2gy, d3gx, d3gy, d4gx, d4gy, d5gx, d5gy, d6gx, d6gy.
-"""
-function gamderhigher6(d::peanut, th::Float64)
-
-   st, ct = sincos(th)
-
-   h, h1, h2, h3, h4, h5, h6 = hderhigher(d, th)
-
-   gx = d.R * h * ct
-   gy = d.R * h * st
-
-   dgx = d.R * (h1 * ct - h * st)
-   dgy = d.R * (h1 * st + h * ct)
-
-   d2gx = d.R * (h2 * ct - 2.0 * h1 * st - h * ct)
-   d2gy = d.R * (h2 * st + 2.0 * h1 * ct - h * st)
-
-   d3gx = d.R * (h3 * ct - 3.0 * h2 * st - 3.0 * h1 * ct + h * st)
-   d3gy = d.R * (h3 * st + 3.0 * h2 * ct - 3.0 * h1 * st - h * ct)
-
-   d4gx = d.R * (h4 * ct - 4.0 * h3 * st - 6.0 * h2 * ct +
-                 4.0 * h1 * st + h * ct)
-
-   d4gy = d.R * (h4 * st + 4.0 * h3 * ct - 6.0 * h2 * st -
-                 4.0 * h1 * ct + h * st)
-
-   d5gx = d.R * (h5 * ct - 5.0 * h4 * st - 10.0 * h3 * ct +
-                 10.0 * h2 * st + 5.0 * h1 * ct - h * st)
-
-   d5gy = d.R * (h5 * st + 5.0 * h4 * ct - 10.0 * h3 * st -
-                 10.0 * h2 * ct + 5.0 * h1 * st + h * ct)
-
-   d6gx = d.R * (h6 * ct - 6.0 * h5 * st - 15.0 * h4 * ct +
-                 20.0 * h3 * st + 15.0 * h2 * ct -
-                 6.0 * h1 * st - h * ct)
-
-   d6gy = d.R * (h6 * st + 6.0 * h5 * ct - 15.0 * h4 * st -
-                 20.0 * h3 * ct + 15.0 * h2 * st +
-                 6.0 * h1 * ct - h * st)
-
-   return gx, gy,
-   dgx, dgy,
-   d2gx, d2gy,
-   d3gx, d3gy,
-   d4gx, d4gy,
-   d5gx, d5gy,
-   d6gx, d6gy
-
-end
-
-"""
   diff_rmap!(out::Matrix{Float64}, Zx::Matrix{Float64}, Zy::Matrix{Float64},
-             DJ::StridedArray{Float64}, d::peanut,
-             u::Float64, v::Float64,
-             u2::Matrix{Float64}, v2::Matrix{Float64}, r::Matrix{Float64},
-             du::AbstractVector, dv::AbstractVector, k::Int;
-             tol = 1e-3)
+            DJ::StridedArray{Float64}, d::peanut,
+            u::Float64, v::Float64,
+            u2::Matrix{Float64}, v2::Matrix{Float64}, r::Matrix{Float64},
+            du::AbstractVector, dv::AbstractVector, k::Int;
+            tol = 1e-3)
 
-Compute
+Compute ||τ(u,v) - τ(u₂,v₂)|| / r for the `k`-th patch, where
 
-    ||τ(u,v) - τ(u₂,v₂)|| / r
-
-for the `k`-th patch, where
-
-    u₂ = u - r .* du
-    v₂ = v - r .* dv
+   u₂ = u - r .* du, v₂ = v - r .* dv
 
 No allocations. Uses `mapxy_Dmap!` and Taylor correction near `(u,v)`.
 """
@@ -4607,7 +4541,7 @@ function diff_rmap!(out::Matrix{Float64},
    th = muladd(ak, vhat, bk)
 
    gx, gy, dgx, dgy, d2gx, d2gy, d3gx, d3gy, 
-   d4gx, d4gy, d5gx, d5gy, d6gx, d6gy = gamderhigher6(d, th)
+   d4gx, d4gy, d5gx, d5gy, d6gx, d6gy = gamderhigher(d, th)
 
    q = αt * ak
 
@@ -4706,7 +4640,7 @@ function diff_rmap!(out::Matrix{Float64},
 end
 
 """
-    Dwall(d::peanut, u::Float64, v::Float64, k::Int) -> dvx, dvy
+   Dwall(d::peanut, u::Float64, v::Float64, k::Int) -> dvx, dvy
 
 Derivative of the wall curve w.r.t. `v` at the singular side `u = ±1`
 for the `k`-th non-rectangular patch.

@@ -687,6 +687,18 @@ function boundquad!(P::SubArray{Float64}, d::abstractdomain, k::Int)
 
    end
 
+   L1x = L1p2x - L1p1x
+   L1y = L1p2y - L1p1y
+
+   L2x = L2p2x - L2p1x
+   L2y = L2p2y - L2p1y
+
+   nL1 = hypot(L1x, L1y)
+   nL2 = hypot(L2x, L2y)
+
+   parallel_tol = 1e-4
+
+
    N = 101
    tpts = range(-1.0, 1.0; length=N)
 
@@ -698,6 +710,13 @@ function boundquad!(P::SubArray{Float64}, d::abstractdomain, k::Int)
 
       Cx, Cy = mapm1(d, t, k)
       dvx, dvy = Dwall(d, -1.0, t, k)
+
+      nT = hypot(dvx, dvy)
+
+      sin1 = abs(dvx * L1y - dvy * L1x) / (nT * nL1)
+      sin2 = abs(dvx * L2y - dvy * L2x) / (nT * nL2)
+
+      min(sin1, sin2) > parallel_tol || continue
 
       z1, z2 = tanginterp(
          L1p1x, L1p1y, L1p2x, L1p2y,
@@ -740,6 +759,13 @@ function boundquad!(P::SubArray{Float64}, d::abstractdomain, k::Int)
 
       Cx, Cy = mapp1(d, t, k)
       dvx, dvy = Dwall(d, 1.0, t, k)
+
+      nT = hypot(dvx, dvy)
+
+      sin1 = abs(dvx * L1y - dvy * L1x) / (nT * nL1)
+      sin2 = abs(dvx * L2y - dvy * L2x) / (nT * nL2)
+
+      min(sin1, sin2) > parallel_tol || continue
 
       z1, z2 = tanginterp(
          L1p1x, L1p1y, L1p2x, L1p2y,

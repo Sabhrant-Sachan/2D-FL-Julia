@@ -1656,7 +1656,7 @@ end
   diff_map!(out::Matrix{Float64}, Zx::Matrix{Float64}, Zy::Matrix{Float64}, 
   DJ::Matrix{Float64}, d::ellipse, u::Float64, v::Float64,
   u2::Matrix{Float64}, v2::Matrix{Float64}, du::Vector{Float64}, 
-  dv::Vector{Float64}, k::Int; tol = 1e-4)
+  dv::Vector{Float64}, k::Int; tol = 1e-3)
 
 Fill `out` with ‖τ(u,v) - τ(u₂,v₂)‖ on patch `k`, where `(u,v)` are scalars and
 `u2,v2` are matrices (meshgrid-like) with size `(length(du), length(dv))`.
@@ -1671,7 +1671,7 @@ function diff_map!(out::Matrix{Float64},
    d::ellipse, u::Float64, v::Float64,
    u2::Matrix{Float64}, v2::Matrix{Float64},
    du::Vector{Float64}, dv::Vector{Float64}, k::Int;
-   tol::Float64=1e-4)
+   tol::Float64=1e-3)
 
    #nd_u, nd_v = length(du), length(dv)
    nd_u = size(out, 1)
@@ -1714,104 +1714,80 @@ function diff_map!(out::Matrix{Float64},
    vt = muladd(π / 2, v̂, (2 * p.reg - 3) * (π / 4))
    svt, cvt = sincos(vt)
 
-   # common combos 
-   A = d.R1 * d.Cθ * svt + d.R2 * d.Sθ * cvt                  # (R1*ct*svt + R2*st*cvt)
-   B = d.R1 * d.Cθ * cvt - d.R2 * d.Sθ * svt                  # (R1*ct*cvt - R2*st*svt)
-   C = -d.R1 * d.Sθ * svt + d.R2 * d.Cθ * cvt                 # (-R1*st*svt + R2*ct*cvt)
-   D = d.R1 * d.Sθ * cvt + d.R2 * d.Cθ * svt                  # (R1*st*cvt + R2*ct*svt)
+   A = d.R1 * d.Cθ * svt + d.R2 * d.Sθ * cvt
+   B = d.R1 * d.Cθ * cvt - d.R2 * d.Sθ * svt
+   C = -d.R1 * d.Sθ * svt + d.R2 * d.Cθ * cvt
+   D = d.R1 * d.Sθ * cvt + d.R2 * d.Cθ * svt
 
-   # folded pi/alpha_t powers
    πa = π * αt
-   πa2 = πa * πa          # π^2 * αt^2
-   πa3 = πa2 * πa         # π^3 * αt^3
-   πa4 = πa2 * πa2        # π^4 * αt^4
+   πa2 = πa * πa
+   πa3 = πa2 * πa
+   πa4 = πa2 * πa2
+   πa5 = πa4 * πa
+   πa6 = πa3 * πa3
 
    if p.reg == 1
+
       dux = αc * (d.L1 * (2 * v̂ - 1) * d.Sθ / 2 - d.L2 * d.Cθ / 2 + B)
       dvx = αt * ((û - 1) * d.L1 * d.Sθ - (π / 2) * û * A)
       duvx = αt * αc * (d.L1 * d.Sθ - (π / 2) * A)
-
-      dv2x = -(πa2 / 4) * û * B
-      duv2x = -(πa2 / 4) * αc * B
-      dv3x = (πa3 / 8) * û * A
-      duv3x = (πa3 / 8) * αc * A
-      dv4x = (πa4 / 16) * û * B
 
       duy = αc * (d.L1 * (1 - 2 * v̂) * d.Cθ / 2 - d.L2 * d.Sθ / 2 + D)
       dvy = αt * ((1 - û) * d.L1 * d.Cθ + (π / 2) * û * C)
       duvy = αt * αc * (-d.L1 * d.Cθ + (π / 2) * C)
 
-      dv2y = -(πa2 / 4) * û * D
-      duv2y = -(πa2 / 4) * αc * D
-      dv3y = -(πa3 / 8) * û * C
-      duv3y = -(πa3 / 8) * αc * C
-      dv4y = (πa4 / 16) * û * D
-
    elseif p.reg == 2
+
       dux = αc * (d.L2 * (2 * v̂ - 1) * d.Cθ / 2 + d.L1 * d.Sθ / 2 + B)
       dvx = αt * ((û - 1) * d.L2 * d.Cθ - (π / 2) * û * A)
       duvx = αt * αc * (d.L2 * d.Cθ - (π / 2) * A)
-
-      dv2x = -(πa2 / 4) * û * B
-      duv2x = -(πa2 / 4) * αc * B
-      dv3x = (πa3 / 8) * û * A
-      duv3x = (πa3 / 8) * αc * A
-      dv4x = (πa4 / 16) * û * B
 
       duy = αc * (d.L2 * (2 * v̂ - 1) * d.Sθ / 2 - d.L1 * d.Cθ / 2 + D)
       dvy = αt * ((û - 1) * d.L2 * d.Sθ + (π / 2) * û * C)
       duvy = αt * αc * (d.L2 * d.Sθ + (π / 2) * C)
 
-      dv2y = -(πa2 / 4) * û * D
-      duv2y = -(πa2 / 4) * αc * D
-      dv3y = -(πa3 / 8) * û * C
-      duv3y = -(πa3 / 8) * αc * C
-      dv4y = (πa4 / 16) * û * D
-
    elseif p.reg == 3
+
       dux = αc * (-d.L1 * (2 * v̂ - 1) * d.Sθ / 2 + d.L2 * d.Cθ / 2 + B)
       dvx = αt * (-(û - 1) * d.L1 * d.Sθ - (π / 2) * û * A)
       duvx = αt * αc * (-d.L1 * d.Sθ - (π / 2) * A)
-
-      dv2x = -(πa2 / 4) * û * B
-      duv2x = -(πa2 / 4) * αc * B
-      dv3x = (πa3 / 8) * û * A
-      duv3x = (πa3 / 8) * αc * A
-      dv4x = (πa4 / 16) * û * B
 
       duy = αc * (-d.L1 * (1 - 2 * v̂) * d.Cθ / 2 + d.L2 * d.Sθ / 2 + D)
       dvy = αt * (-(1 - û) * d.L1 * d.Cθ + (π / 2) * û * C)
       duvy = αt * αc * (d.L1 * d.Cθ + (π / 2) * C)
 
-      dv2y = -(πa2 / 4) * û * D
-      duv2y = -(πa2 / 4) * αc * D
-      dv3y = -(πa3 / 8) * û * C
-      duv3y = -(πa3 / 8) * αc * C
-      dv4y = (πa4 / 16) * û * D
-
    else # p.reg == 4
+
       dux = αc * (-d.L2 * (2 * v̂ - 1) * d.Cθ / 2 - d.L1 * d.Sθ / 2 + B)
       dvx = αt * (-(û - 1) * d.L2 * d.Cθ - (π / 2) * û * A)
       duvx = αt * αc * (-d.L2 * d.Cθ - (π / 2) * A)
-
-      dv2x = -(πa2 / 4) * û * B
-      duv2x = -(πa2 / 4) * αc * B
-      dv3x = (πa3 / 8) * û * A
-      duv3x = (πa3 / 8) * αc * A
-      dv4x = (πa4 / 16) * û * B
 
       duy = αc * (-d.L2 * (2 * v̂ - 1) * d.Sθ / 2 + d.L1 * d.Cθ / 2 + D)
       dvy = αt * (-(û - 1) * d.L2 * d.Sθ + (π / 2) * û * C)
       duvy = αt * αc * (-d.L2 * d.Sθ + (π / 2) * C)
 
-      dv2y = -(πa2 / 4) * û * D
-      duv2y = -(πa2 / 4) * αc * D
-      dv3y = -(πa3 / 8) * û * C
-      duv3y = -(πa3 / 8) * αc * C
-      dv4y = (πa4 / 16) * û * D
    end
-   # --- general case (reg ∈ {1,2,3,4})
-   # Map the reference scalar point and the whole grid
+
+   dv2x = -(πa2 / 4.0) * û * B
+   duv2x = -(πa2 / 4.0) * αc * B
+   dv3x = (πa3 / 8.0) * û * A
+   duv3x = (πa3 / 8.0) * αc * A
+   dv4x = (πa4 / 16.0) * û * B
+   duv4x = (πa4 / 16.0) * αc * B
+   dv5x = -(πa5 / 32.0) * û * A
+   duv5x = -(πa5 / 32.0) * αc * A
+   dv6x = -(πa6 / 64.0) * û * B
+
+   dv2y = -(πa2 / 4.0) * û * D
+   duv2y = -(πa2 / 4.0) * αc * D
+   dv3y = -(πa3 / 8.0) * û * C
+   duv3y = -(πa3 / 8.0) * αc * C
+   dv4y = (πa4 / 16.0) * û * D
+   duv4y = (πa4 / 16.0) * αc * D
+   dv5y = (πa5 / 32.0) * û * C
+   duv5y = (πa5 / 32.0) * αc * C
+   dv6y = -(πa6 / 64.0) * û * D
+
    tux, tvy = mapxy(d, u, v, k)
 
    @inbounds for j in 1:nd_v
@@ -1819,28 +1795,37 @@ function diff_map!(out::Matrix{Float64},
       dvj2 = dvj * dvj
       dvj3 = dvj2 * dvj
       dvj4 = dvj2 * dvj2
+      dvj5 = dvj4 * dvj
+      dvj6 = dvj3 * dvj3
+
       @inbounds for i in 1:nd_u
          uu = u2[i, j]
          vv = v2[i, j]
-         if (abs(u - uu) < tol) && (abs(v - vv) < tol)
+
+         if abs(u - uu) < tol && abs(v - vv) < tol
+
             dui = du[i]
-            # near the evaluation point: Taylor fixup
-            #Below computes the x and y coordinate of:
-            #τ(u,v) - τ(u-du,v-dv) = dτᵤ(u,v) * du + dτᵥ(u,v) * dv - (...)
+
             Dx = (dui * dux + dvj * dvx) -
-                 (dui * dvj * duvx + dvj2 * (dv2x / 2)) +
-                 (dui * dvj2 * (duv2x / 2) + dvj3 * (dv3x / 6)) -
-                 (dui * dvj3 * (duv3x / 6) + dvj4 * (dv4x / 24))
+                 (dui * dvj * duvx + dvj2 * dv2x / 2.0) +
+                 (dui * dvj2 * duv2x / 2.0 + dvj3 * dv3x / 6.0) -
+                 (dui * dvj3 * duv3x / 6.0 + dvj4 * dv4x / 24.0) +
+                 (dui * dvj4 * duv4x / 24.0 + dvj5 * dv5x / 120.0) -
+                 (dui * dvj5 * duv5x / 120.0 + dvj6 * dv6x / 720.0)
 
             Dy = (dui * duy + dvj * dvy) -
-                 (dui * dvj * duvy + dvj2 * (dv2y / 2)) +
-                 (dui * dvj2 * (duv2y / 2) + dvj3 * (dv3y / 6)) -
-                 (dui * dvj3 * (duv3y / 6) + dvj4 * (dv4y / 24))
+                 (dui * dvj * duvy + dvj2 * dv2y / 2.0) +
+                 (dui * dvj2 * duv2y / 2.0 + dvj3 * dv3y / 6.0) -
+                 (dui * dvj3 * duv3y / 6.0 + dvj4 * dv4y / 24.0) +
+                 (dui * dvj4 * duv4y / 24.0 + dvj5 * dv5y / 120.0) -
+                 (dui * dvj5 * duv5y / 120.0 + dvj6 * dv6y / 720.0)
 
             out[i, j] = hypot(Dx, Dy)
+
          else
-            # far: direct geometric difference
+
             out[i, j] = hypot(tux - Zx[i, j], tvy - Zy[i, j])
+
          end
       end
    end

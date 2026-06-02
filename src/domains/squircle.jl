@@ -2696,127 +2696,68 @@ function dfunc!(out::StridedArray{Float64}, d::squircle, k::Int, t::StridedArray
 end
 
 """
-    gamderhigher(d::squircle, th::Float64)
+   gamderhigher(d::squircle, th::Float64)
 
-Return centered squircle boundary derivatives through order 4.
+Return centered squircle boundary derivatives through order 6.
 
-Returns gx, gy, dgx, dgy, d2gx, d2gy, d3gx, d3gy, d4gx, d4gy
+Returns gx, gy, dgx, dgy, d2gx, d2gy, d3gx, d3gy, d4gx, d4gy, 
+d5gx, d5gy, d6gx, d6gy
 
-where
-
-    gx(th) = hP(th) * cos(th)
-    gy(th) = hP(th) * sin(th)
+where gx(th) = h(th) * cos(th), gy(th) = h(th) * sin(th).
 
 and derivatives are with respect to `th`.
-
-Supports P == 2, P == 4 and P > 4. 
+Supports P == 2, P == 4 and P >= 6. 
 """
 function gamderhigher(d::squircle, th::Float64)
 
-   P = d.P
-
    st, ct = sincos(th)
 
-   if P == 2.0
-      A1 = 1.0 / d.R1^P
-      B1 = 1.0 / d.R2^P
-      Δ = B1 - A1
-
-      gg = A1 * ct^2 + B1 * st^2
-      dgg = 2.0 * st * ct * Δ
-      d2gg = 2.0 * (ct^2 - st^2) * Δ
-      d3gg = -8.0 * st * ct * Δ
-      d4gg = -8.0 * (ct^2 - st^2) * Δ
-
-   elseif P == 4.0
-      A1 = 1.0 / d.R1^P
-      B1 = 1.0 / d.R2^P
-
-      st2 = st * st
-      ct2 = ct * ct
-      st4 = st2 * st2
-      ct4 = ct2 * ct2
-
-      gg = A1 * ct4 + B1 * st4
-
-      dgg = -4.0 * st * ct * (A1 * ct2 - B1 * st2)
-
-      d2gg = -4.0 * (A1 * ct4 + B1 * st4 -
-         3.0 * (A1 + B1) * st2 * ct2)
-
-      d3gg = 8.0 * st * ct * (
-                A1 * (5.0 * ct2 - 3.0 * st2) +
-                B1 * (3.0 * ct2 - 5.0 * st2))
-
-      d4gg = 8.0 * (
-         A1 * (3.0 * st4 - 24.0 * st2 * ct2 + 5.0 * ct4) +
-         B1 * (5.0 * st4 - 24.0 * st2 * ct2 + 3.0 * ct4))
-
-   else
-      ct1 = abs(ct)^(P - 4) / d.R1^P
-      ct2 = ct * ct * ct1
-      ct3 = ct * ct * ct2
-
-      st1 = abs(st)^(P - 4) / d.R2^P
-      st2 = st * st * st1
-      st3 = st * st * st2
-
-      gg = ct3 + st3
-
-      dgg = -P * st * ct * (ct2 - st2)
-
-      d2gg = P * (P - 1) * (ct2 + st2) - P^2 * gg
-
-      d3gg = -P * (P - 1) * (P - 2) * st * ct * (ct1 - st1) -
-             P^2 * dgg
-
-      d4gg = P * (P - 1) * (P - 2) * (P - 3) * (ct1 + st1) -
-             P * (P - 1) * (P - 2)^2 * (ct2 + st2) -
-             P^2 * d2gg
-
-   end
-
-   h = gg^(-1 / P)
-
-   dh = -(h * dgg) / (P * gg)
-
-   d2h = -((P + 1) * dh * dgg + h * d2gg) / (P * gg)
-
-   d3h = -((2P + 1) * d2h * dgg +
-           (P + 2) * dh * d2gg +
-           h * d3gg) / (P * gg)
-
-   d4h = -((3P + 1) * d3h * dgg +
-           (3P + 3) * d2h * d2gg +
-           (P + 3) * dh * d3gg +
-           h * d4gg) / (P * gg)
+   h, h1, h2, h3, h4, h5, h6 = hderhigher(d, th)
 
    gx = h * ct
    gy = h * st
 
-   dgx = dh * ct - h * st
-   dgy = dh * st + h * ct
+   dgx = h1 * ct - h * st
+   dgy = h1 * st + h * ct
 
-   d2gx = d2h * ct - 2 * dh * st - h * ct
-   d2gy = d2h * st + 2 * dh * ct - h * st
+   d2gx = h2 * ct - 2.0 * h1 * st - h * ct
+   d2gy = h2 * st + 2.0 * h1 * ct - h * st
 
-   d3gx = d3h * ct - 3 * d2h * st - 3 * dh * ct + h * st
-   d3gy = d3h * st + 3 * d2h * ct - 3 * dh * st - h * ct
+   d3gx = h3 * ct - 3.0 * h2 * st - 3.0 * h1 * ct + h * st
+   d3gy = h3 * st + 3.0 * h2 * ct - 3.0 * h1 * st - h * ct
 
-   d4gx = d4h * ct - 4 * d3h * st - 6 * d2h * ct + 4 * dh * st + h * ct
-   d4gy = d4h * st + 4 * d3h * ct - 6 * d2h * st - 4 * dh * ct + h * st
+   d4gx = h4 * ct - 4.0 * h3 * st - 6.0 * h2 * ct +
+          4.0 * h1 * st + h * ct
 
-   return gx, gy, dgx, dgy, d2gx, d2gy, d3gx, d3gy, d4gx, d4gy
+   d4gy = h4 * st + 4.0 * h3 * ct - 6.0 * h2 * st -
+          4.0 * h1 * ct + h * st
+
+   d5gx = h5 * ct - 5.0 * h4 * st - 10.0 * h3 * ct +
+          10.0 * h2 * st + 5.0 * h1 * ct - h * st
+
+   d5gy = h5 * st + 5.0 * h4 * ct - 10.0 * h3 * st -
+          10.0 * h2 * ct + 5.0 * h1 * st + h * ct
+
+   d6gx = h6 * ct - 6.0 * h5 * st - 15.0 * h4 * ct +
+          20.0 * h3 * st + 15.0 * h2 * ct -
+          6.0 * h1 * st - h * ct
+
+   d6gy = h6 * st + 6.0 * h5 * ct - 15.0 * h4 * st -
+          20.0 * h3 * ct + 15.0 * h2 * st +
+          6.0 * h1 * ct - h * st
+
+   return gx, gy, dgx, dgy, d2gx, d2gy,
+   d3gx, d3gy, d4gx, d4gy, d5gx, d5gy, d6gx, d6gy
 
 end
 
 """
-  diff_map!(out::Matrix{Float64}, Zx::Matrix{Float64}, Zy::Matrix{Float64},
-            DJ::StridedArray{Float64}, d::squircle,
-            u::Float64, v::Float64,
-            u2::Matrix{Float64}, v2::Matrix{Float64},
-            du::AbstractVector, dv::AbstractVector, k::Int;
-            tol = 1e-4)
+   diff_map!(out::Matrix{Float64}, Zx::Matrix{Float64}, Zy::Matrix{Float64},
+         DJ::StridedArray{Float64}, d::squircle,
+         u::Float64, v::Float64,
+         u2::Matrix{Float64}, v2::Matrix{Float64},
+         du::AbstractVector, dv::AbstractVector, k::Int;
+         tol = 1e-3)
 
 Fill `out` with ‖τ(u,v) - τ(u₂,v₂)‖ on patch `k`.
 
@@ -2827,7 +2768,7 @@ function diff_map!(out::Matrix{Float64},
    d::squircle, u::Float64, v::Float64,
    u2::Matrix{Float64}, v2::Matrix{Float64},
    du::AbstractVector, dv::AbstractVector, k::Int;
-   tol::Float64 = 1e-4)
+   tol::Float64 = 1e-3)
 
    nd_u = size(out, 1)
    nd_v = size(out, 2)
@@ -2905,13 +2846,16 @@ function diff_map!(out::Matrix{Float64},
 
    th = muladd(Δth, vhat, th0)
 
-   gx, gy, dgx, dgy, d2gx, d2gy, d3gx, d3gy, d4gx, d4gy =
-      gamderhigher(d, th)
+   gx, gy, dgx, dgy, d2gx, d2gy, d3gx, d3gy, 
+   d4gx, d4gy, d5gx, d5gy, d6gx, d6gy = gamderhigher(d, th)
+
 
    q = αt * Δth
    q2 = q * q
    q3 = q2 * q
    q4 = q2 * q2
+   q5 = q4 * q
+   q6 = q3 * q3
 
    dux = αc * (gx - Xx)
    duy = αc * (gy - Xy)
@@ -2937,6 +2881,18 @@ function diff_map!(out::Matrix{Float64},
    dv4x = uhat * q4 * d4gx
    dv4y = uhat * q4 * d4gy
 
+   duv4x = αc * q4 * d4gx
+   duv4y = αc * q4 * d4gy
+
+   dv5x = uhat * q5 * d5gx
+   dv5y = uhat * q5 * d5gy
+
+   duv5x = αc * q5 * d5gx
+   duv5y = αc * q5 * d5gy
+
+   dv6x = uhat * q6 * d6gx
+   dv6y = uhat * q6 * d6gy
+
    tux, tvy = mapxy(d, u, v, k)
 
    @inbounds for j in 1:nd_v
@@ -2945,6 +2901,8 @@ function diff_map!(out::Matrix{Float64},
       dvj2 = dvj * dvj
       dvj3 = dvj2 * dvj
       dvj4 = dvj2 * dvj2
+      dvj5 = dvj4 * dvj
+      dvj6 = dvj3 * dvj3
 
       @inbounds for i in 1:nd_u
 
@@ -2956,14 +2914,18 @@ function diff_map!(out::Matrix{Float64},
             dui = du[i]
 
             Dx = (dui * dux + dvj * dvx) -
-                 (dui * dvj * duvx + dvj2 * dv2x / 2) +
-                 (dui * dvj2 * duv2x / 2 + dvj3 * dv3x / 6) -
-                 (dui * dvj3 * duv3x / 6 + dvj4 * dv4x / 24)
+                 (dui * dvj * duvx + dvj2 * dv2x / 2.0) +
+                 (dui * dvj2 * duv2x / 2.0 + dvj3 * dv3x / 6.0) -
+                 (dui * dvj3 * duv3x / 6.0 + dvj4 * dv4x / 24.0) +
+                 (dui * dvj4 * duv4x / 24.0 + dvj5 * dv5x / 120.0) -
+                 (dui * dvj5 * duv5x / 120.0 + dvj6 * dv6x / 720.0)
 
             Dy = (dui * duy + dvj * dvy) -
-                 (dui * dvj * duvy + dvj2 * dv2y / 2) +
-                 (dui * dvj2 * duv2y / 2 + dvj3 * dv3y / 6) -
-                 (dui * dvj3 * duv3y / 6 + dvj4 * dv4y / 24)
+                 (dui * dvj * duvy + dvj2 * dv2y / 2.0) +
+                 (dui * dvj2 * duv2y / 2.0 + dvj3 * dv3y / 6.0) -
+                 (dui * dvj3 * duv3y / 6.0 + dvj4 * dv4y / 24.0) +
+                 (dui * dvj4 * duv4y / 24.0 + dvj5 * dv5y / 120.0) -
+                 (dui * dvj5 * duv5y / 120.0 + dvj6 * dv6y / 720.0)
 
             out[i, j] = hypot(Dx, Dy)
 
@@ -2981,72 +2943,12 @@ function diff_map!(out::Matrix{Float64},
 end
 
 """
-    gamderhigher6(d::squircle, th::Float64)
-
-Return centered squircle boundary derivatives through order 6.
-
-Returns gx, gy, dgx, dgy, d2gx, d2gy, d3gx, d3gy, d4gx, d4gy, 
-d5gx, d5gy, d6gx, d6gy
-
-where gx(th) = h(th) * cos(th), gy(th) = h(th) * sin(th).
-
-and derivatives are with respect to `th`.
-"""
-function gamderhigher6(d::squircle, th::Float64)
-
-   st, ct = sincos(th)
-
-   h, h1, h2, h3, h4, h5, h6 = hderhigher(d, th)
-
-   gx = h * ct
-   gy = h * st
-
-   dgx = h1 * ct - h * st
-   dgy = h1 * st + h * ct
-
-   d2gx = h2 * ct - 2.0 * h1 * st - h * ct
-   d2gy = h2 * st + 2.0 * h1 * ct - h * st
-
-   d3gx = h3 * ct - 3.0 * h2 * st - 3.0 * h1 * ct + h * st
-   d3gy = h3 * st + 3.0 * h2 * ct - 3.0 * h1 * st - h * ct
-
-   d4gx = h4 * ct - 4.0 * h3 * st - 6.0 * h2 * ct +
-          4.0 * h1 * st + h * ct
-
-   d4gy = h4 * st + 4.0 * h3 * ct - 6.0 * h2 * st -
-          4.0 * h1 * ct + h * st
-
-   d5gx = h5 * ct - 5.0 * h4 * st - 10.0 * h3 * ct +
-          10.0 * h2 * st + 5.0 * h1 * ct - h * st
-
-   d5gy = h5 * st + 5.0 * h4 * ct - 10.0 * h3 * st -
-          10.0 * h2 * ct + 5.0 * h1 * st + h * ct
-
-   d6gx = h6 * ct - 6.0 * h5 * st - 15.0 * h4 * ct +
-          20.0 * h3 * st + 15.0 * h2 * ct -
-          6.0 * h1 * st - h * ct
-
-   d6gy = h6 * st + 6.0 * h5 * ct - 15.0 * h4 * st -
-          20.0 * h3 * ct + 15.0 * h2 * st +
-          6.0 * h1 * ct - h * st
-
-   return gx, gy,
-   dgx, dgy,
-   d2gx, d2gy,
-   d3gx, d3gy,
-   d4gx, d4gy,
-   d5gx, d5gy,
-   d6gx, d6gy
-
-end
-
-"""
   diff_rmap!(out::Matrix{Float64}, Zx::Matrix{Float64}, Zy::Matrix{Float64},
-             DJ::StridedArray{Float64}, d::squircle,
-             u::Float64, v::Float64,
-             u2::Matrix{Float64}, v2::Matrix{Float64}, r::Matrix{Float64},
-             du::AbstractVector, dv::AbstractVector, k::Int;
-             tol = 1e-3)
+            DJ::StridedArray{Float64}, d::squircle,
+            u::Float64, v::Float64,
+            u2::Matrix{Float64}, v2::Matrix{Float64}, r::Matrix{Float64},
+            du::AbstractVector, dv::AbstractVector, k::Int;
+            tol = 1e-3)
 
 Compute ‖(τ(u,v) - τ(u₂,v₂)) / r‖ for the `k`-th patch, where
 
@@ -3148,7 +3050,7 @@ function diff_rmap!(out::Matrix{Float64},
    th = muladd(Δth, vhat, th0)
 
    gx, gy, dgx, dgy, d2gx, d2gy, d3gx, d3gy, 
-   d4gx, d4gy, d5gx, d5gy, d6gx, d6gy = gamderhigher6(d, th)
+   d4gx, d4gy, d5gx, d5gy, d6gx, d6gy = gamderhigher(d, th)
 
    q = αt * Δth
 

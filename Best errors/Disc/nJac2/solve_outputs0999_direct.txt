@@ -1,4 +1,4 @@
-Run started: 2026-06-01T01:08:28.540
+Run started: 2026-06-01T18:04:52.190
 s = 0.999
 p = 500
 ============ FractionalLaplacian2D ============
@@ -259,6 +259,49 @@ L^2 error   : 1.84e-12
 Root MSE err: 1.72e-14
 ===============================================
 
+============ FractionalLaplacian2D ============
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[11 12 13 … 58 59 60]
+  Npat   = 80
+  pths   = Vector{Patch} (80 patches)
+  Qpts   = 8×80 Matrix
+  Qptsbd = 8×20 Matrix
+
+
+----------- Parameters -----------
+N=12, nₚᵣ=1024, s=0.999, p=500,
+δv_near=0.15, δv_close=0.008
+Precomps nodes: r = nₚᵣ, θ = 2nₚᵣ,
+Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
+
+----------- Quadrature -----------
+Vol. regular patches  : nr = 32  (32×32 grid)
+Vol. boundary patches : nbd = 128 (128×32 grid)
+Boundary DLP mode-0   : nr_bdy = 64
+Boundary DLP mode-1   : ns_near = 128
+Boundary DLP smoothing: pbd = 2
+
+----------- System -----------
+Target points (Vars.) : 11760
+Stored near/close pts : 48388
+IntS layout columns   : 60148
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 6.55e-15
+Max Rel err : 6.56e-15
+L^2 error   : 1.07e-13
+Root MSE err: 1.00e-15
+===============================================
+
 
 ==End of Disc==
-Run finished: 2026-06-01T03:12:09.080
+Run finished: 2026-06-02T03:15:47.270

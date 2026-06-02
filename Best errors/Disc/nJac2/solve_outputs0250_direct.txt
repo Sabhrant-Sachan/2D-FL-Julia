@@ -1,6 +1,6 @@
-Run started: 2026-06-02T05:21:09.717
-s = 0.9
-p = 5
+Run started: 2026-06-02T07:06:25.109
+s = 0.25
+p = 4
 ============ FractionalLaplacian2D ============
 
 ----------- Domain -----------
@@ -17,7 +17,7 @@ disc with properties:
 
 
 ----------- Parameters -----------
-N=10, nₚᵣ=128, s=0.9, p=5,
+N=10, nₚᵣ=128, s=0.25, p=4,
 δv_near=0.15, δv_close=0.008
 Precomps nodes: r = nₚᵣ, θ = 2nₚᵣ,
 Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
@@ -38,10 +38,10 @@ IntS layout columns   : 1028
 Solver : direct
 
 ----------- Error -----------
-Max Error   : 1.54e-07
-Max Rel err : 1.65e-07
-L^2 error   : 7.69e-07
-Root MSE err: 3.44e-08
+Max Error   : 2.49e-07
+Max Rel err : 2.63e-07
+L^2 error   : 1.58e-06
+Root MSE err: 7.06e-08
 ===============================================
 
 ============ FractionalLaplacian2D ============
@@ -60,7 +60,7 @@ disc with properties:
 
 
 ----------- Parameters -----------
-N=12, nₚᵣ=128, s=0.9, p=5,
+N=12, nₚᵣ=128, s=0.25, p=4,
 δv_near=0.15, δv_close=0.008
 Precomps nodes: r = nₚᵣ, θ = 2nₚᵣ,
 Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
@@ -81,10 +81,10 @@ IntS layout columns   : 1432
 Solver : direct
 
 ----------- Error -----------
-Max Error   : 2.71e-09
-Max Rel err : 2.85e-09
-L^2 error   : 1.40e-08
-Root MSE err: 5.21e-10
+Max Error   : 6.96e-09
+Max Rel err : 7.22e-09
+L^2 error   : 2.73e-08
+Root MSE err: 1.02e-09
 ===============================================
 
 ============ FractionalLaplacian2D ============
@@ -103,7 +103,7 @@ disc with properties:
 
 
 ----------- Parameters -----------
-N=12, nₚᵣ=128, s=0.9, p=5,
+N=12, nₚᵣ=128, s=0.25, p=4,
 δv_near=0.15, δv_close=0.008
 Precomps nodes: r = nₚᵣ, θ = 2nₚᵣ,
 Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
@@ -124,10 +124,10 @@ IntS layout columns   : 8816
 Solver : direct
 
 ----------- Error -----------
-Max Error   : 2.46e-13
-Max Rel err : 2.46e-13
-L^2 error   : 2.17e-12
-Root MSE err: 4.04e-14
+Max Error   : 1.16e-11
+Max Rel err : 1.16e-11
+L^2 error   : 5.45e-11
+Root MSE err: 1.01e-12
 ===============================================
 
 ============ FractionalLaplacian2D ============
@@ -146,7 +146,7 @@ disc with properties:
 
 
 ----------- Parameters -----------
-N=12, nₚᵣ=128, s=0.9, p=5,
+N=12, nₚᵣ=128, s=0.25, p=4,
 δv_near=0.15, δv_close=0.008
 Precomps nodes: r = nₚᵣ, θ = 2nₚᵣ,
 Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
@@ -167,10 +167,10 @@ IntS layout columns   : 14512
 Solver : direct
 
 ----------- Error -----------
-Max Error   : 3.05e-13
-Max Rel err : 3.06e-13
-L^2 error   : 2.01e-12
-Root MSE err: 3.06e-14
+Max Error   : 1.20e-11
+Max Rel err : 1.20e-11
+L^2 error   : 6.58e-11
+Root MSE err: 1.00e-12
 ===============================================
 
 ============ FractionalLaplacian2D ============
@@ -189,7 +189,7 @@ disc with properties:
 
 
 ----------- Parameters -----------
-N=12, nₚᵣ=128, s=0.9, p=5,
+N=12, nₚᵣ=128, s=0.25, p=4,
 δv_near=0.15, δv_close=0.008
 Precomps nodes: r = nₚᵣ, θ = 2nₚᵣ,
 Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
@@ -210,10 +210,10 @@ IntS layout columns   : 19304
 Solver : direct
 
 ----------- Error -----------
-Max Error   : 8.87e-13
-Max Rel err : 8.90e-13
-L^2 error   : 2.31e-12
-Root MSE err: 3.20e-14
+Max Error   : 9.40e-12
+Max Rel err : 9.42e-12
+L^2 error   : 3.42e-11
+Root MSE err: 4.75e-13
 ===============================================
 
 ============ FractionalLaplacian2D ============
@@ -232,7 +232,7 @@ disc with properties:
 
 
 ----------- Parameters -----------
-N=12, nₚᵣ=256, s=0.9, p=5,
+N=12, nₚᵣ=256, s=0.25, p=4,
 δv_near=0.15, δv_close=0.008
 Precomps nodes: r = nₚᵣ, θ = 2nₚᵣ,
 Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
@@ -253,10 +253,10 @@ IntS layout columns   : 19304
 Solver : direct
 
 ----------- Error -----------
-Max Error   : 1.83e-14
-Max Rel err : 1.84e-14
-L^2 error   : 1.44e-13
-Root MSE err: 2.00e-15
+Max Error   : 9.36e-12
+Max Rel err : 9.38e-12
+L^2 error   : 3.33e-11
+Root MSE err: 4.62e-13
 ===============================================
 
 ============ FractionalLaplacian2D ============
@@ -275,7 +275,7 @@ disc with properties:
 
 
 ----------- Parameters -----------
-N=12, nₚᵣ=128, s=0.9, p=5,
+N=12, nₚᵣ=128, s=0.25, p=4,
 δv_near=0.15, δv_close=0.008
 Precomps nodes: r = nₚᵣ, θ = 2nₚᵣ,
 Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
@@ -296,10 +296,10 @@ IntS layout columns   : 60148
 Solver : direct
 
 ----------- Error -----------
-Max Error   : 1.88e-13
-Max Rel err : 1.88e-13
-L^2 error   : 8.62e-13
-Root MSE err: 8.03e-15
+Max Error   : 1.64e-11
+Max Rel err : 1.65e-11
+L^2 error   : 9.11e-11
+Root MSE err: 8.49e-13
 ===============================================
 
 ============ FractionalLaplacian2D ============
@@ -318,7 +318,7 @@ disc with properties:
 
 
 ----------- Parameters -----------
-N=12, nₚᵣ=256, s=0.9, p=5,
+N=12, nₚᵣ=256, s=0.25, p=4,
 δv_near=0.15, δv_close=0.008
 Precomps nodes: r = nₚᵣ, θ = 2nₚᵣ,
 Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
@@ -339,12 +339,12 @@ IntS layout columns   : 60148
 Solver : direct
 
 ----------- Error -----------
-Max Error   : 2.06e-14
-Max Rel err : 2.06e-14
-L^2 error   : 2.72e-13
-Root MSE err: 2.53e-15
+Max Error   : 1.63e-11
+Max Rel err : 1.63e-11
+L^2 error   : 8.81e-11
+Root MSE err: 8.21e-13
 ===============================================
 
 
 ==End of Disc==
-Run finished: 2026-06-02T05:58:05.330
+Run finished: 2026-06-02T07:44:24.260

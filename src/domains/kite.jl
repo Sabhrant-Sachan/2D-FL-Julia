@@ -3752,7 +3752,7 @@ end
   diff_map!(out::Matrix{Float64}, Zx::Matrix{Float64}, Zy::Matrix{Float64}, 
   DJ::Matrix{Float64}, d::kite, u::Float64, v::Float64,
   u2::Matrix{Float64}, v2::Matrix{Float64}, du::Vector{Float64}, 
-  dv::Vector{Float64}, k::Int; tol = 1e-4)
+  dv::Vector{Float64}, k::Int; tol = 1e-3)
 
 Fill `out` with ‖τ(u,v) - τ(u₂,v₂)‖ on patch `k`, where `(u,v)` are scalars and
 `u2,v2` are matrices (meshgrid-like) with size `(length(du), length(dv))`.
@@ -3767,7 +3767,7 @@ function diff_map!(out::Matrix{Float64},
   d::kite, u::Float64, v::Float64,
   u2::Matrix{Float64}, v2::Matrix{Float64},
   du::Vector{Float64}, dv::Vector{Float64}, k::Int;
-  tol::Float64=1e-4)
+  tol::Float64=1e-3)
 
   nd_u = size(out, 1)
   nd_v = size(out, 2)
@@ -3897,24 +3897,36 @@ function diff_map!(out::Matrix{Float64},
   st2 = 2.0 * st * ct
   ct2 = cos(2.0 * th)
 
-  # x-derivs
-  gx  = d.R1 * ct - d.P * (st * st)
-  dgx = -d.R1 * st - d.P * st2
-  d2gx = -d.R1 * ct - 2.0 * d.P * ct2
-  d3gx =  d.R1 * st + 4.0 * d.P * st2
-  d4gx =  d.R1 * ct + 8.0 * d.P * ct2
+   # x-derivs
+   gx = d.R1 * ct - d.P * (st * st)
+   dgx = -d.R1 * st - d.P * st2
+   d2gx = -d.R1 * ct - 2.0 * d.P * ct2
+   d3gx = d.R1 * st + 4.0 * d.P * st2
+   d4gx = d.R1 * ct + 8.0 * d.P * ct2
+   d5gx = -d.R1 * st - 16.0 * d.P * st2
+   d6gx = -d.R1 * ct - 32.0 * d.P * ct2
 
-  # y-derivs
-  gy  = d.R2 * st
-  dgy = d.R2 * ct
-  d2gy = -gy
-  d3gy = -dgy
-  d4gy =  gy
+   # y-derivs
+   gy = d.R2 * st
+   dgy = d.R2 * ct
+   d2gy = -gy
+   d3gy = -dgy
+   d4gy = gy
+   d5gy = dgy
+   d6gy = d2gy
 
-  # powers of αv
-  αv2 = αv * αv
-  αv3 = αv2 * αv
-  αv4 = αv2 * αv2
+   # powers of αv
+   αv2 = αv * αv
+   αv3 = αv2 * αv
+   αv4 = αv2 * αv2
+   αv5 = αv4 * αv
+   αv6 = αv3 * αv3
+
+   Δth2 = Δth * Δth
+   Δth3 = Δth2 * Δth
+   Δth4 = Δth2 * Δth2
+   Δth5 = Δth4 * Δth
+   Δth6 = Δth3 * Δth3
 
   if reg == 1
     dux = αu * (gx - α1x - (2.0 * xi2 - 1.0) * d.L1 * e2x * (0.5 * invn) - d.L2 * q2x * invn)
@@ -3926,19 +3938,6 @@ function diff_map!(out::Matrix{Float64},
     duvx = αu * αv * ( -d.L1 * e2x * invn + Δth * dgx )
     duvy = αu * αv * ( -d.L1 * e2y * invn + Δth * dgy )
 
-    dv2x  = αv2 * (Δth^2) * (xi1 * d2gx)
-    dv2y  = αv2 * (Δth^2) * (xi1 * d2gy)
-    duv2x = αu * αv2 * (Δth^2) * d2gx
-    duv2y = αu * αv2 * (Δth^2) * d2gy
-
-    dv3x  = αv3 * (Δth^3) * (xi1 * d3gx)
-    dv3y  = αv3 * (Δth^3) * (xi1 * d3gy)
-    duv3x = αu * αv3 * (Δth^3) * d3gx
-    duv3y = αu * αv3 * (Δth^3) * d3gy
-
-    dv4x  = αv4 * (Δth^4) * (xi1 * d4gx)
-    dv4y  = αv4 * (Δth^4) * (xi1 * d4gy)
-
   elseif reg == 2
     dux = αu * (gx - α1x - d.L1 * e2x * (0.5 * invn) - (1.0 - xi2) * d.L2 * q2x * invn)
     duy = αu * (gy - α1y - d.L1 * e2y * (0.5 * invn) - (1.0 - xi2) * d.L2 * q2y * invn)
@@ -3948,19 +3947,6 @@ function diff_map!(out::Matrix{Float64},
 
     duvx = αu * αv * ( d.L2 * q2x * invn + Δth * dgx )
     duvy = αu * αv * ( d.L2 * q2y * invn + Δth * dgy )
-
-    dv2x  = αv2 * (Δth^2) * (xi1 * d2gx)
-    dv2y  = αv2 * (Δth^2) * (xi1 * d2gy)
-    duv2x = αu * αv2 * (Δth^2) * d2gx
-    duv2y = αu * αv2 * (Δth^2) * d2gy
-
-    dv3x  = αv3 * (Δth^3) * (xi1 * d3gx)
-    dv3y  = αv3 * (Δth^3) * (xi1 * d3gy)
-    duv3x = αu * αv3 * (Δth^3) * d3gx
-    duv3y = αu * αv3 * (Δth^3) * d3gy
-
-    dv4x  = αv4 * (Δth^4) * (xi1 * d4gx)
-    dv4y  = αv4 * (Δth^4) * (xi1 * d4gy)
 
   elseif reg == 3
     dux = αu * (gx - (1.0 - xi2) * α1x)
@@ -3972,19 +3958,6 @@ function diff_map!(out::Matrix{Float64},
     duvx = αu * αv * ( α1x + Δth * dgx )
     duvy = αu * αv * ( α1y + Δth * dgy )
 
-    dv2x  = αv2 * (Δth^2) * (xi1 * d2gx)
-    dv2y  = αv2 * (Δth^2) * (xi1 * d2gy)
-    duv2x = αu * αv2 * (Δth^2) * d2gx
-    duv2y = αu * αv2 * (Δth^2) * d2gy
-
-    dv3x  = αv3 * (Δth^3) * (xi1 * d3gx)
-    dv3y  = αv3 * (Δth^3) * (xi1 * d3gy)
-    duv3x = αu * αv3 * (Δth^3) * d3gx
-    duv3y = αu * αv3 * (Δth^3) * d3gy
-
-    dv4x  = αv4 * (Δth^4) * (xi1 * d4gx)
-    dv4y  = αv4 * (Δth^4) * (xi1 * d4gy)
-
   elseif reg == 4
     dux = αu * (gx - xi2 * α2x)
     duy = αu * (gy - xi2 * α2y)
@@ -3994,19 +3967,6 @@ function diff_map!(out::Matrix{Float64},
 
     duvx = αu * αv * ( -α2x + Δth * dgx )
     duvy = αu * αv * ( -α2y + Δth * dgy )
-
-    dv2x  = αv2 * (Δth^2) * (xi1 * d2gx)
-    dv2y  = αv2 * (Δth^2) * (xi1 * d2gy)
-    duv2x = αu * αv2 * (Δth^2) * d2gx
-    duv2y = αu * αv2 * (Δth^2) * d2gy
-
-    dv3x  = αv3 * (Δth^3) * (xi1 * d3gx)
-    dv3y  = αv3 * (Δth^3) * (xi1 * d3gy)
-    duv3x = αu * αv3 * (Δth^3) * d3gx
-    duv3y = αu * αv3 * (Δth^3) * d3gy
-
-    dv4x  = αv4 * (Δth^4) * (xi1 * d4gx)
-    dv4y  = αv4 * (Δth^4) * (xi1 * d4gy)
 
   elseif reg == 5
     dux = αu * (gx - α2x - d.L1 * e1x * (0.5 * invn) - xi2 * d.L2 * q1x * invn)
@@ -4018,19 +3978,6 @@ function diff_map!(out::Matrix{Float64},
     duvx = αu * αv * ( -d.L2 * q1x * invn + Δth * dgx )
     duvy = αu * αv * ( -d.L2 * q1y * invn + Δth * dgy )
 
-    dv2x  = αv2 * (Δth^2) * (xi1 * d2gx)
-    dv2y  = αv2 * (Δth^2) * (xi1 * d2gy)
-    duv2x = αu * αv2 * (Δth^2) * d2gx
-    duv2y = αu * αv2 * (Δth^2) * d2gy
-
-    dv3x  = αv3 * (Δth^3) * (xi1 * d3gx)
-    dv3y  = αv3 * (Δth^3) * (xi1 * d3gy)
-    duv3x = αu * αv3 * (Δth^3) * d3gx
-    duv3y = αu * αv3 * (Δth^3) * d3gy
-
-    dv4x  = αv4 * (Δth^4) * (xi1 * d4gx)
-    dv4y  = αv4 * (Δth^4) * (xi1 * d4gy)
-
   elseif reg == 6
     dux = αu * (gx - α2x + (2.0 * xi2 - 1.0) * d.L1 * e1x * (0.5 * invn) - d.L2 * q1x * invn)
     duy = αu * (gy - α2y + (2.0 * xi2 - 1.0) * d.L1 * e1y * (0.5 * invn) - d.L2 * q1y * invn)
@@ -4040,19 +3987,6 @@ function diff_map!(out::Matrix{Float64},
 
     duvx = αu * αv * ( d.L1 * e1x * invn + Δth * dgx )
     duvy = αu * αv * ( d.L1 * e1y * invn + Δth * dgy )
-
-    dv2x  = αv2 * (Δth^2) * (xi1 * d2gx)
-    dv2y  = αv2 * (Δth^2) * (xi1 * d2gy)
-    duv2x = αu * αv2 * (Δth^2) * d2gx
-    duv2y = αu * αv2 * (Δth^2) * d2gy
-
-    dv3x  = αv3 * (Δth^3) * (xi1 * d3gx)
-    dv3y  = αv3 * (Δth^3) * (xi1 * d3gy)
-    duv3x = αu * αv3 * (Δth^3) * d3gx
-    duv3y = αu * αv3 * (Δth^3) * d3gy
-
-    dv4x  = αv4 * (Δth^4) * (xi1 * d4gx)
-    dv4y  = αv4 * (Δth^4) * (xi1 * d4gy)
 
   elseif reg == 7
     dux = αu * (gx - α2x + d.L1 * e1x * (0.5 * invn) - (1.0 - xi2) * d.L2 * q1x * invn)
@@ -4064,19 +3998,6 @@ function diff_map!(out::Matrix{Float64},
     duvx = αu * αv * ( d.L2 * q1x * invn + Δth * dgx )
     duvy = αu * αv * ( d.L2 * q1y * invn + Δth * dgy )
 
-    dv2x  = αv2 * (Δth^2) * (xi1 * d2gx)
-    dv2y  = αv2 * (Δth^2) * (xi1 * d2gy)
-    duv2x = αu * αv2 * (Δth^2) * d2gx
-    duv2y = αu * αv2 * (Δth^2) * d2gy
-
-    dv3x  = αv3 * (Δth^3) * (xi1 * d3gx)
-    dv3y  = αv3 * (Δth^3) * (xi1 * d3gy)
-    duv3x = αu * αv3 * (Δth^3) * d3gx
-    duv3y = αu * αv3 * (Δth^3) * d3gy
-
-    dv4x  = αv4 * (Δth^4) * (xi1 * d4gx)
-    dv4y  = αv4 * (Δth^4) * (xi1 * d4gy)
-
   elseif reg == 8
     dux = αu * (gx - (1.0 - xi2) * α2x)
     duy = αu * (gy - (1.0 - xi2) * α2y)
@@ -4086,19 +4007,6 @@ function diff_map!(out::Matrix{Float64},
 
     duvx = αu * αv * ( α2x + Δth * dgx )
     duvy = αu * αv * ( α2y + Δth * dgy )
-
-    dv2x  = αv2 * (Δth^2) * (xi1 * d2gx)
-    dv2y  = αv2 * (Δth^2) * (xi1 * d2gy)
-    duv2x = αu * αv2 * (Δth^2) * d2gx
-    duv2y = αu * αv2 * (Δth^2) * d2gy
-
-    dv3x  = αv3 * (Δth^3) * (xi1 * d3gx)
-    dv3y  = αv3 * (Δth^3) * (xi1 * d3gy)
-    duv3x = αu * αv3 * (Δth^3) * d3gx
-    duv3y = αu * αv3 * (Δth^3) * d3gy
-
-    dv4x  = αv4 * (Δth^4) * (xi1 * d4gx)
-    dv4y  = αv4 * (Δth^4) * (xi1 * d4gy)
 
   elseif reg == 9
     dux = αu * (gx - xi2 * α1x)
@@ -4110,19 +4018,6 @@ function diff_map!(out::Matrix{Float64},
     duvx = αu * αv * ( -α1x + Δth * dgx )
     duvy = αu * αv * ( -α1y + Δth * dgy )
 
-    dv2x  = αv2 * (Δth^2) * (xi1 * d2gx)
-    dv2y  = αv2 * (Δth^2) * (xi1 * d2gy)
-    duv2x = αu * αv2 * (Δth^2) * d2gx
-    duv2y = αu * αv2 * (Δth^2) * d2gy
-
-    dv3x  = αv3 * (Δth^3) * (xi1 * d3gx)
-    dv3y  = αv3 * (Δth^3) * (xi1 * d3gy)
-    duv3x = αu * αv3 * (Δth^3) * d3gx
-    duv3y = αu * αv3 * (Δth^3) * d3gy
-
-    dv4x  = αv4 * (Δth^4) * (xi1 * d4gx)
-    dv4y  = αv4 * (Δth^4) * (xi1 * d4gy)
-
   else # reg == 10
     dux = αu * (gx - α1x + d.L1 * e2x * (0.5 * invn) - xi2 * d.L2 * q2x * invn)
     duy = αu * (gy - α1y + d.L1 * e2y * (0.5 * invn) - xi2 * d.L2 * q2y * invn)
@@ -4133,50 +4028,69 @@ function diff_map!(out::Matrix{Float64},
     duvx = αu * αv * ( -d.L2 * q2x * invn + Δth * dgx )
     duvy = αu * αv * ( -d.L2 * q2y * invn + Δth * dgy )
 
-    dv2x  = αv2 * (Δth^2) * (xi1 * d2gx)
-    dv2y  = αv2 * (Δth^2) * (xi1 * d2gy)
-    duv2x = αu * αv2 * (Δth^2) * d2gx
-    duv2y = αu * αv2 * (Δth^2) * d2gy
-
-    dv3x  = αv3 * (Δth^3) * (xi1 * d3gx)
-    dv3y  = αv3 * (Δth^3) * (xi1 * d3gy)
-    duv3x = αu * αv3 * (Δth^3) * d3gx
-    duv3y = αu * αv3 * (Δth^3) * d3gy
-
-    dv4x  = αv4 * (Δth^4) * (xi1 * d4gx)
-    dv4y  = αv4 * (Δth^4) * (xi1 * d4gy)
   end
 
-  @inbounds for j in 1:nd_v
-    dvj = dv[j]
-    dvj2 = dvj * dvj
-    dvj3 = dvj2 * dvj
-    dvj4 = dvj2 * dvj2
-    @inbounds for i in 1:nd_u
-      uu = u2[i, j]
-      vv = v2[i, j]
-      if (abs(u - uu) < tol) && (abs(v - vv) < tol)
-        dui = du[i]
-        # near the evaluation point: Taylor fixup
-        #Below computes the x and y coordinate of:
-        #τ(u,v) - τ(u-du,v-dv) = dτᵤ(u,v) * du + dτᵥ(u,v) * dv - (...)
-        Dx = (dui * dux + dvj * dvx) -
-             (dui * dvj * duvx + dvj2 * (dv2x/2)) +
-             (dui * dvj2 * (duv2x/2) + dvj3 * (dv3x/6)) -
-             (dui * dvj3 * (duv3x/6) + dvj4 * (dv4x/24))
+   dv2x = αv2 * Δth2 * xi1 * d2gx
+   dv2y = αv2 * Δth2 * xi1 * d2gy
+   duv2x = αu * αv2 * Δth2 * d2gx
+   duv2y = αu * αv2 * Δth2 * d2gy
 
-        Dy = (dui * duy + dvj * dvy) -
-             (dui * dvj * duvy + dvj2 * (dv2y/2)) +
-             (dui * dvj2 * (duv2y/2) + dvj3 * (dv3y/6)) -
-             (dui * dvj3 * (duv3y/6) + dvj4 * (dv4y/24))
+   dv3x = αv3 * Δth3 * xi1 * d3gx
+   dv3y = αv3 * Δth3 * xi1 * d3gy
+   duv3x = αu * αv3 * Δth3 * d3gx
+   duv3y = αu * αv3 * Δth3 * d3gy
 
-        out[i, j] = hypot(Dx, Dy)
-      else
-        # far: direct geometric difference
-        out[i, j] = hypot(tux - Zx[i, j], tvy - Zy[i, j])
+   dv4x = αv4 * Δth4 * xi1 * d4gx
+   dv4y = αv4 * Δth4 * xi1 * d4gy
+   duv4x = αu * αv4 * Δth4 * d4gx
+   duv4y = αu * αv4 * Δth4 * d4gy
+
+   dv5x = αv5 * Δth5 * xi1 * d5gx
+   dv5y = αv5 * Δth5 * xi1 * d5gy
+   duv5x = αu * αv5 * Δth5 * d5gx
+   duv5y = αu * αv5 * Δth5 * d5gy
+
+   dv6x = αv6 * Δth6 * xi1 * d6gx
+   dv6y = αv6 * Δth6 * xi1 * d6gy
+
+   @inbounds for j in 1:nd_v
+      dvj = dv[j]
+      dvj2 = dvj * dvj
+      dvj3 = dvj2 * dvj
+      dvj4 = dvj2 * dvj2
+      dvj5 = dvj4 * dvj
+      dvj6 = dvj3 * dvj3
+
+      @inbounds for i in 1:nd_u
+         uu = u2[i, j]
+         vv = v2[i, j]
+
+         if abs(u - uu) < tol && abs(v - vv) < tol
+            dui = du[i]
+
+            Dx = (dui * dux + dvj * dvx) -
+                 (dui * dvj * duvx + dvj2 * dv2x / 2.0) +
+                 (dui * dvj2 * duv2x / 2.0 + dvj3 * dv3x / 6.0) -
+                 (dui * dvj3 * duv3x / 6.0 + dvj4 * dv4x / 24.0) +
+                 (dui * dvj4 * duv4x / 24.0 + dvj5 * dv5x / 120.0) -
+                 (dui * dvj5 * duv5x / 120.0 + dvj6 * dv6x / 720.0)
+
+            Dy = (dui * duy + dvj * dvy) -
+                 (dui * dvj * duvy + dvj2 * dv2y / 2.0) +
+                 (dui * dvj2 * duv2y / 2.0 + dvj3 * dv3y / 6.0) -
+                 (dui * dvj3 * duv3y / 6.0 + dvj4 * dv4y / 24.0) +
+                 (dui * dvj4 * duv4y / 24.0 + dvj5 * dv5y / 120.0) -
+                 (dui * dvj5 * duv5y / 120.0 + dvj6 * dv6y / 720.0)
+
+            out[i, j] = hypot(Dx, Dy)
+
+         else
+            out[i, j] = hypot(tux - Zx[i, j], tvy - Zy[i, j])
+         end
       end
-    end
-  end
+   end
+
+   return nothing
 
 end
 
