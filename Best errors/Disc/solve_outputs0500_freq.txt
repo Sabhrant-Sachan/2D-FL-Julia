@@ -1,0 +1,1101 @@
+Run started: 2026-06-03T23:44:03.066
+s = 0.5
+p = 4
+nJac = 3
+============ FractionalLaplacian2D ============
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[4 5 6 … 22 23 24]
+  Npat   = 36
+  pths   = Vector{Patch} (36 patches)
+  Qpts   = 8×36 Matrix
+  Qptsbd = 8×12 Matrix
+
+
+----------- Parameters -----------
+N=12, nₚᵣ=128, s=0.5, p=4,
+δv_near=0.15, δv_close=0.008
+Precomps nodes: r = nₚᵣ, θ = 2nₚᵣ,
+Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
+
+----------- Quadrature -----------
+Vol. regular patches  : nr = 32  (32×32 grid)
+Vol. boundary patches : nbd = 128 (128×32 grid)
+Boundary DLP mode-0   : nr_bdy = 64
+Boundary DLP mode-1   : ns_near = 128
+Boundary DLP smoothing: pbd = 2
+
+----------- System -----------
+Target points (Vars.) : 5328
+Stored near/close pts : 13976
+IntS layout columns   : 19304
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 3.53e-13
+Max Rel err : 3.55e-13
+L^2 error   : 3.94e-12
+Root MSE err: 5.48e-14
+===============================================
+
+nJac = 4
+============ FractionalLaplacian2D ============
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[4 5 6 … 22 23 24]
+  Npat   = 36
+  pths   = Vector{Patch} (36 patches)
+  Qpts   = 8×36 Matrix
+  Qptsbd = 8×12 Matrix
+
+
+----------- Parameters -----------
+N=12, nₚᵣ=128, s=0.5, p=4,
+δv_near=0.15, δv_close=0.008
+Precomps nodes: r = nₚᵣ, θ = 2nₚᵣ,
+Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
+
+----------- Quadrature -----------
+Vol. regular patches  : nr = 32  (32×32 grid)
+Vol. boundary patches : nbd = 128 (128×32 grid)
+Boundary DLP mode-0   : nr_bdy = 64
+Boundary DLP mode-1   : ns_near = 128
+Boundary DLP smoothing: pbd = 2
+
+----------- System -----------
+Target points (Vars.) : 5328
+Stored near/close pts : 13976
+IntS layout columns   : 19304
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 2.21e-12
+Max Rel err : 2.22e-12
+L^2 error   : 2.88e-11
+Root MSE err: 4.00e-13
+===============================================
+
+nJac = 4
+============ FractionalLaplacian2D ============
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[11 12 13 … 58 59 60]
+  Npat   = 80
+  pths   = Vector{Patch} (80 patches)
+  Qpts   = 8×80 Matrix
+  Qptsbd = 8×20 Matrix
+
+
+----------- Parameters -----------
+N=12, nₚᵣ=128, s=0.5, p=4,
+δv_near=0.15, δv_close=0.008
+Precomps nodes: r = nₚᵣ, θ = 2nₚᵣ,
+Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
+
+----------- Quadrature -----------
+Vol. regular patches  : nr = 32  (32×32 grid)
+Vol. boundary patches : nbd = 128 (128×32 grid)
+Boundary DLP mode-0   : nr_bdy = 64
+Boundary DLP mode-1   : ns_near = 128
+Boundary DLP smoothing: pbd = 2
+
+----------- System -----------
+Target points (Vars.) : 11760
+Stored near/close pts : 48388
+IntS layout columns   : 60148
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 5.34e-13
+Max Rel err : 5.35e-13
+L^2 error   : 3.13e-12
+Root MSE err: 2.91e-14
+===============================================
+
+nJac = 5
+============ FractionalLaplacian2D ============
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[11 12 13 … 58 59 60]
+  Npat   = 80
+  pths   = Vector{Patch} (80 patches)
+  Qpts   = 8×80 Matrix
+  Qptsbd = 8×20 Matrix
+
+
+----------- Parameters -----------
+N=12, nₚᵣ=128, s=0.5, p=4,
+δv_near=0.15, δv_close=0.008
+Precomps nodes: r = nₚᵣ, θ = 2nₚᵣ,
+Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
+
+----------- Quadrature -----------
+Vol. regular patches  : nr = 32  (32×32 grid)
+Vol. boundary patches : nbd = 128 (128×32 grid)
+Boundary DLP mode-0   : nr_bdy = 64
+Boundary DLP mode-1   : ns_near = 128
+Boundary DLP smoothing: pbd = 2
+
+----------- System -----------
+Target points (Vars.) : 11760
+Stored near/close pts : 48388
+IntS layout columns   : 60148
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 9.59e-13
+Max Rel err : 9.62e-13
+L^2 error   : 1.02e-11
+Root MSE err: 9.47e-14
+===============================================
+
+nJac = 5
+============ FractionalLaplacian2D ============
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[13 14 15 … 70 71 72]
+  Npat   = 102
+  pths   = Vector{Patch} (102 patches)
+  Qpts   = 8×102 Matrix
+  Qptsbd = 8×24 Matrix
+
+
+----------- Parameters -----------
+N=12, nₚᵣ=128, s=0.5, p=4,
+δv_near=0.15, δv_close=0.008
+Precomps nodes: r = nₚᵣ, θ = 2nₚᵣ,
+Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
+
+----------- Quadrature -----------
+Vol. regular patches  : nr = 32  (32×32 grid)
+Vol. boundary patches : nbd = 128 (128×32 grid)
+Boundary DLP mode-0   : nr_bdy = 64
+Boundary DLP mode-1   : ns_near = 128
+Boundary DLP smoothing: pbd = 2
+
+----------- System -----------
+Target points (Vars.) : 14976
+Stored near/close pts : 78196
+IntS layout columns   : 93172
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 9.87e-13
+Max Rel err : 9.90e-13
+L^2 error   : 1.12e-11
+Root MSE err: 9.24e-14
+===============================================
+
+nJac = 6
+============ FractionalLaplacian2D ============
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[11 12 13 … 58 59 60]
+  Npat   = 80
+  pths   = Vector{Patch} (80 patches)
+  Qpts   = 8×80 Matrix
+  Qptsbd = 8×20 Matrix
+
+
+----------- Parameters -----------
+N=12, nₚᵣ=128, s=0.5, p=4,
+δv_near=0.15, δv_close=0.008
+Precomps nodes: r = nₚᵣ, θ = 2nₚᵣ,
+Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
+
+----------- Quadrature -----------
+Vol. regular patches  : nr = 32  (32×32 grid)
+Vol. boundary patches : nbd = 128 (128×32 grid)
+Boundary DLP mode-0   : nr_bdy = 64
+Boundary DLP mode-1   : ns_near = 128
+Boundary DLP smoothing: pbd = 2
+
+----------- System -----------
+Target points (Vars.) : 11760
+Stored near/close pts : 48388
+IntS layout columns   : 60148
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 5.84e-10
+Max Rel err : 5.87e-10
+L^2 error   : 5.90e-09
+Root MSE err: 5.49e-11
+===============================================
+
+============ FractionalLaplacian2D ============
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[13 14 15 … 70 71 72]
+  Npat   = 102
+  pths   = Vector{Patch} (102 patches)
+  Qpts   = 8×102 Matrix
+  Qptsbd = 8×24 Matrix
+
+
+----------- Parameters -----------
+N=12, nₚᵣ=128, s=0.5, p=4,
+δv_near=0.15, δv_close=0.008
+Precomps nodes: r = nₚᵣ, θ = 2nₚᵣ,
+Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
+
+----------- Quadrature -----------
+Vol. regular patches  : nr = 32  (32×32 grid)
+Vol. boundary patches : nbd = 128 (128×32 grid)
+Boundary DLP mode-0   : nr_bdy = 64
+Boundary DLP mode-1   : ns_near = 128
+Boundary DLP smoothing: pbd = 2
+
+----------- System -----------
+Target points (Vars.) : 14976
+Stored near/close pts : 78196
+IntS layout columns   : 93172
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 5.86e-10
+Max Rel err : 5.89e-10
+L^2 error   : 6.47e-09
+Root MSE err: 5.34e-11
+===============================================
+
+============ FractionalLaplacian2D ============
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[29 30 31 … 138 139 140]
+  Npat   = 182
+  pths   = Vector{Patch} (182 patches)
+  Qpts   = 8×182 Matrix
+  Qptsbd = 8×28 Matrix
+
+
+----------- Parameters -----------
+N=12, nₚᵣ=128, s=0.5, p=4,
+δv_near=0.15, δv_close=0.008
+Precomps nodes: r = nₚᵣ, θ = 2nₚᵣ,
+Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
+
+----------- Quadrature -----------
+Vol. regular patches  : nr = 32  (32×32 grid)
+Vol. boundary patches : nbd = 128 (128×32 grid)
+Boundary DLP mode-0   : nr_bdy = 64
+Boundary DLP mode-1   : ns_near = 128
+Boundary DLP smoothing: pbd = 2
+
+----------- System -----------
+Target points (Vars.) : 26544
+IntS columns       : freed after solve
+Stored near/close pts : 223612
+IntS layout columns   : 250156
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 1.82e-12
+Max Rel err : 1.83e-12
+L^2 error   : 2.24e-11
+Root MSE err: 1.38e-13
+===============================================
+
+============ FractionalLaplacian2D ============
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[41 42 43 … 190 191 192]
+  Npat   = 248
+  pths   = Vector{Patch} (248 patches)
+  Qpts   = 8×248 Matrix
+  Qptsbd = 8×32 Matrix
+
+
+----------- Parameters -----------
+N=12, nₚᵣ=128, s=0.5, p=4,
+δv_near=0.15, δv_close=0.008
+Precomps nodes: r = nₚᵣ, θ = 2nₚᵣ,
+Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
+
+----------- Quadrature -----------
+Vol. regular patches  : nr = 32  (32×32 grid)
+Vol. boundary patches : nbd = 128 (128×32 grid)
+Boundary DLP mode-0   : nr_bdy = 64
+Boundary DLP mode-1   : ns_near = 128
+Boundary DLP smoothing: pbd = 2
+
+----------- System -----------
+Target points (Vars.) : 36096
+IntS columns       : freed after solve
+Stored near/close pts : 379780
+IntS layout columns   : 415876
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 1.29e-12
+Max Rel err : 1.30e-12
+L^2 error   : 1.11e-11
+Root MSE err: 5.88e-14
+===============================================
+
+nJac = 7
+============ FractionalLaplacian2D ============
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[11 12 13 … 58 59 60]
+  Npat   = 80
+  pths   = Vector{Patch} (80 patches)
+  Qpts   = 8×80 Matrix
+  Qptsbd = 8×20 Matrix
+
+
+----------- Parameters -----------
+N=12, nₚᵣ=128, s=0.5, p=4,
+δv_near=0.15, δv_close=0.008
+Precomps nodes: r = nₚᵣ, θ = 2nₚᵣ,
+Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
+
+----------- Quadrature -----------
+Vol. regular patches  : nr = 32  (32×32 grid)
+Vol. boundary patches : nbd = 128 (128×32 grid)
+Boundary DLP mode-0   : nr_bdy = 64
+Boundary DLP mode-1   : ns_near = 128
+Boundary DLP smoothing: pbd = 2
+
+----------- System -----------
+Target points (Vars.) : 11760
+Stored near/close pts : 48388
+IntS layout columns   : 60148
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 3.51e-08
+Max Rel err : 3.53e-08
+L^2 error   : 3.56e-07
+Root MSE err: 3.32e-09
+===============================================
+
+============ FractionalLaplacian2D ============
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[13 14 15 … 70 71 72]
+  Npat   = 102
+  pths   = Vector{Patch} (102 patches)
+  Qpts   = 8×102 Matrix
+  Qptsbd = 8×24 Matrix
+
+
+----------- Parameters -----------
+N=12, nₚᵣ=128, s=0.5, p=4,
+δv_near=0.15, δv_close=0.008
+Precomps nodes: r = nₚᵣ, θ = 2nₚᵣ,
+Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
+
+----------- Quadrature -----------
+Vol. regular patches  : nr = 32  (32×32 grid)
+Vol. boundary patches : nbd = 128 (128×32 grid)
+Boundary DLP mode-0   : nr_bdy = 64
+Boundary DLP mode-1   : ns_near = 128
+Boundary DLP smoothing: pbd = 2
+
+----------- System -----------
+Target points (Vars.) : 14976
+Stored near/close pts : 78196
+IntS layout columns   : 93172
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 3.52e-08
+Max Rel err : 3.54e-08
+L^2 error   : 3.91e-07
+Root MSE err: 3.22e-09
+===============================================
+
+============ FractionalLaplacian2D ============
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[29 30 31 … 138 139 140]
+  Npat   = 182
+  pths   = Vector{Patch} (182 patches)
+  Qpts   = 8×182 Matrix
+  Qptsbd = 8×28 Matrix
+
+
+----------- Parameters -----------
+N=12, nₚᵣ=128, s=0.5, p=4,
+δv_near=0.15, δv_close=0.008
+Precomps nodes: r = nₚᵣ, θ = 2nₚᵣ,
+Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
+
+----------- Quadrature -----------
+Vol. regular patches  : nr = 32  (32×32 grid)
+Vol. boundary patches : nbd = 128 (128×32 grid)
+Boundary DLP mode-0   : nr_bdy = 64
+Boundary DLP mode-1   : ns_near = 128
+Boundary DLP smoothing: pbd = 2
+
+----------- System -----------
+Target points (Vars.) : 26544
+IntS columns       : freed after solve
+Stored near/close pts : 223612
+IntS layout columns   : 250156
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 1.17e-10
+Max Rel err : 1.17e-10
+L^2 error   : 1.40e-09
+Root MSE err: 8.67e-12
+===============================================
+
+============ FractionalLaplacian2D ============
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[41 42 43 … 190 191 192]
+  Npat   = 248
+  pths   = Vector{Patch} (248 patches)
+  Qpts   = 8×248 Matrix
+  Qptsbd = 8×32 Matrix
+
+
+----------- Parameters -----------
+N=12, nₚᵣ=128, s=0.5, p=4,
+δv_near=0.15, δv_close=0.008
+Precomps nodes: r = nₚᵣ, θ = 2nₚᵣ,
+Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
+
+----------- Quadrature -----------
+Vol. regular patches  : nr = 32  (32×32 grid)
+Vol. boundary patches : nbd = 128 (128×32 grid)
+Boundary DLP mode-0   : nr_bdy = 64
+Boundary DLP mode-1   : ns_near = 128
+Boundary DLP smoothing: pbd = 2
+
+----------- System -----------
+Target points (Vars.) : 36096
+IntS columns       : freed after solve
+Stored near/close pts : 379780
+IntS layout columns   : 415876
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 1.51e-11
+Max Rel err : 1.51e-11
+L^2 error   : 1.93e-10
+Root MSE err: 1.02e-12
+===============================================
+
+nJac = 8
+============ FractionalLaplacian2D ============
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[11 12 13 … 58 59 60]
+  Npat   = 80
+  pths   = Vector{Patch} (80 patches)
+  Qpts   = 8×80 Matrix
+  Qptsbd = 8×20 Matrix
+
+
+----------- Parameters -----------
+N=12, nₚᵣ=128, s=0.5, p=4,
+δv_near=0.15, δv_close=0.008
+Precomps nodes: r = nₚᵣ, θ = 2nₚᵣ,
+Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
+
+----------- Quadrature -----------
+Vol. regular patches  : nr = 32  (32×32 grid)
+Vol. boundary patches : nbd = 128 (128×32 grid)
+Boundary DLP mode-0   : nr_bdy = 64
+Boundary DLP mode-1   : ns_near = 128
+Boundary DLP smoothing: pbd = 2
+
+----------- System -----------
+Target points (Vars.) : 11760
+Stored near/close pts : 48388
+IntS layout columns   : 60148
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 8.26e-07
+Max Rel err : 8.33e-07
+L^2 error   : 8.44e-06
+Root MSE err: 7.86e-08
+===============================================
+
+============ FractionalLaplacian2D ============
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[13 14 15 … 70 71 72]
+  Npat   = 102
+  pths   = Vector{Patch} (102 patches)
+  Qpts   = 8×102 Matrix
+  Qptsbd = 8×24 Matrix
+
+
+----------- Parameters -----------
+N=12, nₚᵣ=128, s=0.5, p=4,
+δv_near=0.15, δv_close=0.008
+Precomps nodes: r = nₚᵣ, θ = 2nₚᵣ,
+Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
+
+----------- Quadrature -----------
+Vol. regular patches  : nr = 32  (32×32 grid)
+Vol. boundary patches : nbd = 128 (128×32 grid)
+Boundary DLP mode-0   : nr_bdy = 64
+Boundary DLP mode-1   : ns_near = 128
+Boundary DLP smoothing: pbd = 2
+
+----------- System -----------
+Target points (Vars.) : 14976
+Stored near/close pts : 78196
+IntS layout columns   : 93172
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 8.28e-07
+Max Rel err : 8.35e-07
+L^2 error   : 9.26e-06
+Root MSE err: 7.64e-08
+===============================================
+
+============ FractionalLaplacian2D ============
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[29 30 31 … 138 139 140]
+  Npat   = 182
+  pths   = Vector{Patch} (182 patches)
+  Qpts   = 8×182 Matrix
+  Qptsbd = 8×28 Matrix
+
+
+----------- Parameters -----------
+N=12, nₚᵣ=128, s=0.5, p=4,
+δv_near=0.15, δv_close=0.008
+Precomps nodes: r = nₚᵣ, θ = 2nₚᵣ,
+Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
+
+----------- Quadrature -----------
+Vol. regular patches  : nr = 32  (32×32 grid)
+Vol. boundary patches : nbd = 128 (128×32 grid)
+Boundary DLP mode-0   : nr_bdy = 64
+Boundary DLP mode-1   : ns_near = 128
+Boundary DLP smoothing: pbd = 2
+
+----------- System -----------
+Target points (Vars.) : 26544
+IntS columns       : freed after solve
+Stored near/close pts : 223612
+IntS layout columns   : 250156
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 3.08e-09
+Max Rel err : 3.09e-09
+L^2 error   : 3.72e-08
+Root MSE err: 2.30e-10
+===============================================
+
+============ FractionalLaplacian2D ============
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[41 42 43 … 190 191 192]
+  Npat   = 248
+  pths   = Vector{Patch} (248 patches)
+  Qpts   = 8×248 Matrix
+  Qptsbd = 8×32 Matrix
+
+
+----------- Parameters -----------
+N=12, nₚᵣ=128, s=0.5, p=4,
+δv_near=0.15, δv_close=0.008
+Precomps nodes: r = nₚᵣ, θ = 2nₚᵣ,
+Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
+
+----------- Quadrature -----------
+Vol. regular patches  : nr = 32  (32×32 grid)
+Vol. boundary patches : nbd = 128 (128×32 grid)
+Boundary DLP mode-0   : nr_bdy = 64
+Boundary DLP mode-1   : ns_near = 128
+Boundary DLP smoothing: pbd = 2
+
+----------- System -----------
+Target points (Vars.) : 36096
+IntS columns       : freed after solve
+Stored near/close pts : 379780
+IntS layout columns   : 415876
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 4.06e-10
+Max Rel err : 4.08e-10
+L^2 error   : 5.24e-09
+Root MSE err: 2.77e-11
+===============================================
+
+nJac = 9
+============ FractionalLaplacian2D ============
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[11 12 13 … 58 59 60]
+  Npat   = 80
+  pths   = Vector{Patch} (80 patches)
+  Qpts   = 8×80 Matrix
+  Qptsbd = 8×20 Matrix
+
+
+----------- Parameters -----------
+N=12, nₚᵣ=128, s=0.5, p=4,
+δv_near=0.15, δv_close=0.008
+Precomps nodes: r = nₚᵣ, θ = 2nₚᵣ,
+Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
+
+----------- Quadrature -----------
+Vol. regular patches  : nr = 32  (32×32 grid)
+Vol. boundary patches : nbd = 128 (128×32 grid)
+Boundary DLP mode-0   : nr_bdy = 64
+Boundary DLP mode-1   : ns_near = 128
+Boundary DLP smoothing: pbd = 2
+
+----------- System -----------
+Target points (Vars.) : 11760
+Stored near/close pts : 48388
+IntS layout columns   : 60148
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 1.09e-05
+Max Rel err : 1.10e-05
+L^2 error   : 1.12e-04
+Root MSE err: 1.04e-06
+===============================================
+
+============ FractionalLaplacian2D ============
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[13 14 15 … 70 71 72]
+  Npat   = 102
+  pths   = Vector{Patch} (102 patches)
+  Qpts   = 8×102 Matrix
+  Qptsbd = 8×24 Matrix
+
+
+----------- Parameters -----------
+N=12, nₚᵣ=128, s=0.5, p=4,
+δv_near=0.15, δv_close=0.008
+Precomps nodes: r = nₚᵣ, θ = 2nₚᵣ,
+Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
+
+----------- Quadrature -----------
+Vol. regular patches  : nr = 32  (32×32 grid)
+Vol. boundary patches : nbd = 128 (128×32 grid)
+Boundary DLP mode-0   : nr_bdy = 64
+Boundary DLP mode-1   : ns_near = 128
+Boundary DLP smoothing: pbd = 2
+
+----------- System -----------
+Target points (Vars.) : 14976
+Stored near/close pts : 78196
+IntS layout columns   : 93172
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 1.09e-05
+Max Rel err : 1.10e-05
+L^2 error   : 1.22e-04
+Root MSE err: 1.01e-06
+===============================================
+
+============ FractionalLaplacian2D ============
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[29 30 31 … 138 139 140]
+  Npat   = 182
+  pths   = Vector{Patch} (182 patches)
+  Qpts   = 8×182 Matrix
+  Qptsbd = 8×28 Matrix
+
+
+----------- Parameters -----------
+N=12, nₚᵣ=128, s=0.5, p=4,
+δv_near=0.15, δv_close=0.008
+Precomps nodes: r = nₚᵣ, θ = 2nₚᵣ,
+Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
+
+----------- Quadrature -----------
+Vol. regular patches  : nr = 32  (32×32 grid)
+Vol. boundary patches : nbd = 128 (128×32 grid)
+Boundary DLP mode-0   : nr_bdy = 64
+Boundary DLP mode-1   : ns_near = 128
+Boundary DLP smoothing: pbd = 2
+
+----------- System -----------
+Target points (Vars.) : 26544
+IntS columns       : freed after solve
+Stored near/close pts : 223612
+IntS layout columns   : 250156
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 4.62e-08
+Max Rel err : 4.65e-08
+L^2 error   : 5.61e-07
+Root MSE err: 3.47e-09
+===============================================
+
+============ FractionalLaplacian2D ============
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[41 42 43 … 190 191 192]
+  Npat   = 248
+  pths   = Vector{Patch} (248 patches)
+  Qpts   = 8×248 Matrix
+  Qptsbd = 8×32 Matrix
+
+
+----------- Parameters -----------
+N=12, nₚᵣ=128, s=0.5, p=4,
+δv_near=0.15, δv_close=0.008
+Precomps nodes: r = nₚᵣ, θ = 2nₚᵣ,
+Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
+
+----------- Quadrature -----------
+Vol. regular patches  : nr = 32  (32×32 grid)
+Vol. boundary patches : nbd = 128 (128×32 grid)
+Boundary DLP mode-0   : nr_bdy = 64
+Boundary DLP mode-1   : ns_near = 128
+Boundary DLP smoothing: pbd = 2
+
+----------- System -----------
+Target points (Vars.) : 36096
+IntS columns       : freed after solve
+Stored near/close pts : 379780
+IntS layout columns   : 415876
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 6.29e-09
+Max Rel err : 6.32e-09
+L^2 error   : 8.15e-08
+Root MSE err: 4.31e-10
+===============================================
+
+nJac = 10
+============ FractionalLaplacian2D ============
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[11 12 13 … 58 59 60]
+  Npat   = 80
+  pths   = Vector{Patch} (80 patches)
+  Qpts   = 8×80 Matrix
+  Qptsbd = 8×20 Matrix
+
+
+----------- Parameters -----------
+N=12, nₚᵣ=128, s=0.5, p=4,
+δv_near=0.15, δv_close=0.008
+Precomps nodes: r = nₚᵣ, θ = 2nₚᵣ,
+Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
+
+----------- Quadrature -----------
+Vol. regular patches  : nr = 32  (32×32 grid)
+Vol. boundary patches : nbd = 128 (128×32 grid)
+Boundary DLP mode-0   : nr_bdy = 64
+Boundary DLP mode-1   : ns_near = 128
+Boundary DLP smoothing: pbd = 2
+
+----------- System -----------
+Target points (Vars.) : 11760
+Stored near/close pts : 48388
+IntS layout columns   : 60148
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 9.37e-05
+Max Rel err : 9.49e-05
+L^2 error   : 9.73e-04
+Root MSE err: 9.06e-06
+===============================================
+
+============ FractionalLaplacian2D ============
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[13 14 15 … 70 71 72]
+  Npat   = 102
+  pths   = Vector{Patch} (102 patches)
+  Qpts   = 8×102 Matrix
+  Qptsbd = 8×24 Matrix
+
+
+----------- Parameters -----------
+N=12, nₚᵣ=128, s=0.5, p=4,
+δv_near=0.15, δv_close=0.008
+Precomps nodes: r = nₚᵣ, θ = 2nₚᵣ,
+Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
+
+----------- Quadrature -----------
+Vol. regular patches  : nr = 32  (32×32 grid)
+Vol. boundary patches : nbd = 128 (128×32 grid)
+Boundary DLP mode-0   : nr_bdy = 64
+Boundary DLP mode-1   : ns_near = 128
+Boundary DLP smoothing: pbd = 2
+
+----------- System -----------
+Target points (Vars.) : 14976
+Stored near/close pts : 78196
+IntS layout columns   : 93172
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 9.39e-05
+Max Rel err : 9.51e-05
+L^2 error   : 1.07e-03
+Root MSE err: 8.81e-06
+===============================================
+
+============ FractionalLaplacian2D ============
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[29 30 31 … 138 139 140]
+  Npat   = 182
+  pths   = Vector{Patch} (182 patches)
+  Qpts   = 8×182 Matrix
+  Qptsbd = 8×28 Matrix
+
+
+----------- Parameters -----------
+N=12, nₚᵣ=128, s=0.5, p=4,
+δv_near=0.15, δv_close=0.008
+Precomps nodes: r = nₚᵣ, θ = 2nₚᵣ,
+Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
+
+----------- Quadrature -----------
+Vol. regular patches  : nr = 32  (32×32 grid)
+Vol. boundary patches : nbd = 128 (128×32 grid)
+Boundary DLP mode-0   : nr_bdy = 64
+Boundary DLP mode-1   : ns_near = 128
+Boundary DLP smoothing: pbd = 2
+
+----------- System -----------
+Target points (Vars.) : 26544
+IntS columns       : freed after solve
+Stored near/close pts : 223612
+IntS layout columns   : 250156
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 4.65e-07
+Max Rel err : 4.68e-07
+L^2 error   : 5.67e-06
+Root MSE err: 3.50e-08
+===============================================
+
+============ FractionalLaplacian2D ============
+
+----------- Domain -----------
+disc with properties:
+  (A , B )  = (0.0,0.0)
+  (L₁, L₂)  = (0.8,0.8)
+  Radius of disc = 1.0
+  No. of holes   = 0
+  kd     = Int[41 42 43 … 190 191 192]
+  Npat   = 248
+  pths   = Vector{Patch} (248 patches)
+  Qpts   = 8×248 Matrix
+  Qptsbd = 8×32 Matrix
+
+
+----------- Parameters -----------
+N=12, nₚᵣ=128, s=0.5, p=4,
+δv_near=0.15, δv_close=0.008
+Precomps nodes: r = nₚᵣ, θ = 2nₚᵣ,
+Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
+
+----------- Quadrature -----------
+Vol. regular patches  : nr = 32  (32×32 grid)
+Vol. boundary patches : nbd = 128 (128×32 grid)
+Boundary DLP mode-0   : nr_bdy = 64
+Boundary DLP mode-1   : ns_near = 128
+Boundary DLP smoothing: pbd = 2
+
+----------- System -----------
+Target points (Vars.) : 36096
+IntS columns       : freed after solve
+Stored near/close pts : 379780
+IntS layout columns   : 415876
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 6.56e-08
+Max Rel err : 6.60e-08
+L^2 error   : 8.54e-07
+Root MSE err: 4.52e-09
+===============================================
+
+
+==End of Disc==
+Run finished: 2026-06-04T06:26:31.846

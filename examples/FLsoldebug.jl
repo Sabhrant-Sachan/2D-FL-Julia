@@ -80,6 +80,7 @@ function debug_domain(d;
    δ_near::Float64=0.15,
    δ_intp::Float64=5e-3,
    draw_domain::Bool=true,
+   bdquadtest::Bool=false,
    invtest::Bool=true,
    dlptest::Bool=true,
    bvectest::Bool=false,
@@ -91,9 +92,9 @@ function debug_domain(d;
    s_small::Float64=0.01,
    s_pre::Float64=0.1,
    p::Int=4,
-   nref_bvec::Int=128,
+   nref_bvec::Int=256,
    nref_pre::Int=256,
-   ntest_bvec=(16, 32, 64),
+   ntest_bvec=(16, 32, 64, 128),
    ntest_pre=(16, 32, 64, 128),
    nJac::Int=2)
 
@@ -111,11 +112,21 @@ function debug_domain(d;
       FL2D.drawbd(d, 1)
    end
 
+   display(d)
+
    FL2D.chk_map(d)
 
    dp = FL2D.domprop(N, δv_near, δv_close, δ_near, δ_intp, d; Lᵢₙ=Lᵢₙ)
 
-   FL2D.memory_report(dp)
+   display(dp)
+
+   #FL2D.memory_report(dp)
+
+   if bdquadtest
+      for k in 1:d.Npat
+         FL2D.plotns(dp, d, k)
+      end
+   end
 
    if invtest
       FL2D.chkinvpts(dp, d; flag=true)
@@ -134,6 +145,7 @@ function debug_domain(d;
       println()
       println("bvec convergence test")
       println("  s = ", s_bvec)
+      println("  nJac = ", nJac)
       println("  reference n = ", nref_bvec)
 
       bex = FL2D.bvec(d, dp, s_bvec, f!; n=nref_bvec)
@@ -148,24 +160,24 @@ function debug_domain(d;
          println("  n = ", n, "  max abs err = ", err)
       end
 
-      println()
-      println("bvec_small convergence test")
-      println("  s = ", s_small)
-      println("  reference n = ", nref_bvec)
+      # println()
+      # println("bvec_small convergence test")
+      # println("  s = ", s_small)
+      # println("  reference n = ", nref_bvec)
 
-      fsmall!, _ = get_fuex(kind, nJac, s_small)
+      # fsmall!, _ = get_fuex(kind, nJac, s_small)
 
-      bex_small = FL2D.bvec_small(d, dp, s_small, fsmall!; n=nref_bvec)
+      # bex_small = FL2D.bvec_small(d, dp, s_small, fsmall!; n=nref_bvec)
 
-      if plot_bvec
-         FL2D.plotfunc(dp, d, bex_small)
-      end
+      # if plot_bvec
+      #    FL2D.plotfunc(dp, d, bex_small)
+      # end
 
-      for n in ntest_bvec
-         b = FL2D.bvec_small(d, dp, s_small, fsmall!; n=n)
-         err = maximum(abs.(b .- bex_small))
-         println("  n = ", n, "  max abs err = ", err)
-      end
+      # for n in ntest_bvec
+      #    b = FL2D.bvec_small(d, dp, s_small, fsmall!; n=n)
+      #    err = maximum(abs.(b .- bex_small))
+      #    println("  n = ", n, "  max abs err = ", err)
+      # end
    end
 
    # ------------------------------------------------------------
@@ -237,7 +249,7 @@ function debug_domain(d;
    end
 
    println("Done.")
-   return d, dp
+   return nothing
 end
 
 # ------------------------------------------------------------
@@ -282,10 +294,9 @@ function debug_ellipse(domain::Symbol=:coarse; kwargs...)
       )
    elseif domain == :fine
       FL2D.ellipse(
-         b=[6, 6, 6, 6, 6],
-         a=[3, 3, 3, 3, 4],
-         R1=1.0, R2=2.0, L1=2.0, L2=0.8
-      )
+         b=[4, 3, 4, 3, 4],
+         a=[2, 2, 2, 2, 3],
+         R1=1.0, R2=2.0, L1=2.0, L2=0.8)
    else
       error("Unknown ellipse domain = $domain. Use :coarse or :fine.")
    end
@@ -384,12 +395,12 @@ end
 function debug_star(domain::Symbol=:coarse; kwargs...)
    d = if domain == :coarse
       FL2D.star(b=[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1])
-   elseif domain == :sharp4
+   elseif domain == :petal4
       FL2D.star(
          b=[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
          P=4, tht1=0.24, tht2=0.225, L1=0.5, L2=0.5
       )
-   elseif domain == :sharp6
+   elseif domain == :petal6
       FL2D.star(
          b=[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
          P=6, tht1=0.14, tht2=0.15, L1=0.3, L2=0.52
@@ -401,16 +412,32 @@ function debug_star(domain::Symbol=:coarse; kwargs...)
    return debug_domain(d; kind=:star, kwargs...)
 end
 
+# d = FL2D.disc(b=[6, 6, 6, 6, 5], a=[4, 4, 4, 4, 4], L1=0.8, L2=0.8)
 
-debug_disc(:coarse; N=12, bvectest=true, precompstest=true)
-debug_disc(:fine; N=12, bvectest=true)
+# dp = FL2D.domprop(12, 8e-3, 0.15, 0.15, 5e-3, d; Lᵢₙ=5)
 
-debug_ellipse(:coarse; N=12, precompstest=true)
+# f!, _ = get_fuex(:disc, 9, 0.5)
+
+# FL2D.plotfunc(dp, d, f!)
+
+debug_disc(:coarse; N=12, bdquadtest=false)
+debug_disc(:coarse; N=12, bvectest=true, nJac=10)
+debug_disc(:fine; N=12)
+
+debug_ellipse(:fine; N=12, bvectest=true) #precompstest=true
+
 debug_annulus(:coarse; N=12, slptest=true)
 
 debug_ellipseNh(:coarse; N=10, invtest=true, dlptest=true, slptest=true)
 
 debug_peanut(:fine; N=10, bvectest=true)
+
+debug_squircle(:fine; N=10, dlptest=true)
+
 debug_kite(:fine; N=10, dlptest=true)
+
 debug_bean(:fine; N=10, precompstest=true)
-debug_star(:sharp6; N=10, invtest=true, dlptest=true)
+
+debug_star(:petal4; N=10, invtest=true, dlptest=true)
+
+debug_star(:petal6; N=10, invtest=true, dlptest=true)

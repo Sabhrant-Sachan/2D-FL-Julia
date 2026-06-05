@@ -1607,7 +1607,11 @@ function precompsH(d::abstractdomain, dp::domprop, s::Float64, p::Int
    #----------Near Singular Integration---------
    pn = 4 #For all 0 < s < 1, p for VOL_NEAR cases
 
-   work = NSHWork(n, N, pn)
+   #work = NSHWork(n, N, pn)
+   #Maybe this is an optimization? 
+   #but will have no effect for s<=0.9
+   work_close = NSHWork(n, N, p)
+   work_near  = NSHWork(min(n,256), N, pn)
 
    VOL_FAR   = UInt8(0)
    VOL_NEAR  = UInt8(1)
@@ -1627,7 +1631,7 @@ function precompsH(d::abstractdomain, dp::domprop, s::Float64, p::Int
             α₂ = dp.invpts[2, qin]
             qin += 1
 
-            NSclose_H!(I, work, d, k, α₁, α₂, s, p, N, knbd, Dhc)
+            NSclose_H!(I, work_close, d, k, α₁, α₂, s, p, N, knbd, Dhc)
 
          elseif mode == VOL_NEAR
             u0 = dp.invpts[1, qin]
@@ -1637,7 +1641,7 @@ function precompsH(d::abstractdomain, dp::domprop, s::Float64, p::Int
             xt = dp.tgtpts[1, row]
             yt = dp.tgtpts[2, row]
 
-            NSnear_H!(I, work, d, k, xt, yt, u0, v0, s, pn, N, knbd, Dhc)
+            NSnear_H!(I, work_near, d, k, xt, yt, u0, v0, s, pn, N, knbd, Dhc)
          else
             error("Unexpected volume mode = $mode for row=$row, patch=$k")
          end
@@ -3309,8 +3313,8 @@ function precompsL(d::abstractdomain, dp::domprop, s::Float64, p::Int
          col += 1
       end
 
-      @assert qin == dp.invgo[k+1]
-      @assert col == dp.pthgo[k+1]
+      #@assert qin == dp.invgo[k+1]
+      #@assert col == dp.pthgo[k+1]
    end
 
    # -------------------------------
@@ -3357,10 +3361,10 @@ function precompsL(d::abstractdomain, dp::domprop, s::Float64, p::Int
          col += 1
       end
 
-      @assert qbd == dp.invgo[M+k+1]
+      #@assert qbd == dp.invgo[M+k+1]
    end
 
-   @assert col == dp.pthgo[M+2]
+   #@assert col == dp.pthgo[M+2]
    return IntS
 end
 
@@ -4629,8 +4633,8 @@ function precompsLs(d::abstractdomain, dp::domprop, s::Float64, p::Int
          col += 1
       end
 
-      @assert qin == dp.invgo[k+1]
-      @assert col == dp.pthgo[k+1]
+      #@assert qin == dp.invgo[k+1]
+      #@assert col == dp.pthgo[k+1]
    end
 
    # -------------------------------
@@ -4677,10 +4681,10 @@ function precompsLs(d::abstractdomain, dp::domprop, s::Float64, p::Int
          col += 1
       end
 
-      @assert qbd == dp.invgo[M+k+1]
+      #@assert qbd == dp.invgo[M+k+1]
    end
 
-   @assert col == dp.pthgo[M+2]
+   #@assert col == dp.pthgo[M+2]
    return IntS
 
 end

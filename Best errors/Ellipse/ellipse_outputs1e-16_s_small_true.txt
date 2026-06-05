@@ -1,0 +1,321 @@
+Run started: 2026-06-04T13:22:34.559
+s = 1.0e-16
+p = 4
+============ FractionalLaplacian2D ============
+
+----------- Domain -----------
+ellipse with properties:
+  (A , B )  = (0.0,0.0)
+  (R₁, R₂)  = (1.0,2.0)
+  (L₁, L₂)  = (2.0,0.8)
+  (cos,sin) = (1.0,0.0)
+  No. of holes   = 0
+  kd     = Int[1 2 3 4]
+  Npat   = 5
+  pths   = Vector{Patch} (5 patches)
+  Qpts   = 8×5 Matrix
+  Qptsbd = 8×4 Matrix
+
+
+----------- Parameters -----------
+N=10, nₚᵣ=128, s=1e-16, p=4,
+δv_near=0.15, δv_close=0.008
+--- small s case used --- 
+Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
+
+----------- Quadrature -----------
+Vol. regular patches  : nr = 32  (32×32 grid)
+Vol. boundary patches : nbd = 128 (128×32 grid)
+Boundary DLP mode-0   : nr_bdy = 64
+Boundary DLP mode-1   : ns_near = 128
+Boundary DLP smoothing: pbd = 2
+
+----------- System -----------
+Target points (Vars.) : 540
+Stored near/close pts : 432
+IntS layout columns   : 972
+Cond. num 2-norm: 4.48e+05
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 3.33e-16
+Max Rel err : 3.40e-16
+L^2 error   : 2.83e-15
+Root MSE err: 1.26e-16
+===============================================
+
+============ FractionalLaplacian2D ============
+
+----------- Domain -----------
+ellipse with properties:
+  (A , B )  = (0.0,0.0)
+  (R₁, R₂)  = (1.0,2.0)
+  (L₁, L₂)  = (2.0,0.8)
+  (cos,sin) = (1.0,0.0)
+  No. of holes   = 0
+  kd     = Int[1 2 3 4]
+  Npat   = 5
+  pths   = Vector{Patch} (5 patches)
+  Qpts   = 8×5 Matrix
+  Qptsbd = 8×4 Matrix
+
+
+----------- Parameters -----------
+N=12, nₚᵣ=128, s=1e-16, p=4,
+δv_near=0.15, δv_close=0.008
+--- small s case used --- 
+Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
+
+----------- Quadrature -----------
+Vol. regular patches  : nr = 32  (32×32 grid)
+Vol. boundary patches : nbd = 128 (128×32 grid)
+Boundary DLP mode-0   : nr_bdy = 64
+Boundary DLP mode-1   : ns_near = 128
+Boundary DLP smoothing: pbd = 2
+
+----------- System -----------
+Target points (Vars.) : 768
+Stored near/close pts : 540
+IntS layout columns   : 1308
+Cond. num 2-norm: 1.04e+06
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 4.44e-16
+Max Rel err : 4.51e-16
+L^2 error   : 3.53e-15
+Root MSE err: 1.32e-16
+===============================================
+
+============ FractionalLaplacian2D ============
+
+----------- Domain -----------
+ellipse with properties:
+  (A , B )  = (0.0,0.0)
+  (R₁, R₂)  = (1.0,2.0)
+  (L₁, L₂)  = (2.0,0.8)
+  (cos,sin) = (1.0,0.0)
+  No. of holes   = 0
+  kd     = Int[1 2 3 … 6 7 8]
+  Npat   = 10
+  pths   = Vector{Patch} (10 patches)
+  Qpts   = 8×10 Matrix
+  Qptsbd = 8×8 Matrix
+
+
+----------- Parameters -----------
+N=10, nₚᵣ=128, s=1e-16, p=4,
+δv_near=0.15, δv_close=0.008
+--- small s case used --- 
+Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
+
+----------- Quadrature -----------
+Vol. regular patches  : nr = 32  (32×32 grid)
+Vol. boundary patches : nbd = 128 (128×32 grid)
+Boundary DLP mode-0   : nr_bdy = 64
+Boundary DLP mode-1   : ns_near = 128
+Boundary DLP smoothing: pbd = 2
+
+----------- System -----------
+Target points (Vars.) : 1080
+Stored near/close pts : 1068
+IntS layout columns   : 2148
+Cond. num 2-norm: 5.00e+05
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 4.44e-16
+Max Rel err : 4.47e-16
+L^2 error   : 4.14e-15
+Root MSE err: 1.31e-16
+===============================================
+
+============ FractionalLaplacian2D ============
+
+----------- Domain -----------
+ellipse with properties:
+  (A , B )  = (0.0,0.0)
+  (R₁, R₂)  = (1.0,2.0)
+  (L₁, L₂)  = (2.0,0.8)
+  (cos,sin) = (1.0,0.0)
+  No. of holes   = 0
+  kd     = Int[1 2 3 … 6 7 8]
+  Npat   = 10
+  pths   = Vector{Patch} (10 patches)
+  Qpts   = 8×10 Matrix
+  Qptsbd = 8×8 Matrix
+
+
+----------- Parameters -----------
+N=12, nₚᵣ=128, s=1e-16, p=4,
+δv_near=0.15, δv_close=0.008
+--- small s case used --- 
+Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
+
+----------- Quadrature -----------
+Vol. regular patches  : nr = 32  (32×32 grid)
+Vol. boundary patches : nbd = 128 (128×32 grid)
+Boundary DLP mode-0   : nr_bdy = 64
+Boundary DLP mode-1   : ns_near = 128
+Boundary DLP smoothing: pbd = 2
+
+----------- System -----------
+Target points (Vars.) : 1536
+Stored near/close pts : 1464
+IntS layout columns   : 3000
+Cond. num 2-norm: 1.13e+06
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 4.44e-16
+Max Rel err : 4.46e-16
+L^2 error   : 5.01e-15
+Root MSE err: 1.32e-16
+===============================================
+
+============ FractionalLaplacian2D ============
+
+----------- Domain -----------
+ellipse with properties:
+  (A , B )  = (0.0,0.0)
+  (R₁, R₂)  = (1.0,2.0)
+  (L₁, L₂)  = (2.0,0.8)
+  (cos,sin) = (1.0,0.0)
+  No. of holes   = 0
+  kd     = Int[5 6 7 … 26 27 28]
+  Npat   = 40
+  pths   = Vector{Patch} (40 patches)
+  Qpts   = 8×40 Matrix
+  Qptsbd = 8×14 Matrix
+
+
+----------- Parameters -----------
+N=10, nₚᵣ=128, s=1e-16, p=4,
+δv_near=0.15, δv_close=0.008
+--- small s case used --- 
+Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
+
+----------- Quadrature -----------
+Vol. regular patches  : nr = 32  (32×32 grid)
+Vol. boundary patches : nbd = 128 (128×32 grid)
+Boundary DLP mode-0   : nr_bdy = 64
+Boundary DLP mode-1   : ns_near = 128
+Boundary DLP smoothing: pbd = 2
+
+----------- System -----------
+Target points (Vars.) : 4140
+Stored near/close pts : 8496
+IntS layout columns   : 12636
+Cond. num 2-norm: 2.81e+06
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 3.33e-16
+Max Rel err : 3.35e-16
+L^2 error   : 7.10e-15
+Root MSE err: 1.12e-16
+===============================================
+
+============ FractionalLaplacian2D ============
+
+----------- Domain -----------
+ellipse with properties:
+  (A , B )  = (0.0,0.0)
+  (R₁, R₂)  = (1.0,2.0)
+  (L₁, L₂)  = (2.0,0.8)
+  (cos,sin) = (1.0,0.0)
+  No. of holes   = 0
+  kd     = Int[5 6 7 … 26 27 28]
+  Npat   = 40
+  pths   = Vector{Patch} (40 patches)
+  Qpts   = 8×40 Matrix
+  Qptsbd = 8×14 Matrix
+
+
+----------- Parameters -----------
+N=12, nₚᵣ=128, s=1e-16, p=4,
+δv_near=0.15, δv_close=0.008
+--- small s case used --- 
+Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
+
+----------- Quadrature -----------
+Vol. regular patches  : nr = 32  (32×32 grid)
+Vol. boundary patches : nbd = 128 (128×32 grid)
+Boundary DLP mode-0   : nr_bdy = 64
+Boundary DLP mode-1   : ns_near = 128
+Boundary DLP smoothing: pbd = 2
+
+----------- System -----------
+Target points (Vars.) : 5928
+Stored near/close pts : 11904
+IntS layout columns   : 17832
+Cond. num 2-norm: 6.51e+06
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 3.33e-16
+Max Rel err : 3.34e-16
+L^2 error   : 8.46e-15
+Root MSE err: 1.12e-16
+===============================================
+
+============ FractionalLaplacian2D ============
+
+----------- Domain -----------
+ellipse with properties:
+  (A , B )  = (0.0,0.0)
+  (R₁, R₂)  = (1.0,2.0)
+  (L₁, L₂)  = (2.0,0.8)
+  (cos,sin) = (1.0,0.0)
+  No. of holes   = 0
+  kd     = Int[11 12 13 … 52 53 54]
+  Npat   = 74
+  pths   = Vector{Patch} (74 patches)
+  Qpts   = 8×74 Matrix
+  Qptsbd = 8×18 Matrix
+
+
+----------- Parameters -----------
+N=12, nₚᵣ=128, s=1e-16, p=4,
+δv_near=0.15, δv_close=0.008
+--- small s case used --- 
+Lᵢₙ=5, δ_near=0.15, δ_intp=0.005
+
+----------- Quadrature -----------
+Vol. regular patches  : nr = 32  (32×32 grid)
+Vol. boundary patches : nbd = 128 (128×32 grid)
+Boundary DLP mode-0   : nr_bdy = 64
+Boundary DLP mode-1   : ns_near = 128
+Boundary DLP smoothing: pbd = 2
+
+----------- System -----------
+Target points (Vars.) : 10872
+Stored near/close pts : 31176
+IntS layout columns   : 42048
+Cond. num 2-norm: 1.78e+07
+
+----------- Solve -----------
+Solver : direct
+
+----------- Error -----------
+Max Error   : 4.44e-16
+Max Rel err : 4.45e-16
+L^2 error   : 1.22e-14
+Root MSE err: 1.19e-16
+===============================================
+
+
+==End of Disc: s_small=true==
+Run finished: 2026-06-04T13:41:13.143

@@ -5,9 +5,68 @@ function getfield_default(x, name::Symbol, default)
    return name in propertynames(x) ? getproperty(x, name) : default
 end
 
+function run_one_ellipse!(case; s::Float64, p::Int, nJac::Int=2)
+
+   f!, uex = makeellipsefuex(nJac, s)
+
+   # New domprop controls
+   δv_near = getfield_default(case, :δv_near, 0.15)
+   δv_close = getfield_default(case, :δv_close, 8e-3)
+   δ_near = getfield_default(case, :δ_near, 0.15)
+   δ_intp = getfield_default(case, :δ_intp, 5e-3)
+
+   plot_u = getfield_default(case, :plot, false)
+   solver = getfield_default(case, :solver, :direct)
+   matrixfree = getfield_default(case, :matrixfree, false)
+   s_small = getfield_default(case, :s_small, false)
+   benchmark = getfield_default(case, :benchmark, false)
+   cond_num = getfield_default(case, :cond_num, false)
+
+   # Quadrature controls
+   nr = getfield_default(case, :nr, 32)
+   nbd = getfield_default(case, :nbd, 128)
+   nr_bdy = getfield_default(case, :nr_bdy, 64)
+   ns_near = getfield_default(case, :ns_near, 128)
+   pbd = getfield_default(case, :pbd, 2)
+
+   prob = Problem(;
+      N=case.N,
+      nₚᵣ=case.nₚᵣ,
+      s=s,
+      p=p,
+      δv_near=δv_near,
+      δv_close=δv_close,
+      δ_near=δ_near,
+      δ_intp=δ_intp,
+      (f!)=f!,
+      uex=uex,
+      dom=case.dom
+   )
+
+   opts = Options(;
+      plot=plot_u,
+      solver=solver,
+      cond_num=cond_num,
+      benchmark=benchmark,
+      matrixfree=matrixfree,
+      s_small=s_small,
+      nr=nr,
+      nbd=nbd,
+      nr_bdy=nr_bdy,
+      ns_near=ns_near,
+      pbd=pbd
+   )
+
+   core = solveFL(prob; opts=opts)
+
+   println(SolveView(prob, opts, core))
+
+   return nothing
+end
+
 function run_one_ellipse!(io, case; s::Float64, p::Int, nJac::Int=2)
 
-   f!, uex, _ = makeellipsefuex(nJac, s)
+   f!, uex = makeellipsefuex(nJac, s)
 
    # New domprop controls
    δv_near = getfield_default(case, :δv_near, 0.15)
@@ -76,8 +135,8 @@ d2 = FL2D.ellipse(
    R1=1.0, R2=2.0, L1=2.0, L2=0.8);
 
 d3 = FL2D.ellipse(
-   b=[4, 3, 4, 3, 3],
-   a=[2, 2, 2, 2, 2],
+   b=[4, 3, 4, 3, 4],
+   a=[2, 2, 2, 2, 3],
    R1=1.0, R2=2.0, L1=2.0, L2=0.8);
 
 d4 = FL2D.ellipse(
@@ -87,7 +146,7 @@ d4 = FL2D.ellipse(
 
 d5 = FL2D.ellipse(
    b=[6, 6, 6, 6, 6],
-   a=[3, 3, 3, 3, 4],
+   a=[3, 3, 3, 3, 5],
    R1=1.0, R2=2.0, L1=2.0, L2=0.8);
    
 
@@ -161,7 +220,7 @@ end
 
 # =============================================
 # Ellipse direct runs
-# Assuming run_one_ellipse!, d1, d2, d3, d4, d5 are already defined.
+# run_one_ellipse!, d1, d2, d3, d4, d5 must be in scope.
 # =============================================
 
 open("ellipse_outputs0999_direct.txt", "w") do io
@@ -179,8 +238,11 @@ open("ellipse_outputs0999_direct.txt", "w") do io
       (dom=d2, N=12, nₚᵣ=128),
       (dom=d2, N=12, nₚᵣ=256),
       (dom=d3, N=12, nₚᵣ=256),
+      (dom=d3, N=12, nₚᵣ=512),
+      (dom=d3, N=12, nₚᵣ=1024),
       (dom=d4, N=12, nₚᵣ=256),
       (dom=d4, N=12, nₚᵣ=512),
+      (dom=d4, N=12, nₚᵣ=1024),
    ]
 
    for case in cases
@@ -204,11 +266,13 @@ open("ellipse_outputs0990_direct.txt", "w") do io
    cases = [
       (dom=d1, N=10, nₚᵣ=128),
       (dom=d1, N=12, nₚᵣ=128),
-      (dom=d2, N=12, nₚᵣ=256),
+      (dom=d2, N=12, nₚᵣ=128),
+
+      (dom=d3, N=10, nₚᵣ=256),
+      (dom=d3, N=10, nₚᵣ=512),
       (dom=d3, N=12, nₚᵣ=256),
-      (dom=d4, N=10, nₚᵣ=128),
-      (dom=d4, N=12, nₚᵣ=128),
-      (dom=d4, N=10, nₚᵣ=256),
+      (dom=d3, N=12, nₚᵣ=512),
+
       (dom=d4, N=12, nₚᵣ=256),
       (dom=d4, N=12, nₚᵣ=512),
    ]
@@ -235,10 +299,18 @@ open("ellipse_outputs0900_direct.txt", "w") do io
       (dom=d1, N=10, nₚᵣ=128),
       (dom=d1, N=12, nₚᵣ=128),
       (dom=d2, N=12, nₚᵣ=128),
+
+      (dom=d3, N=10, nₚᵣ=128),
+      (dom=d3, N=10, nₚᵣ=256),
+      (dom=d3, N=10, nₚᵣ=512),
       (dom=d3, N=12, nₚᵣ=128),
+      (dom=d3, N=12, nₚᵣ=256),
+      (dom=d3, N=12, nₚᵣ=512),
+
       (dom=d4, N=10, nₚᵣ=128),
-      (dom=d4, N=12, nₚᵣ=128),
       (dom=d4, N=10, nₚᵣ=256),
+      (dom=d4, N=10, nₚᵣ=512),
+      (dom=d4, N=12, nₚᵣ=128),
       (dom=d4, N=12, nₚᵣ=256),
       (dom=d4, N=12, nₚᵣ=512),
    ]
@@ -265,10 +337,15 @@ open("ellipse_outputs0750_direct.txt", "w") do io
       (dom=d1, N=10, nₚᵣ=128),
       (dom=d1, N=12, nₚᵣ=128),
       (dom=d2, N=12, nₚᵣ=128),
+
+      (dom=d3, N=10, nₚᵣ=128),
+      (dom=d3, N=10, nₚᵣ=256),
       (dom=d3, N=12, nₚᵣ=128),
+      (dom=d3, N=12, nₚᵣ=256),
+
       (dom=d4, N=10, nₚᵣ=128),
-      (dom=d4, N=12, nₚᵣ=128),
       (dom=d4, N=10, nₚᵣ=256),
+      (dom=d4, N=12, nₚᵣ=128),
       (dom=d4, N=12, nₚᵣ=256),
    ]
 
@@ -294,10 +371,15 @@ open("ellipse_outputs0500_direct.txt", "w") do io
       (dom=d1, N=10, nₚᵣ=128),
       (dom=d1, N=12, nₚᵣ=128),
       (dom=d2, N=12, nₚᵣ=128),
+
+      (dom=d3, N=10, nₚᵣ=128),
+      (dom=d3, N=10, nₚᵣ=256),
       (dom=d3, N=12, nₚᵣ=128),
+      (dom=d3, N=12, nₚᵣ=256),
+
       (dom=d4, N=10, nₚᵣ=128),
-      (dom=d4, N=12, nₚᵣ=128),
       (dom=d4, N=10, nₚᵣ=256),
+      (dom=d4, N=12, nₚᵣ=128),
       (dom=d4, N=12, nₚᵣ=256),
    ]
 
@@ -308,4 +390,125 @@ open("ellipse_outputs0500_direct.txt", "w") do io
    println(io, "\n==End of Ellipse==")
    println(io, "Run finished: ", Dates.now())
    flush(io)
+end
+
+#-------------- For showing table ------------------
+open("ellipse_outputs0500_show.txt", "w") do io
+
+   s, p = 0.5, 4
+
+   println(io, "Run started: ", Dates.now())
+   println(io, "s = ", s)
+   println(io, "p = ", p)
+   flush(io)
+
+   cases = [
+      (dom=d1, N=3, nₚᵣ=32, benchmark=true, cond_num=true),
+      (dom=d1, N=4, nₚᵣ=32, benchmark=true, cond_num=true),
+      (dom=d1, N=5, nₚᵣ=32, benchmark=true, cond_num=true),
+      (dom=d1, N=6, nₚᵣ=32, benchmark=true, cond_num=true),
+      (dom=d1, N=7, nₚᵣ=64, benchmark=true, cond_num=true),
+      (dom=d1, N=8, nₚᵣ=64, benchmark=true, cond_num=true),
+      (dom=d1, N=10, nₚᵣ=64, benchmark=true, cond_num=true),
+      (dom=d1, N=12, nₚᵣ=128, benchmark=true, cond_num=true), 
+      
+      (dom=d2, N=10, nₚᵣ=128, benchmark=true, cond_num=true),
+      (dom=d2, N=12, nₚᵣ=128, benchmark=true, cond_num=true), 
+      
+      (dom=d3, N=10, nₚᵣ=128, benchmark=true, cond_num=true),
+      (dom=d3, N=12, nₚᵣ=128, benchmark=true, cond_num=true), 
+      
+      (dom=d4, N=10, nₚᵣ=128, benchmark=true, cond_num=true),
+      (dom=d4, N=10, nₚᵣ=256, benchmark=true, cond_num=true),
+      (dom=d4, N=12, nₚᵣ=128, benchmark=true, cond_num=true),
+      (dom=d4, N=12, nₚᵣ=256, benchmark=true, cond_num=true),
+   ]
+
+   for case in cases
+      run_one_ellipse!(io, case; s=s, p=p, nJac=2)
+      flush(io)
+   end
+
+   println(io, "\n==End of Ellipse==")
+   println(io, "Run finished: ", Dates.now())
+   flush(io)
+end
+
+#For plotting the above solution in high resolution!
+s, p = 0.5, 4;
+case = (dom=d4, N=12, nₚᵣ=128, plot=true);
+run_one_ellipse!(case; s=s, p=p, nJac=2);
+
+open("ellipse_outputs0250_direct.txt", "w") do io
+
+   s, p = 0.25, 4
+
+   println(io, "Run started: ", Dates.now())
+   println(io, "s = ", s)
+   println(io, "p = ", p)
+   flush(io)
+
+   cases = [
+      (dom=d1, N=10, nₚᵣ=128),
+      (dom=d1, N=12, nₚᵣ=128),
+      (dom=d2, N=12, nₚᵣ=128),
+
+      (dom=d3, N=10, nₚᵣ=128),
+      (dom=d3, N=10, nₚᵣ=256),
+      (dom=d3, N=12, nₚᵣ=128),
+      (dom=d3, N=12, nₚᵣ=256),
+
+      (dom=d4, N=10, nₚᵣ=128),
+      (dom=d4, N=10, nₚᵣ=256),
+      (dom=d4, N=12, nₚᵣ=128),
+      (dom=d4, N=12, nₚᵣ=256),
+   ]
+
+   for case in cases
+      run_one_ellipse!(io, case; s=s, p=p, nJac=2)
+   end
+
+   println(io, "\n==End of Ellipse==")
+   println(io, "Run finished: ", Dates.now())
+   flush(io)
+end
+
+#From this point on, s_small is true
+case_specs = [
+   (dom=d1, N=10, nₚᵣ=128), 
+   (dom=d1, N=12, nₚᵣ=128),
+   (dom=d2, N=10, nₚᵣ=128), 
+   (dom=d2, N=12, nₚᵣ=128),
+   (dom=d3, N=10, nₚᵣ=128), 
+   (dom=d3, N=12, nₚᵣ=128), 
+   (dom=d4, N=12, nₚᵣ=128),
+];
+
+#Small s algorithm comparison
+small_true_opts = (solver=:direct, matrixfree=false, benchmark=false, cond_num=true, s_small=true);
+small_true_cases = [(; c..., small_true_opts...) for c in case_specs];
+
+for (s, p, tag) in [
+   (0.25, 4, "0250"),
+   (0.10, 4, "0100"),
+   (0.01, 4, "0010"),
+   (1e-3, 4, "1e-3"),
+   (1e-4, 4, "1e-4"),
+   (1e-8, 4, "1e-8"),
+   (1e-16, 4, "1e-16"),]
+
+   open("ellipse_outputs$(tag)_s_small_true.txt", "w") do io
+      println(io, "Run started: ", Dates.now())
+      println(io, "s = ", s)
+      println(io, "p = ", p)
+      flush(io)
+
+      for case in small_true_cases
+         run_one_ellipse!(io, case; s=s, p=p, nJac=2)
+      end
+
+      println(io, "\n==End of Ellipse: s_small=true==")
+      println(io, "Run finished: ", Dates.now())
+      flush(io)
+   end
 end

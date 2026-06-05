@@ -18,7 +18,7 @@ export makebeanfuex
 export makestarfuex
 export makeellipseNhfuex
 
-using SpecialFunctions: gamma
+using SpecialFunctions: gamma, loggamma
 using HypergeometricFunctions: pFq
 
 function jacobi(x::Float64, n::Int, a::Float64, b::Float64)
@@ -48,7 +48,8 @@ function jacobi(x::Float64, n::Int, a::Float64, b::Float64)
 end
 
 @inline function jacobiC(n::Int, s::Float64)
-   return (2.0^(2s) * gamma(1.0 + s + n)^2) / gamma(n + 1)^2
+   return exp(2s * log(2.0) + 2 * (loggamma(1.0 + s + n) - loggamma(n + 1.0)))
+   #return (2.0^(2s) * gamma(1.0 + s + n)^2) / gamma(n + 1)^2
 end
 
 function makediscfuex(n::Int, s::Float64)

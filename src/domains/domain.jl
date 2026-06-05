@@ -1137,9 +1137,9 @@ function chkmap_geom(d::D, Iex::Float64; n::Int = 32, tol::Float64 = 5e-14) wher
     err = abs(Iex - I)
 
     if err < tol
-        println("Okay!")
+        println("Mappings and jacobian fine!")
     else
-        println("Bug!")
+        println("Bug in Mappings or jacobian!")
     end
 
     println("Integral approx: \n", I)
